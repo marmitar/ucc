@@ -1,0 +1,10 @@
+LexToken(INT,'int',1,0)
+LexToken(ID,'ma',1,4)
+Lexical error: Illegal character '$' at 1:7
+LexToken(ID,'in',1,7)
+LexToken(LPAREN,'(',1,9)
+LexToken(RPAREN,')',1,10)
+LexToken(LBRACE,'{',1,11)
+LexToken(RETURN,'return',2,17)
+LexToken(SEMI,';',2,23)
+LexToken(RBRACE,'}',3,25)

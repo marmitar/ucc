@@ -1,0 +1,230 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_OUTPUT_EXCMD	mixed	/number, pattern, mixed, or combineV2/
+!_TAG_OUTPUT_FILESEP	slash	/slash or backslash/
+!_TAG_OUTPUT_MODE	u-ctags	/u-ctags or e-ctags/
+!_TAG_PATTERN_LENGTH_LIMIT	96	/0 for no limit/
+!_TAG_PROC_CWD	/Users/marcio/PycharmProjects/unicamp/lexer-template/	//
+!_TAG_PROGRAM_AUTHOR	Universal Ctags Team	//
+!_TAG_PROGRAM_NAME	Universal Ctags	/Derived from Exuberant Ctags/
+!_TAG_PROGRAM_URL	https://ctags.io/	/official site/
+!_TAG_PROGRAM_VERSION	5.9.0	/47ccdcc/
+0	.github/classroom/autograding.json	/^      {$/;"	o	array:tests
+1	.github/classroom/autograding.json	/^      {$/;"	o	array:tests
+10	.github/classroom/autograding.json	/^      {$/;"	o	array:tests
+11	.github/classroom/autograding.json	/^      {$/;"	o	array:tests
+12	.github/classroom/autograding.json	/^      {$/;"	o	array:tests
+13	.github/classroom/autograding.json	/^      {$/;"	o	array:tests
+14	.github/classroom/autograding.json	/^      {$/;"	o	array:tests
+15	.github/classroom/autograding.json	/^      {$/;"	o	array:tests
+16	.github/classroom/autograding.json	/^      {$/;"	o	array:tests
+17	.github/classroom/autograding.json	/^      {$/;"	o	array:tests
+18	.github/classroom/autograding.json	/^      {$/;"	o	array:tests
+19	.github/classroom/autograding.json	/^      {$/;"	o	array:tests
+2	.github/classroom/autograding.json	/^      {$/;"	o	array:tests
+3	.github/classroom/autograding.json	/^      {$/;"	o	array:tests
+4	.github/classroom/autograding.json	/^      {$/;"	o	array:tests
+5	.github/classroom/autograding.json	/^      {$/;"	o	array:tests
+6	.github/classroom/autograding.json	/^      {$/;"	o	array:tests
+7	.github/classroom/autograding.json	/^      {$/;"	o	array:tests
+8	.github/classroom/autograding.json	/^      {$/;"	o	array:tests
+9	.github/classroom/autograding.json	/^      {$/;"	o	array:tests
+About	README.md	/^## About$/;"	s	chapter:Lexer
+Contribute	README.md	/^## Contribute$/;"	s	chapter:Lexer
+Grading	README.md	/^## Grading$/;"	s	chapter:Lexer
+Lexer	README.md	/^# Lexer$/;"	c
+Linting and Formatting	README.md	/^### Linting and Formatting$/;"	S	section:Lexer""Testing with Pytest
+Questions	README.md	/^## Questions$/;"	s	chapter:Lexer
+Requirements	README.md	/^## Requirements$/;"	s	chapter:Lexer
+Running	README.md	/^## Running$/;"	s	chapter:Lexer
+Tasks	README.md	/^## Tasks$/;"	s	chapter:Lexer
+Testing with Pytest	README.md	/^## Testing with Pytest$/;"	s	chapter:Lexer
+UCLexer	uc/uc_lexer.py	/^class UCLexer:$/;"	c
+__init__	uc/uc_lexer.py	/^    def __init__(self, error_func):$/;"	m	class:UCLexer
+_error	uc/uc_lexer.py	/^    def _error(self, msg, token):$/;"	m	class:UCLexer
+_make_tok_location	uc/uc_lexer.py	/^    def _make_tok_location(self, token):$/;"	m	class:UCLexer
+args	uc/uc_lexer.py	/^    args = parser.parse_args()$/;"	v
+build	uc/uc_lexer.py	/^    def build(self, **kwargs):$/;"	m	class:UCLexer
+comparison	.github/classroom/autograding.json	/^        "comparison": "included",$/;"	s	object:tests.0
+comparison	.github/classroom/autograding.json	/^        "comparison": "included",$/;"	s	object:tests.1
+comparison	.github/classroom/autograding.json	/^        "comparison": "included",$/;"	s	object:tests.10
+comparison	.github/classroom/autograding.json	/^        "comparison": "included",$/;"	s	object:tests.11
+comparison	.github/classroom/autograding.json	/^        "comparison": "included",$/;"	s	object:tests.12
+comparison	.github/classroom/autograding.json	/^        "comparison": "included",$/;"	s	object:tests.13
+comparison	.github/classroom/autograding.json	/^        "comparison": "included",$/;"	s	object:tests.14
+comparison	.github/classroom/autograding.json	/^        "comparison": "included",$/;"	s	object:tests.15
+comparison	.github/classroom/autograding.json	/^        "comparison": "included",$/;"	s	object:tests.16
+comparison	.github/classroom/autograding.json	/^        "comparison": "included",$/;"	s	object:tests.17
+comparison	.github/classroom/autograding.json	/^        "comparison": "included",$/;"	s	object:tests.18
+comparison	.github/classroom/autograding.json	/^        "comparison": "included",$/;"	s	object:tests.19
+comparison	.github/classroom/autograding.json	/^        "comparison": "included",$/;"	s	object:tests.2
+comparison	.github/classroom/autograding.json	/^        "comparison": "included",$/;"	s	object:tests.3
+comparison	.github/classroom/autograding.json	/^        "comparison": "included",$/;"	s	object:tests.4
+comparison	.github/classroom/autograding.json	/^        "comparison": "included",$/;"	s	object:tests.5
+comparison	.github/classroom/autograding.json	/^        "comparison": "included",$/;"	s	object:tests.6
+comparison	.github/classroom/autograding.json	/^        "comparison": "included",$/;"	s	object:tests.7
+comparison	.github/classroom/autograding.json	/^        "comparison": "included",$/;"	s	object:tests.8
+comparison	.github/classroom/autograding.json	/^        "comparison": "included",$/;"	s	object:tests.9
+find_tok_column	uc/uc_lexer.py	/^    def find_tok_column(self, token):$/;"	m	class:UCLexer
+input	.github/classroom/autograding.json	/^        "input": "",$/;"	s	object:tests.0
+input	.github/classroom/autograding.json	/^        "input": "",$/;"	s	object:tests.1
+input	.github/classroom/autograding.json	/^        "input": "",$/;"	s	object:tests.10
+input	.github/classroom/autograding.json	/^        "input": "",$/;"	s	object:tests.11
+input	.github/classroom/autograding.json	/^        "input": "",$/;"	s	object:tests.12
+input	.github/classroom/autograding.json	/^        "input": "",$/;"	s	object:tests.13
+input	.github/classroom/autograding.json	/^        "input": "",$/;"	s	object:tests.14
+input	.github/classroom/autograding.json	/^        "input": "",$/;"	s	object:tests.15
+input	.github/classroom/autograding.json	/^        "input": "",$/;"	s	object:tests.16
+input	.github/classroom/autograding.json	/^        "input": "",$/;"	s	object:tests.17
+input	.github/classroom/autograding.json	/^        "input": "",$/;"	s	object:tests.18
+input	.github/classroom/autograding.json	/^        "input": "",$/;"	s	object:tests.19
+input	.github/classroom/autograding.json	/^        "input": "",$/;"	s	object:tests.2
+input	.github/classroom/autograding.json	/^        "input": "",$/;"	s	object:tests.3
+input	.github/classroom/autograding.json	/^        "input": "",$/;"	s	object:tests.4
+input	.github/classroom/autograding.json	/^        "input": "",$/;"	s	object:tests.5
+input	.github/classroom/autograding.json	/^        "input": "",$/;"	s	object:tests.6
+input	.github/classroom/autograding.json	/^        "input": "",$/;"	s	object:tests.7
+input	.github/classroom/autograding.json	/^        "input": "",$/;"	s	object:tests.8
+input	.github/classroom/autograding.json	/^        "input": "",$/;"	s	object:tests.9
+input	uc/uc_lexer.py	/^    def input(self, text):$/;"	m	class:UCLexer
+input_file	uc/uc_lexer.py	/^    input_file = args.input_file$/;"	v
+input_path	uc/uc_lexer.py	/^    input_path = pathlib.Path(input_file)$/;"	v
+keyword_map	uc/uc_lexer.py	/^    keyword_map = {}$/;"	v	class:UCLexer
+keywords	uc/uc_lexer.py	/^    keywords = ($/;"	v	class:UCLexer
+lex	uc/uc_lexer.py	/^import ply.lex as lex$/;"	I	nameref:module:ply.lex
+m	uc/uc_lexer.py	/^    m = UCLexer(print_error)$/;"	v
+name	.github/classroom/autograding.json	/^        "name": "Test 01",$/;"	s	object:tests.0
+name	.github/classroom/autograding.json	/^        "name": "Test 02",$/;"	s	object:tests.1
+name	.github/classroom/autograding.json	/^        "name": "Test 03",$/;"	s	object:tests.2
+name	.github/classroom/autograding.json	/^        "name": "Test 04",$/;"	s	object:tests.3
+name	.github/classroom/autograding.json	/^        "name": "Test 05",$/;"	s	object:tests.4
+name	.github/classroom/autograding.json	/^        "name": "Test 06",$/;"	s	object:tests.5
+name	.github/classroom/autograding.json	/^        "name": "Test 07",$/;"	s	object:tests.6
+name	.github/classroom/autograding.json	/^        "name": "Test 08",$/;"	s	object:tests.7
+name	.github/classroom/autograding.json	/^        "name": "Test 09",$/;"	s	object:tests.8
+name	.github/classroom/autograding.json	/^        "name": "Test 10",$/;"	s	object:tests.9
+name	.github/classroom/autograding.json	/^        "name": "Test 11",$/;"	s	object:tests.10
+name	.github/classroom/autograding.json	/^        "name": "Test 12",$/;"	s	object:tests.11
+name	.github/classroom/autograding.json	/^        "name": "Test 13",$/;"	s	object:tests.12
+name	.github/classroom/autograding.json	/^        "name": "Test 14",$/;"	s	object:tests.13
+name	.github/classroom/autograding.json	/^        "name": "Test 15",$/;"	s	object:tests.14
+name	.github/classroom/autograding.json	/^        "name": "Test 16",$/;"	s	object:tests.15
+name	.github/classroom/autograding.json	/^        "name": "Test 17",$/;"	s	object:tests.16
+name	.github/classroom/autograding.json	/^        "name": "Test 18",$/;"	s	object:tests.17
+name	.github/classroom/autograding.json	/^        "name": "Test 19",$/;"	s	object:tests.18
+name	.github/classroom/autograding.json	/^        "name": "Test 20",$/;"	s	object:tests.19
+output	.github/classroom/autograding.json	/^        "output": "",$/;"	s	object:tests.0
+output	.github/classroom/autograding.json	/^        "output": "",$/;"	s	object:tests.1
+output	.github/classroom/autograding.json	/^        "output": "",$/;"	s	object:tests.10
+output	.github/classroom/autograding.json	/^        "output": "",$/;"	s	object:tests.11
+output	.github/classroom/autograding.json	/^        "output": "",$/;"	s	object:tests.12
+output	.github/classroom/autograding.json	/^        "output": "",$/;"	s	object:tests.13
+output	.github/classroom/autograding.json	/^        "output": "",$/;"	s	object:tests.14
+output	.github/classroom/autograding.json	/^        "output": "",$/;"	s	object:tests.15
+output	.github/classroom/autograding.json	/^        "output": "",$/;"	s	object:tests.16
+output	.github/classroom/autograding.json	/^        "output": "",$/;"	s	object:tests.17
+output	.github/classroom/autograding.json	/^        "output": "",$/;"	s	object:tests.18
+output	.github/classroom/autograding.json	/^        "output": "",$/;"	s	object:tests.19
+output	.github/classroom/autograding.json	/^        "output": "",$/;"	s	object:tests.2
+output	.github/classroom/autograding.json	/^        "output": "",$/;"	s	object:tests.3
+output	.github/classroom/autograding.json	/^        "output": "",$/;"	s	object:tests.4
+output	.github/classroom/autograding.json	/^        "output": "",$/;"	s	object:tests.5
+output	.github/classroom/autograding.json	/^        "output": "",$/;"	s	object:tests.6
+output	.github/classroom/autograding.json	/^        "output": "",$/;"	s	object:tests.7
+output	.github/classroom/autograding.json	/^        "output": "",$/;"	s	object:tests.8
+output	.github/classroom/autograding.json	/^        "output": "",$/;"	s	object:tests.9
+parser	uc/uc_lexer.py	/^    parser = argparse.ArgumentParser()$/;"	v
+points	.github/classroom/autograding.json	/^        "points": 0.5$/;"	n	object:tests.0
+points	.github/classroom/autograding.json	/^        "points": 0.5$/;"	n	object:tests.1
+points	.github/classroom/autograding.json	/^        "points": 0.5$/;"	n	object:tests.10
+points	.github/classroom/autograding.json	/^        "points": 0.5$/;"	n	object:tests.11
+points	.github/classroom/autograding.json	/^        "points": 0.5$/;"	n	object:tests.12
+points	.github/classroom/autograding.json	/^        "points": 0.5$/;"	n	object:tests.13
+points	.github/classroom/autograding.json	/^        "points": 0.5$/;"	n	object:tests.14
+points	.github/classroom/autograding.json	/^        "points": 0.5$/;"	n	object:tests.15
+points	.github/classroom/autograding.json	/^        "points": 0.5$/;"	n	object:tests.16
+points	.github/classroom/autograding.json	/^        "points": 0.5$/;"	n	object:tests.17
+points	.github/classroom/autograding.json	/^        "points": 0.5$/;"	n	object:tests.18
+points	.github/classroom/autograding.json	/^        "points": 0.5$/;"	n	object:tests.19
+points	.github/classroom/autograding.json	/^        "points": 0.5$/;"	n	object:tests.2
+points	.github/classroom/autograding.json	/^        "points": 0.5$/;"	n	object:tests.3
+points	.github/classroom/autograding.json	/^        "points": 0.5$/;"	n	object:tests.4
+points	.github/classroom/autograding.json	/^        "points": 0.5$/;"	n	object:tests.5
+points	.github/classroom/autograding.json	/^        "points": 0.5$/;"	n	object:tests.6
+points	.github/classroom/autograding.json	/^        "points": 0.5$/;"	n	object:tests.7
+points	.github/classroom/autograding.json	/^        "points": 0.5$/;"	n	object:tests.8
+points	.github/classroom/autograding.json	/^        "points": 0.5$/;"	n	object:tests.9
+print_error	tests/test_lexer.py	/^    def print_error(msg, x, y):$/;"	f	function:test_lexer	file:
+print_error	uc/uc_lexer.py	/^    def print_error(msg, x, y):$/;"	f
+reset_lineno	uc/uc_lexer.py	/^    def reset_lineno(self):$/;"	m	class:UCLexer
+resolve_test_files	tests/test_lexer.py	/^def resolve_test_files(test_name):$/;"	f
+run	.github/classroom/autograding.json	/^        "run": "pytest --tb=short -q tests\/test_lexer.py::test_lexer -k t01",$/;"	s	object:tests.0
+run	.github/classroom/autograding.json	/^        "run": "pytest --tb=short -q tests\/test_lexer.py::test_lexer -k t02",$/;"	s	object:tests.1
+run	.github/classroom/autograding.json	/^        "run": "pytest --tb=short -q tests\/test_lexer.py::test_lexer -k t03",$/;"	s	object:tests.2
+run	.github/classroom/autograding.json	/^        "run": "pytest --tb=short -q tests\/test_lexer.py::test_lexer -k t04",$/;"	s	object:tests.3
+run	.github/classroom/autograding.json	/^        "run": "pytest --tb=short -q tests\/test_lexer.py::test_lexer -k t05",$/;"	s	object:tests.4
+run	.github/classroom/autograding.json	/^        "run": "pytest --tb=short -q tests\/test_lexer.py::test_lexer -k t06",$/;"	s	object:tests.5
+run	.github/classroom/autograding.json	/^        "run": "pytest --tb=short -q tests\/test_lexer.py::test_lexer -k t07",$/;"	s	object:tests.6
+run	.github/classroom/autograding.json	/^        "run": "pytest --tb=short -q tests\/test_lexer.py::test_lexer -k t08",$/;"	s	object:tests.7
+run	.github/classroom/autograding.json	/^        "run": "pytest --tb=short -q tests\/test_lexer.py::test_lexer -k t09",$/;"	s	object:tests.8
+run	.github/classroom/autograding.json	/^        "run": "pytest --tb=short -q tests\/test_lexer.py::test_lexer -k t10",$/;"	s	object:tests.9
+run	.github/classroom/autograding.json	/^        "run": "pytest --tb=short -q tests\/test_lexer.py::test_lexer -k t11",$/;"	s	object:tests.10
+run	.github/classroom/autograding.json	/^        "run": "pytest --tb=short -q tests\/test_lexer.py::test_lexer -k t12",$/;"	s	object:tests.11
+run	.github/classroom/autograding.json	/^        "run": "pytest --tb=short -q tests\/test_lexer.py::test_lexer -k t13",$/;"	s	object:tests.12
+run	.github/classroom/autograding.json	/^        "run": "pytest --tb=short -q tests\/test_lexer.py::test_lexer -k t14",$/;"	s	object:tests.13
+run	.github/classroom/autograding.json	/^        "run": "pytest --tb=short -q tests\/test_lexer.py::test_lexer -k t15",$/;"	s	object:tests.14
+run	.github/classroom/autograding.json	/^        "run": "pytest --tb=short -q tests\/test_lexer.py::test_lexer -k t16",$/;"	s	object:tests.15
+run	.github/classroom/autograding.json	/^        "run": "pytest --tb=short -q tests\/test_lexer.py::test_lexer -k t17",$/;"	s	object:tests.16
+run	.github/classroom/autograding.json	/^        "run": "pytest --tb=short -q tests\/test_lexer.py::test_lexer -k t18",$/;"	s	object:tests.17
+run	.github/classroom/autograding.json	/^        "run": "pytest --tb=short -q tests\/test_lexer.py::test_lexer -k t19",$/;"	s	object:tests.18
+run	.github/classroom/autograding.json	/^        "run": "pytest --tb=short -q tests\/test_lexer.py::test_lexer -k t20",$/;"	s	object:tests.19
+scan	uc/uc_lexer.py	/^    def scan(self, data):$/;"	m	class:UCLexer
+setup	.github/classroom/autograding.json	/^        "setup": "",$/;"	s	object:tests.0
+setup	.github/classroom/autograding.json	/^        "setup": "",$/;"	s	object:tests.1
+setup	.github/classroom/autograding.json	/^        "setup": "",$/;"	s	object:tests.10
+setup	.github/classroom/autograding.json	/^        "setup": "",$/;"	s	object:tests.11
+setup	.github/classroom/autograding.json	/^        "setup": "",$/;"	s	object:tests.12
+setup	.github/classroom/autograding.json	/^        "setup": "",$/;"	s	object:tests.13
+setup	.github/classroom/autograding.json	/^        "setup": "",$/;"	s	object:tests.14
+setup	.github/classroom/autograding.json	/^        "setup": "",$/;"	s	object:tests.15
+setup	.github/classroom/autograding.json	/^        "setup": "",$/;"	s	object:tests.16
+setup	.github/classroom/autograding.json	/^        "setup": "",$/;"	s	object:tests.17
+setup	.github/classroom/autograding.json	/^        "setup": "",$/;"	s	object:tests.18
+setup	.github/classroom/autograding.json	/^        "setup": "",$/;"	s	object:tests.19
+setup	.github/classroom/autograding.json	/^        "setup": "",$/;"	s	object:tests.2
+setup	.github/classroom/autograding.json	/^        "setup": "",$/;"	s	object:tests.3
+setup	.github/classroom/autograding.json	/^        "setup": "",$/;"	s	object:tests.4
+setup	.github/classroom/autograding.json	/^        "setup": "",$/;"	s	object:tests.5
+setup	.github/classroom/autograding.json	/^        "setup": "",$/;"	s	object:tests.6
+setup	.github/classroom/autograding.json	/^        "setup": "",$/;"	s	object:tests.7
+setup	.github/classroom/autograding.json	/^        "setup": "",$/;"	s	object:tests.8
+setup	.github/classroom/autograding.json	/^        "setup": "",$/;"	s	object:tests.9
+t_ID	uc/uc_lexer.py	/^    def t_ID(self, t):$/;"	m	class:UCLexer
+t_NEWLINE	uc/uc_lexer.py	/^    def t_NEWLINE(self, t):$/;"	m	class:UCLexer
+t_comment	uc/uc_lexer.py	/^    def t_comment(self, t):$/;"	m	class:UCLexer
+t_error	uc/uc_lexer.py	/^    def t_error(self, t):$/;"	m	class:UCLexer
+t_ignore	uc/uc_lexer.py	/^    t_ignore = " \\t"$/;"	v	class:UCLexer
+test_lexer	tests/test_lexer.py	/^def test_lexer(test_name, capfd):$/;"	f
+tests	.github/classroom/autograding.json	/^    "tests": [$/;"	a
+timeout	.github/classroom/autograding.json	/^        "timeout": 2,$/;"	n	object:tests.0
+timeout	.github/classroom/autograding.json	/^        "timeout": 2,$/;"	n	object:tests.1
+timeout	.github/classroom/autograding.json	/^        "timeout": 2,$/;"	n	object:tests.10
+timeout	.github/classroom/autograding.json	/^        "timeout": 2,$/;"	n	object:tests.11
+timeout	.github/classroom/autograding.json	/^        "timeout": 2,$/;"	n	object:tests.12
+timeout	.github/classroom/autograding.json	/^        "timeout": 2,$/;"	n	object:tests.13
+timeout	.github/classroom/autograding.json	/^        "timeout": 2,$/;"	n	object:tests.14
+timeout	.github/classroom/autograding.json	/^        "timeout": 2,$/;"	n	object:tests.15
+timeout	.github/classroom/autograding.json	/^        "timeout": 2,$/;"	n	object:tests.16
+timeout	.github/classroom/autograding.json	/^        "timeout": 2,$/;"	n	object:tests.17
+timeout	.github/classroom/autograding.json	/^        "timeout": 2,$/;"	n	object:tests.18
+timeout	.github/classroom/autograding.json	/^        "timeout": 2,$/;"	n	object:tests.19
+timeout	.github/classroom/autograding.json	/^        "timeout": 2,$/;"	n	object:tests.2
+timeout	.github/classroom/autograding.json	/^        "timeout": 2,$/;"	n	object:tests.3
+timeout	.github/classroom/autograding.json	/^        "timeout": 2,$/;"	n	object:tests.4
+timeout	.github/classroom/autograding.json	/^        "timeout": 2,$/;"	n	object:tests.5
+timeout	.github/classroom/autograding.json	/^        "timeout": 2,$/;"	n	object:tests.6
+timeout	.github/classroom/autograding.json	/^        "timeout": 2,$/;"	n	object:tests.7
+timeout	.github/classroom/autograding.json	/^        "timeout": 2,$/;"	n	object:tests.8
+timeout	.github/classroom/autograding.json	/^        "timeout": 2,$/;"	n	object:tests.9
+token	uc/uc_lexer.py	/^    def token(self):$/;"	m	class:UCLexer
+tokens	uc/uc_lexer.py	/^    tokens = keywords + ($/;"	v	class:UCLexer
