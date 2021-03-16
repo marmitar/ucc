@@ -1,0 +1,4 @@
+int main(){
+    /* This do nothing
+    return 0;
+}
