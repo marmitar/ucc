@@ -182,6 +182,11 @@ class UCLexer:
         # must came after 't_STRING_LITERAL'
         self._error("Unquoted string", t)
 
+    def t_unterminated_comment(self, t):
+        r"/\*.*"
+        # must came after 't_comment'
+        self._error("Unterminated comment", t)
+
     def t_error(self, t):
         msg = "Illegal character %s" % repr(t.value[0])
         self._error(msg, t)
