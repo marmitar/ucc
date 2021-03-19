@@ -176,6 +176,12 @@ class UCLexer:
         r"(/\*.*?\*/)|(//.*?$)"
         t.lexer.lineno += t.value.count("\n")
 
+    # errors
+    def t_unquoted_string(self, t):
+        r"\"(.|\\.)*"
+        # must came after 't_STRING_LITERAL'
+        self._error("Unquoted string", t)
+
     def t_error(self, t):
         msg = "Illegal character %s" % repr(t.value[0])
         self._error(msg, t)
