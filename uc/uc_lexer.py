@@ -162,15 +162,15 @@ class UCLexer:
         t.value = t.value[1:-1]
         return t
 
-    # Newlines
-    def t_NEWLINE(self, t):
-        r"\n+"
-        t.lexer.lineno += t.value.count("\n")
-
     def t_ID(self, t):
         r"[^\d\W]\w*"
         t.type = self.keyword_map.get(t.value, "ID")
         return t
+
+    # newlines
+    def t_NEWLINE(self, t):
+        r"\n+"
+        t.lexer.lineno += t.value.count("\n")
 
     def t_comment(self, t):
         r"(/\*.*?\*/)|(//.*?$)"
