@@ -92,7 +92,14 @@ class UCLexer:
         "LBRACE",
         "RBRACE",
         "LBRACKET",
-        "RBRACKET"
+        "RBRACKET",
+        # comparators
+        "EQ",
+        "NE",
+        "LT",
+        "GT",
+        "LE",
+        "GE"
     )
 
     #
@@ -107,6 +114,14 @@ class UCLexer:
     t_RBRACE = r"\}"
     t_LBRACKET = r"\["
     t_RBRACKET = r"\]"
+
+    # comparators
+    t_EQ = r"=="
+    t_NE = r"!="
+    t_LT = r"<"
+    t_GT = r">"
+    t_LE = r"<="
+    t_GE = r">="
 
     # Newlines
     def t_NEWLINE(self, t):
