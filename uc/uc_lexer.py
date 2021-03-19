@@ -95,7 +95,7 @@ class UCLexer:
 
     # Newlines
     def t_NEWLINE(self, t):
-        # include a regex here for newline
+        r"\n+"
         t.lexer.lineno += t.value.count("\n")
 
     def t_ID(self, t):
