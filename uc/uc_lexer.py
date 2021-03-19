@@ -180,7 +180,7 @@ class UCLexer:
     def t_unquoted_string(self, t):
         r"\"(.|\\.)*"
         # must came after 't_STRING_LITERAL'
-        self._error("Unquoted string", t)
+        self._error("Unterminated string", t)
 
     def t_unterminated_comment(self, t):
         r"/\*.*"
