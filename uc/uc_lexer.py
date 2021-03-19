@@ -87,6 +87,7 @@ class UCLexer:
         # constants
         "INT_CONST",
         "STRING_LITERAL",
+        "CHAR_CONST",
         # delimiters
         "LPAREN",
         "RPAREN",
@@ -154,6 +155,7 @@ class UCLexer:
 
     # constants
     t_INT_CONST = r"\d((\d|_)*\d)?"
+    t_CHAR_CONST = r"\'(.|\\.)+?\'"
 
     def t_STRING_LITERAL(self, t):
         r'\"(.|\\.)*?\"'
