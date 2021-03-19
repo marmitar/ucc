@@ -168,7 +168,7 @@ class UCLexer:
         t.lexer.lineno += t.value.count("\n")
 
     def t_ID(self, t):
-        r"[a-zA-Z_][0-9a-zA-Z_]*"
+        r"[^\d\W]\w*"
         t.type = self.keyword_map.get(t.value, "ID")
         return t
 
