@@ -2,7 +2,7 @@
 
 The objective of this assignment is to implement a scanner for the uC language.
 Further instructions can be seen in this
-[link](https://github.com/MC921-2s20/notebooks-2s20/blob/master/P1-Lexer.ipynb).
+[link](https://github.com/MC921-1s21/notebooks-1s21/blob/master/P1-Lexer.ipynb).
 
 ## Tasks
 
