@@ -99,7 +99,17 @@ class UCLexer:
         "LT",
         "GT",
         "LE",
-        "GE"
+        "GE",
+        # operators
+        "EQUALS",
+        "PLUS",
+        "MOD",
+        "MINUS",
+        "TIMES",
+        "DIVIDE",
+        "AND",
+        "OR",
+        "NOT",
     )
 
     #
@@ -122,6 +132,17 @@ class UCLexer:
     t_GT = r">"
     t_LE = r"<="
     t_GE = r">="
+
+    # operators
+    t_EQUALS = r"="
+    t_PLUS = r"\+"
+    t_MOD = r"%"
+    t_MINUS = r"-"
+    t_TIMES = r"\*"
+    t_DIVIDE = r"/"
+    t_AND = r"&&"
+    t_OR = r"\|\|"
+    t_NOT = r"!"
 
     # Newlines
     def t_NEWLINE(self, t):
