@@ -70,7 +70,8 @@ for the rest of the code. Run both from the root of the repo:
 
 ### Using Pre-Commit Hooks
 
-Linting can be done automatically before every commit using [git hooks](https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks).
+Linting can be done automatically before every commit using
+[git hooks](https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks).
 Required pip packages:
 - pre-commit
 
