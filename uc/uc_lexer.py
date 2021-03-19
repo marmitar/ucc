@@ -86,6 +86,7 @@ class UCLexer:
         "ID",
         # constants
         "INT_CONST",
+        "STRING_LITERAL",
         # delimiters
         "LPAREN",
         "RPAREN",
@@ -151,8 +152,13 @@ class UCLexer:
     t_SEMI = r";"
     t_COMMA = r","
 
-    # const
+    # constants
     t_INT_CONST = r"\d((\d|_)*\d)?"
+
+    def t_STRING_LITERAL(self, t):
+        r'\"(.|\\.)*?\"'
+        t.value = t.value[1:-1]
+        return t
 
     # Newlines
     def t_NEWLINE(self, t):
