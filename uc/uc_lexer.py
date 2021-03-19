@@ -151,6 +151,9 @@ class UCLexer:
     t_SEMI = r";"
     t_COMMA = r","
 
+    # const
+    t_INT_CONST = r"\d((\d|_)*\d)?"
+
     # Newlines
     def t_NEWLINE(self, t):
         r"\n+"
