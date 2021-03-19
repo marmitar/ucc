@@ -86,12 +86,27 @@ class UCLexer:
         "ID",
         # constants
         "INT_CONST",
+        # delimiters
+        "LPAREN",
+        "RPAREN",
+        "LBRACE",
+        "RBRACE",
+        "LBRACKET",
+        "RBRACKET"
     )
 
     #
     # Rules
     #
     t_ignore = " \t"
+
+    # delimiters
+    t_LPAREN = r"\("
+    t_RPAREN = r"\)"
+    t_LBRACE = r"\{"
+    t_RBRACE = r"\}"
+    t_LBRACKET = r"\["
+    t_RBRACKET = r"\]"
 
     # Newlines
     def t_NEWLINE(self, t):
