@@ -30,7 +30,7 @@ class UCLexer:
         This method exists separately, because the PLY
         manual warns against calling lex.lex inside __init__
         """
-        flags = re.DOTALL | re.VERBOSE
+        flags = re.DOTALL | re.MULTILINE | re.VERBOSE
         self.lexer = lex.lex(object=self, reflags=flags, **kwargs)
 
     def reset_lineno(self):
@@ -104,7 +104,7 @@ class UCLexer:
         return t
 
     def t_comment(self, t):
-        # include a regex here for comment
+        r"(/\*.*?\*/)|(//.*?$)"
         t.lexer.lineno += t.value.count("\n")
 
     def t_error(self, t):
