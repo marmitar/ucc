@@ -156,7 +156,7 @@ class UCLexer:
     t_INT_CONST = r"\d((\d|_)*\d)?"
 
     def t_STRING_LITERAL(self, t):
-        r'\"(.|\\.)*?\"'
+        r"\"(.|\\.)*?\""
         t.value = t.value[1:-1]
         return t
 
