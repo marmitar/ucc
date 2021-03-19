@@ -110,6 +110,9 @@ class UCLexer:
         "AND",
         "OR",
         "NOT",
+        # punctuation
+        "SEMI",
+        "COMMA",
     )
 
     #
@@ -143,6 +146,10 @@ class UCLexer:
     t_AND = r"&&"
     t_OR = r"\|\|"
     t_NOT = r"!"
+
+    # punctuation
+    t_SEMI = r";"
+    t_COMMA = r","
 
     # Newlines
     def t_NEWLINE(self, t):
