@@ -1,5 +1,6 @@
 import argparse
 import pathlib
+import re
 import sys
 import ply.lex as lex
 
@@ -29,7 +30,8 @@ class UCLexer:
         This method exists separately, because the PLY
         manual warns against calling lex.lex inside __init__
         """
-        self.lexer = lex.lex(object=self, **kwargs)
+        flags = re.DOTALL | re.VERBOSE
+        self.lexer = lex.lex(object=self, reflags=flags, **kwargs)
 
     def reset_lineno(self):
         """Resets the internal line number counter of the lexer."""
