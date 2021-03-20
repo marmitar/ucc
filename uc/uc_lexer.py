@@ -177,14 +177,14 @@ class UCLexer:
         t.lexer.lineno += t.value.count("\n")
 
     # errors
-    def t_unquoted_string(self, t):
+    def t_unterminated_string(self, t):
         r"\"(.|\\.)*"
-        # must came after 't_STRING_LITERAL'
+        # must come after 't_STRING_LITERAL'
         self._error("Unterminated string", t)
 
     def t_unterminated_comment(self, t):
         r"/\*.*"
-        # must came after 't_comment'
+        # must come after 't_comment'
         self._error("Unterminated comment", t)
 
     def t_error(self, t):

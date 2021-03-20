@@ -8,7 +8,7 @@ Further instructions can be seen in this
 
 You should do the following tasks:
 
-- [ ] Complete the implementation of `uc/uc_lexer.py`
+- [x] Complete the implementation of `uc/uc_lexer.py`
 
 ## Requirements
 
