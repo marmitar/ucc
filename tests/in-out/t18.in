@@ -1,14 +1,15 @@
-int add(int x, int y) {
-    return x + y;
-}
-
-int subtract(int x, int y) {
-    return x - y;
-}
-
 int main() {
-   int  foo = 1, bar = 1;
-   print(foo, " + ", bar, " = ", add(foo, bar), "\n");
-   print(foo, " - ", bar, " = ", subtract(foo, bar), "\n");
-   return 0;
+    int i, n, t1 = 0, t2 = 1, nextTerm;
+    print("Enter the number of terms: ");
+    read(n);
+    print("Fibonacci Series: ");
+
+    for (i = 1; i <= n; i=i+1 {
+        print(t1, " ");
+        nextTerm = t1 + t2;
+        t1 = t2;
+        t2 = nextTerm;
+    }
+
+    return 0;
 }

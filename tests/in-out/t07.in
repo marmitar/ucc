@@ -7,12 +7,12 @@ int main() {
     read(n);
 
     while (n > 100 || n < 1) {
-        print("Error! number should in range of (1 to 100).\n");
+        print("Error! number should in range of (1 to 100). ");
         print("Enter the number again: ");
         read(n);
     }
 
-    for (i = 0; i < n; i = i+1) {
+    for (i = 0; i < n; i=i+1) {
         print(i + 1, "Enter number: ");
         read(num[i]);
         sum = sum + num[i];

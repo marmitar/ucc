@@ -4,7 +4,7 @@ int main() {
     read(n);
     print("Fibonacci Series: ");
 
-    for (i = 1; i <= n; i = i+1) {
+    for (i = 1; i <= n; i=i+1) {
         print(t1, " ");
         nextTerm = t1 + t2;
         t1 = t2;
