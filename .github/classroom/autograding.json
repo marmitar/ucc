@@ -3,7 +3,7 @@
       {
         "name": "Test 01",
         "setup": "",
-        "run": "pytest --tb=short -q tests/test_parser_clean.py::test_parser -k t01",
+        "run": "pytest --tb=short -q tests/test_parser_clean.py::test_parser_warning -k t01",
         "input": "",
         "output": "",
         "comparison": "included",
@@ -203,7 +203,7 @@
       {
         "name": "Test 21",
         "setup": "",
-        "run": "pytest --tb=short -q tests/test_parser_clean.py::test_parser -k t21",
+        "run": "pytest --tb=short -q tests/test_parser_clean.py::test_parser_error -k t21",
         "input": "",
         "output": "",
         "comparison": "included",
