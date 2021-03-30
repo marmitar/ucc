@@ -154,7 +154,7 @@ class UCLexer:
     t_COMMA = r","
 
     # constants
-    t_INT_CONST = r"\d((\d|_)*\d)?"
+    t_INT_CONST = r"[+-]?\d((\d|_)*\d)?"
     t_CHAR_CONST = r"\'(.|\\.)+?\'"
 
     def t_STRING_LITERAL(self, t):
