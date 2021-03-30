@@ -8,12 +8,12 @@ Further instructions can be seen in this
 
 You should do the following tasks:
 
-- [ ] Paste your implementation of the lexer in `uc/uc_lexer.py`
+- [x] Paste your implementation of the lexer in `uc/uc_lexer.py`
 - [ ] Complete the implementation of `uc/uc_parser_clean.py`
 
 ## Requirements
 
-Use Python 3.5 or a newer version.    
+Use Python 3.5 or a newer version.
 Required pip packages:
 - ply, pytest, setuptools
 
@@ -98,7 +98,7 @@ An internal grading script will be run instead to prevent cheating.
 
 ## Questions
 
-If you have any doubts or run into problems, please contact the TAs.    
+If you have any doubts or run into problems, please contact the TAs.
 Happy coding! :smile: :keyboard:
 
 ## Contribute
