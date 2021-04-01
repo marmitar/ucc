@@ -35,7 +35,7 @@ def test_parser_warning(test_name, capfd):
         captured = capfd.readouterr()
         expect = f_ex.read()
     assert captured.err == "" or captured.err == expect
-    assert captured.out != ""
+    assert captured.out != "" and captured.out != "None\n"
 
 
 @pytest.mark.parametrize(
@@ -84,7 +84,7 @@ def test_parser(test_name, capfd):
         p.show_parser_tree(f_in.read())
         captured = capfd.readouterr()
         expect = f_ex.read()
-    assert captured.out != ""
+    assert captured.out != "" and captured.out != "None\n"
     assert captured.err == expect
 
 
