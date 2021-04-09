@@ -29,7 +29,7 @@ def resolve_test_files(test_name):
 def test_parser_warning(test_name, capfd):
     input_path, expected_path = resolve_test_files(test_name)
 
-    p = UCParser(debug=False)
+    p = UCParser(debug=True)
     with open(input_path) as f_in, open(expected_path) as f_ex:
         p.show_parser_tree(f_in.read())
         captured = capfd.readouterr()
