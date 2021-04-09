@@ -68,6 +68,19 @@ for the rest of the code. Run both from the root of the repo:
     isort .
     black .
 ```
+
+### Using Pre-Commit Hooks
+
+Linting can be done automatically before every commit using
+[git hooks](https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks).
+Required pip packages:
+- pre-commit
+
+Liniting hooks can be enabled with:
+```sh
+    pre-commit install --install-hooks
+```
+
 ## Grading
 
 Your assignment will be evaluated in terms of:

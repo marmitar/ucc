@@ -1,0 +1,25 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v3.2.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+    -   id: check-yaml
+    -   id: check-added-large-files
+-   repo: https://gitlab.com/pycqa/flake8
+    rev: 3.9.0
+    hooks:
+    -   id: flake8
+        args: ['--count', '--select=E9,F63,F7,F82', '--show-source', '--statistics']
+    -   id: flake8
+        args: ['--count', '--exit-zero', '--max-line-length=120', '--statistics']
+-   repo: https://github.com/psf/black
+    rev: 20.8b1
+    hooks:
+    -   id: black
+-   repo: https://github.com/pycqa/isort
+    rev: 5.7.0
+    hooks:
+    -   id: isort
