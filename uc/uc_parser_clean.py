@@ -40,17 +40,99 @@ class UCParser:
             print("ParserError: %s at %s:%s" % (msg, line, column), file=sys.stderr)
         sys.exit(1)
 
-    precedence = ()
+    # # # # # # # # #
+    # DECLARATIONS  #
 
     def p_program(self, p):
         """program  : global_declaration_list"""
-        pass
+        p[0] = p[1]
 
     def p_global_declaration_list(self, p):
-        """global_declaration_list : global_declaration
+        """global_declaration_list  : global_declaration
         | global_declaration_list global_declaration
         """
-        pass
+        p[0] = [p[1]] if len(p) == 2 else p[1] + [p[2]]
+
+    def p_global_declaration(self, p):
+        """global_declaration   : function_definition
+        | declaration
+        """
+        p[0] = p[1]
+
+    def p_function_definition(self, p):
+        """function_definition  : type_specifier declarator declaration_list compound_statement"""
+        p[0] = FunctionDef(p[1], p[2], p[3], p[4])
+
+    def p_declaration_list(self, p):
+        """declaration_list :
+        | declaration_list declaration
+        """
+        p[0] = p[1] + [p[2]] if len(p) > 1 else []
+
+    def p_declarator(self, p):
+        """declarator   : identifier
+        | LPAREN declarator RPAREN
+        | declarator LBRACKET                     RBRACKET
+        | declarator LBRACKET constant_expression RBRACKET
+        | declarator LPAREN                RPAREN
+        | declarator LPAREN parameter_list RPAREN
+        """
+        # simple identifier
+        if len(p) == 2 or p[1] == "(":
+            p[0] = p[1] if len(p) == 2 else p[2]
+        # array declaration
+        elif p[2] == "[":
+            p[0] = ArrayDeclarator(p[1], p[3] if len(p) == 5 else None)
+        # function declaration
+        else:
+            p[0] = FunctionDeclarator(p[1], p[3] if len(p) == 5 else [])
+
+    def p_parameter_list(self, p):
+        """parameter_list   : parameter_declaration
+        | parameter_list COMMA parameter_declaration
+        """
+        p[0] = [p[1]] if len(p) == 2 else p[1] + [p[3]]
+
+    def p_parameter_declaration(self, p):
+        """parameter_declaration    : type_specifier declarator"""
+        p[0] = Parameter(p[1], p[2])
+
+    def p_declaration(self, p):
+        """declaration  : type_specifier                      SEMI
+        | type_specifier init_declarator_list SEMI
+        """
+        p[0] = Declaration(p[1], p[2] if len(p) > 3 else [])
+
+    def p_init_declarator_list(self, p):
+        """init_declarator_list : init_declarator
+        | init_declarator_list COMMA init_declarator
+        """
+        p[0] = [p[1]] if len(p) == 2 else p[1] + [p[3]]
+
+    def p_init_declarator(self, p):
+        """init_declarator  : declarator
+        | declarator EQUALS initializer
+        """
+        p[0] = InitDeclarator(p[1], p[3] if len(p) > 2 else None)
+
+    def p_initializer(self, p):
+        """initializer  : assignment_expression
+        | LBRACE                        RBRACE
+        | LBRACE initializer_list       RBRACE
+        | LBRACE initializer_list COMMA RBRACE
+        """
+        # simple initializer
+        if len(p) == 2:
+            p[0] = p[1]
+        # array initializer
+        else:
+            p[0] = ArrayInit(p[2] if len(p) > 3 else [])
+
+    def p_initializer_list(self, p):
+        """initializer_list : initializer
+        | initializer_list COMMA initializer
+        """
+        p[0] = [p[1]] if len(p) == 2 else p[1] + [p[3]]
 
     # # # # # # # #
     # STATEMENTS  #
