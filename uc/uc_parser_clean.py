@@ -18,7 +18,9 @@ class UCParser:
         self._last_yielded_token = None
 
     def show_parser_tree(self, text):
-        print(self.parse(text))
+        for declaration in self.parse(text):
+            print(declaration)
+            print()
 
     def parse(self, text, debuglevel=0):
         self.uclex.reset_lineno()
@@ -30,11 +32,11 @@ class UCParser:
         print("LexerError: %s at %d:%d" % (msg, line, column), file=sys.stderr)
         sys.exit(1)
 
-    def _parser_error(self, msg, line="", column=""):
+    def _parser_error(self, msg, line=None, column=None):
         # use stderr to match with the output in the .out test files
-        if line == "" and column == "":
+        if line is None:
             print("ParserError: %s" % (msg), file=sys.stderr)
-        if column == "":
+        elif column is None:
             print("ParserError: %s at %s" % (msg, line), file=sys.stderr)
         else:
             print("ParserError: %s at %s:%s" % (msg, line, column), file=sys.stderr)
@@ -311,15 +313,15 @@ class UCParser:
 
     def p_type_specifier(self, p):
         """type_specifier : VOID
-                            | CHAR
-                            | INT
+        | CHAR
+        | INT
         """
         p[0] = TypeSpec.from_token(p)
 
     def p_unary_operator(self, p):
         """unary_operator : PLUS
-                            | MINUS
-                            | NOT
+        | MINUS
+        | NOT
         """
         p[0] = Operator.from_token(p)
 
