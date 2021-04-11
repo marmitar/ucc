@@ -2,6 +2,7 @@ import argparse
 import pathlib
 import sys
 from ply.yacc import yacc
+from uc.asttypes import *
 from uc.uc_lexer import UCLexer
 
 
@@ -50,10 +51,41 @@ class UCParser:
         | global_declaration_list global_declaration
         """
         pass
+    # # # # # # # # # # #
+    # TERMINAL  SYMBOLS #
+
+    def p_type_specifier(self, p):
+        """type_specifier   : VOID
+                            | CHAR
+                            | INT
+        """
+        p[0] = TypeSpec.from_token(p)
+
+    def p_unary_operator(self, p):
+        """unary_operator   : PLUS
+                            | MINUS
+                            | NOT
+        """
+        p[0] = Operator.from_token(p)
+
+    def p_integer_constant(self, p):
+        """integer_constant : INT_CONST"""
+        p[0] = Int.from_token(p)
+
+    def p_character_constant(self, p):
+        """character_constant   : CHAR_CONST"""
+        p[0] = Char.from_token(p)
 
     def p_identifier(self, p):
-        """ identifier : ID """
-        pass
+        """identifier   : ID"""
+        p[0] = Ident.from_token(p)
+
+    def p_string(self, p):
+        """string   : STRING_LITERAL"""
+        p[0] = String.from_token(p)
+
+    # # # # # #
+    # ERRORS  #
 
     def p_error(self, p):
         if p:
