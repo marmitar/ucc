@@ -8,8 +8,8 @@ Further instructions can be seen in this
 
 You should do the following tasks:
 
-- [x] Paste your implementation of the lexer in `uc/uc_lexer.py`
-- [ ] Complete the implementation of `uc/uc_parser_clean.py`
+- [X] Paste your implementation of the lexer in `uc/uc_lexer.py`
+- [X] Complete the implementation of `uc/uc_parser_clean.py`
 
 ## Requirements
 
