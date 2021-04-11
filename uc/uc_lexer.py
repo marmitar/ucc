@@ -154,11 +154,11 @@ class UCLexer:
     t_COMMA = r","
 
     # constants
-    t_INT_CONST = r"[+-]?\d((\d|_)*\d)?"
-    t_CHAR_CONST = r"\'(.|\\.)+?\'"
+    t_INT_CONST = r"\d(\d|_\d)*"
+    t_CHAR_CONST = r"\'(\\.|.)+?\'"
 
     def t_STRING_LITERAL(self, t):
-        r"\"(.|\\.)*?\""
+        r"\"(\\.|.)*?\""
         t.value = t.value[1:-1]
         return t
 
@@ -178,7 +178,7 @@ class UCLexer:
 
     # errors
     def t_unterminated_string(self, t):
-        r"\"(.|\\.)*"
+        r"\"(\\.|.)*"
         # must come after 't_STRING_LITERAL'
         self._error("Unterminated string", t)
 
