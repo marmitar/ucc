@@ -51,6 +51,110 @@ class UCParser:
         | global_declaration_list global_declaration
         """
         pass
+    # # # # # # # #
+    # EXPRESSIONS #
+
+    def p_maybe_expression(self, p):
+        """maybe_expression :
+        | expression
+        """
+        p[0] = p[1] if len(p) == 2 else None
+
+    def p_expression(self, p):
+        """expression   : assignment_expression
+        | expression COMMA assignment_expression
+        """
+        p[0] = [p[1]] if len(p) == 2 else p[1] + [p[3]]
+
+    def p_assignment_expression(self, p):
+        """assignment_expression    : binary_expression
+        | unary_expression EQUALS assignment_expression
+        """
+        if len(p) > 2:
+            p[0] = AssignExpr(p[1], p[3])
+        else:
+            p[0] = p[1]
+
+    def p_argument_expression(self, p):
+        """argument_expression  : assignment_expression
+        | argument_expression COMMA assignment_expression
+        """
+        p[0] = [p[1]] if len(p) == 2 else p[1] + [p[3]]
+
+    def p_binary_expression(self, p):
+        """binary_expression    : unary_expression
+        | binary_expression TIMES  binary_expression
+        | binary_expression DIVIDE binary_expression
+        | binary_expression  MOD   binary_expression
+        | binary_expression  PLUS  binary_expression
+        | binary_expression MINUS  binary_expression
+        | binary_expression   LT   binary_expression
+        | binary_expression   LE   binary_expression
+        | binary_expression   GT   binary_expression
+        | binary_expression   GE   binary_expression
+        | binary_expression   EQ   binary_expression
+        | binary_expression   NE   binary_expression
+        | binary_expression  AND   binary_expression
+        | binary_expression   OR   binary_expression
+        """
+        if len(p) > 2:
+            op = Operator.from_token((None, p[2]), set_info=False)
+            p[0] = BinOp(op, p[1], p[3])
+        else:
+            p[0] = p[1]
+
+    precedence = (
+        ("left", "COMMA"),
+        ("left", "EQUALS"),
+        ("left", "OR"),
+        ("left", "AND"),
+        ("left", "EQ", "NE"),
+        ("left", "LE", "LT", "GE", "GT"),
+        ("left", "PLUS", "MINUS"),
+        ("left", "TIMES", "DIVIDE", "MOD"),
+        ("right", "NOT"),
+    )
+
+    def p_unary_expression(self, p):
+        """unary_expression : postfix_expression
+        | unary_operator unary_expression
+        """
+        if len(p) > 2:
+            p[0] = UnOp(p[1], p[2])
+        else:
+            p[0] = p[1]
+
+    def p_postfix_expression(self, p):
+        """postfix_expression   : primary_expression
+        | postfix_expression LBRACKET expression RBRACKET
+        | postfix_expression LPAREN                     RPAREN
+        | postfix_expression LPAREN argument_expression RPAREN
+        """
+        if len(p) == 2:
+            p[0] = p[1]
+        elif p[2] == "(":
+            p[0] = CallExpr(p[1], p[3] if len(p) == 5 else [])
+        else:
+            p[0] = AccessExpr(p[1], p[3])
+
+    def p_primary_expression(self, p):
+        """primary_expression   : identifier
+        | constant
+        | string
+        | LPAREN expression RPAREN
+        """
+        p[0] = p[2] if len(p) == 4 else p[1]
+
+    def p_constant_expression(self, p):
+        """constant_expression  : binary_expression"""
+        p[0] = p[1]
+
+    def p_constant(self, p):
+        """constant : integer_constant
+        | character_constant
+        """
+        p[0] = p[1]
+
     # # # # # # # # # # #
     # TERMINAL  SYMBOLS #
 

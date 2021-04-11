@@ -11,10 +11,49 @@ def set_terminal_lineinfo(p: YaccProduction, sym: int = 1) -> Tuple[int, int]:
     p.set_lexpos(0, index)
     return line, index
 
+
+# # # # # # # #
+# EXPRESSIONS #
+
+class Expression:
+    ...
+
+
+@dataclass(frozen=True)
+class AssignExpr(Expression):
+    item: Expression
+    value: Expression
+
+
+@dataclass(frozen=True)
+class CallExpr(Expression):
+    item: Expression
+    args: List[Expression]
+
+
+@dataclass(frozen=True)
+class AccessExpr(Expression):
+    item: Expression
+    at: Expression
+
+
+@dataclass(frozen=True)
+class UnOp(Expression):
+    op: Operator
+    item: Expression
+
+
+@dataclass(frozen=True)
+class BinOp(Expression):
+    op: Operator
+    left: Expression
+    right: Expression
+
+
 # # # # # # # # # # #
 # TERMINAL  SYMBOLS #
 
-class TerminalSymbol:
+class TerminalSymbol(Expression):
     @classmethod
     def from_token(cls, p: YaccProduction) -> TerminalSymbol:
         info = set_terminal_lineinfo(p)
