@@ -51,6 +51,75 @@ class UCParser:
         | global_declaration_list global_declaration
         """
         pass
+
+    # # # # # # # #
+    # STATEMENTS  #
+
+    def p_compound_statement(self, p):
+        """compound_statement   : LBRACE declaration_list statement_list RBRACE"""
+        p[0] = CompoundStmt(p[2], p[3])
+
+    def p_statement_list(self, p):
+        """statement_list   :
+        | statement_list statement
+        """
+        p[0] = p[1] + [p[2]] if len(p) > 1 else []
+
+    def p_statement(self, p):
+        """statement    : expression_statement
+        | compound_statement
+        | selection_statement
+        | iteration_statement
+        | jump_statement
+        | assert_statement
+        | print_statement
+        | read_statement
+        """
+        p[0] = p[1]
+
+    def p_expression_statement(self, p):
+        """expression_statement : maybe_expression SEMI"""
+        p[0] = p[1]
+
+    def p_selection_statement(self, p):
+        """selection_statement  : IF LPAREN expression RPAREN statement
+        | IF LPAREN expression RPAREN statement ELSE statement
+        """
+        p[0] = IfStmt(p[3], p[5], p[7] if len(p) == 8 else None).set_lineinfo(p)
+
+    def p_iteration_statement(self, p):
+        """iteration_statement  : WHILE LPAREN expression RPAREN statement
+        | FOR LPAREN maybe_expression SEMI maybe_expression SEMI maybe_expression RPAREN statement
+        | FOR LPAREN declaration           maybe_expression SEMI maybe_expression RPAREN statement
+        """
+        if len(p) == 6:
+            p[0] = WhileStmt(p[3], p[5]).set_lineinfo(p)
+        elif len(p) == 10:
+            p[0] = ForStmt(p[3], p[5], p[7], p[9]).set_lineinfo(p)
+        else:
+            p[0] = ForStmt(p[3], p[4], p[6], p[8]).set_lineinfo(p)
+
+    def p_jump_statement(self, p):
+        """jump_statement   : BREAK                   SEMI
+        | RETURN maybe_expression SEMI
+        """
+        if len(p) == 3:
+            p[0] = BreakStmt().set_lineinfo(p)
+        else:
+            p[0] = ReturnStmt(p[2]).set_lineinfo(p)
+
+    def p_assert_statement(self, p):
+        """assert_statement : ASSERT expression SEMI"""
+        p[0] = AssertStmt(p[2]).set_lineinfo(p)
+
+    def p_print_statement(self, p):
+        """print_statement  : PRINT LPAREN maybe_expression RPAREN SEMI"""
+        p[0] = PrintStmt(p[3]).set_lineinfo(p)
+
+    def p_read_statement(self, p):
+        """read_statement   : READ LPAREN argument_expression RPAREN SEMI"""
+        p[0] = ReadStmt(p[3]).set_lineinfo(p)
+
     # # # # # # # #
     # EXPRESSIONS #
 

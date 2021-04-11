@@ -13,6 +13,72 @@ def set_terminal_lineinfo(p: YaccProduction, sym: int = 1) -> Tuple[int, int]:
 
 
 # # # # # # # #
+# STATEMENTS  #
+
+class Statement:
+    def set_lineinfo(self, p: YaccProduction) -> Statement:
+        set_terminal_lineinfo(p)
+        return self
+
+
+@dataclass(frozen=True)
+class CompoundStmt(Statement):
+    declarations: List[Declaration]
+    statements: List[Statement]
+
+
+@dataclass(frozen=True)
+class IfStmt(Statement):
+    condition: Expression
+    true_branch: Statement
+    else_branch: Optional[Statement]
+
+
+@dataclass(frozen=True)
+class WhileStmt(Statement):
+    condition: Expression
+    body: Statement
+
+
+@dataclass(frozen=True)
+class ForStmt(Statement):
+    initialization: Union[None, Expression, Declaration]
+    condition: Optional[Expression]
+    update: Optional[Expression]
+    body: Statement
+
+
+@dataclass(frozen=True)
+class ExprStmt(Statement):
+    expr: Optional[Expression]
+
+
+@dataclass(frozen=True)
+class BreakStmt(Statement):
+    ...
+
+
+@dataclass(frozen=True)
+class ReturnStmt(Statement):
+    expr: Optional[Expression]
+
+
+@dataclass(frozen=True)
+class AssertStmt(Statement):
+    expr: Expression
+
+
+@dataclass(frozen=True)
+class PrintStmt(Statement):
+    expr: Optional[Expression]
+
+
+@dataclass(frozen=True)
+class ReadStmt(Statement):
+    args: List[Expression]
+
+
+# # # # # # # #
 # EXPRESSIONS #
 
 class Expression:
