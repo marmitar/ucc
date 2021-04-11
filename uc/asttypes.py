@@ -12,6 +12,59 @@ def set_terminal_lineinfo(p: YaccProduction, sym: int = 1) -> Tuple[int, int]:
     return line, index
 
 
+# # # # # # # # #
+# DECLARATIONS  #
+
+class Initializer:
+    ...
+
+
+class Declarator:
+    ...
+
+
+@dataclass(frozen=True)
+class ArrayDeclarator(Declarator):
+    declarator: Declarator
+    expression: Optional[Expression]
+
+
+@dataclass(frozen=True)
+class InitDeclarator:
+    declarator: Declarator
+    initializer: Optional[Initializer]
+
+
+class ArrayInit(List[Initializer], Initializer):
+    ...
+
+
+@dataclass(frozen=True)
+class Declaration:
+    specifier: TypeSpec
+    init: List[InitDeclarator]
+
+
+@dataclass(frozen=True)
+class Parameter:
+    specifier: TypeSpec
+    declaration: Declarator
+
+
+@dataclass(frozen=True)
+class FunctionDeclarator(Declarator):
+    declarator: Declarator
+    parameters: List[Parameter]
+
+
+@dataclass(frozen=True)
+class FunctionDef:
+    type_spec: TypeSpec
+    declarator: Declarator
+    declarations: List[Declaration]
+    body: CompoundStmt
+
+
 # # # # # # # #
 # STATEMENTS  #
 
@@ -81,7 +134,7 @@ class ReadStmt(Statement):
 # # # # # # # #
 # EXPRESSIONS #
 
-class Expression:
+class Expression(Initializer):
     ...
 
 
@@ -181,7 +234,7 @@ class Char(TerminalSymbol):
 
 
 @dataclass(frozen=True, repr=False)
-class Ident(TerminalSymbol):
+class Ident(TerminalSymbol, Declarator):
     value: str
     position: Tuple[int, int]
 
