@@ -45,7 +45,7 @@ class UCParser:
 
     def p_program(self, p):
         """program  : global_declaration_list"""
-        p[0] = p[1]
+        p[0] = Program(p[1])
 
     def p_global_declaration_list(self, p):
         """global_declaration_list  : global_declaration

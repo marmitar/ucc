@@ -15,6 +15,7 @@ def set_terminal_lineinfo(p: YaccProduction, sym: int = 1) -> Tuple[int, int]:
 # # # # # # # # #
 # DECLARATIONS  #
 
+
 class Initializer:
     ...
 
@@ -65,8 +66,13 @@ class FunctionDef:
     body: CompoundStmt
 
 
+class Program(List[Union[FunctionDef, Declaration]]):
+    ...
+
+
 # # # # # # # #
 # STATEMENTS  #
+
 
 class Statement:
     def set_lineinfo(self, p: YaccProduction) -> Statement:
@@ -134,6 +140,7 @@ class ReadStmt(Statement):
 # # # # # # # #
 # EXPRESSIONS #
 
+
 class Expression(Initializer):
     ...
 
@@ -171,6 +178,7 @@ class BinOp(Expression):
 
 # # # # # # # # # # #
 # TERMINAL  SYMBOLS #
+
 
 class TerminalSymbol(Expression):
     @classmethod
