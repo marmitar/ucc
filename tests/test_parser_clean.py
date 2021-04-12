@@ -34,7 +34,7 @@ def test_parser_warning(test_name, capfd):
         p.show_parser_tree(f_in.read())
         captured = capfd.readouterr()
         expect = f_ex.read()
-    assert captured.err == "" or captured.err == expect
+    assert captured.err == "" or captured.err == expect or captured.err == "Generating LALR tables\n"
     assert captured.out != "" and captured.out != "None\n"
 
 
