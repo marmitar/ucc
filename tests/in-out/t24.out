@@ -1,0 +1,17 @@
+Program:
+    GlobalDecl:
+        Decl: ID(name=a)
+            VarDecl:
+                Type: int @ 1:1
+            BinaryOp: + @ 1:9
+                Constant: int, 100 @ 1:9
+                Constant: int, 50 @ 1:15
+    GlobalDecl:
+        Decl: ID(name=b)
+            VarDecl:
+                Type: int @ 2:1
+            BinaryOp: * @ 2:10
+                BinaryOp: + @ 2:10
+                    Constant: int, 13 @ 2:10
+                    ID: a @ 2:15
+                Constant: int, 10 @ 2:20

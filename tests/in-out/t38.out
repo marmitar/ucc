@@ -1,0 +1,16 @@
+Program:
+    GlobalDecl:
+        Decl: ID(name=var)
+            VarDecl:
+                Type: int @ 1:1
+            BinaryOp: || @ 1:12
+                BinaryOp: && @ 1:12
+                    BinaryOp: < @ 1:12
+                        Constant: int, 1 @ 1:12
+                        Constant: int, 4 @ 1:16
+                    BinaryOp: >= @ 1:23
+                        Constant: int, 5 @ 1:23
+                        Constant: int, 10 @ 1:28
+                BinaryOp: != @ 1:36
+                    ID: y @ 1:36
+                    ID: x @ 1:41

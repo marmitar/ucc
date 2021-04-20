@@ -1,0 +1,4 @@
+int main(int i, char c) {
+  int i, j
+  j = i + 1;
+}

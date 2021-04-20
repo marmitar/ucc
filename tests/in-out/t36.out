@@ -1,0 +1,33 @@
+Program:
+    FuncDef:
+        Type: void @ 1:1
+        Decl: ID(name=f)
+            FuncDecl:
+                VarDecl:
+                    Type: void @ 1:1
+        Compound: @ 1:10
+            Assignment: = @ 2:3
+                ID: n @ 2:3
+                BinaryOp: + @ 2:5
+                    ID: n @ 2:5
+                    Constant: int, 1 @ 2:7
+            Assignment: = @ 3:3
+                ID: n @ 3:3
+                BinaryOp: - @ 3:5
+                    ID: n @ 3:5
+                    Constant: int, 1 @ 3:7
+            Assignment: = @ 4:3
+                ID: n @ 4:3
+                BinaryOp: % @ 4:5
+                    ID: n @ 4:5
+                    Constant: int, 0 @ 4:7
+            Assignment: = @ 5:3
+                ID: n @ 5:3
+                BinaryOp: * @ 5:5
+                    ID: n @ 5:5
+                    Constant: int, 10 @ 5:7
+            Assignment: = @ 6:3
+                ID: n @ 6:3
+                BinaryOp: / @ 6:5
+                    ID: n @ 6:5
+                    Constant: int, 4 @ 6:7
