@@ -1,6 +1,3 @@
-// The following program shows use of a function pointer
-// for selecting between addition and subtraction:
-
 int add(int x, int y) {
     return x + y;
 }

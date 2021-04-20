@@ -1,6 +1,7 @@
+import sys
 from pathlib import Path
 import pytest
-from uc.uc_parser_clean import UCParser
+from uc.uc_parser import UCParser
 
 
 def resolve_test_files(test_name):
@@ -24,23 +25,10 @@ def resolve_test_files(test_name):
     return input_path, expected_path
 
 
-@pytest.mark.parametrize("test_name", ["t01"])
-# capfd will capture the stdout/stderr outputs generated during the test
-def test_parser_warning(test_name, capfd):
-    input_path, expected_path = resolve_test_files(test_name)
-
-    p = UCParser(debug=True)
-    with open(input_path) as f_in, open(expected_path) as f_ex:
-        p.show_parser_tree(f_in.read())
-        captured = capfd.readouterr()
-        expect = f_ex.read()
-    assert captured.err == "" or captured.err == expect or captured.err == "Generating LALR tables\n"
-    assert captured.out != "" and captured.out != "None\n"
-
-
 @pytest.mark.parametrize(
     "test_name",
     [
+        "t01",
         "t02",
         "t03",
         "t04",
@@ -56,6 +44,7 @@ def test_parser_warning(test_name, capfd):
         "t14",
         "t19",
         "t20",
+        "t21",
         "t24",
         "t25",
         "t26",
@@ -76,29 +65,32 @@ def test_parser_warning(test_name, capfd):
     ],
 )
 # capfd will capture the stdout/stderr outputs generated during the test
-def test_parser(test_name, capfd):
+def test_parser(test_name, capsys):
     input_path, expected_path = resolve_test_files(test_name)
 
     p = UCParser(debug=False)
     with open(input_path) as f_in, open(expected_path) as f_ex:
-        p.show_parser_tree(f_in.read())
-        captured = capfd.readouterr()
+        ast = p.parse(f_in.read())
+        # pytest fails to substitute sys.stdout if not passed here
+        ast.show(buf=sys.stdout, showcoord=True)
+        captured = capsys.readouterr()
         expect = f_ex.read()
-    assert captured.out != "" and captured.out != "None\n"
-    assert captured.err == expect
+    assert captured.out == expect
+    assert captured.err == ""
 
 
-@pytest.mark.parametrize("test_name", ["t15", "t16", "t17", "t18",  "t21", "t22", "t23"])
+@pytest.mark.parametrize("test_name", ["t15", "t16", "t17", "t18", "t22", "t23"])
 # capfd will capture the stdout/stderr outputs generated during the test
-def test_parser_error(test_name, capfd):
+def test_parser_error(test_name, capsys):
     input_path, expected_path = resolve_test_files(test_name)
 
     p = UCParser(debug=False)
     with open(input_path) as f_in, open(expected_path) as f_ex:
         with pytest.raises(SystemExit) as sys_error:
-            p.show_parser_tree(f_in.read())
+            ast = p.parse(f_in.read())
+            ast.show(showcoord=True)
         assert sys_error.value.code == 1
-        captured = capfd.readouterr()
+        captured = capsys.readouterr()
         expect = f_ex.read()
-    assert captured.out == ""
-    assert captured.err == expect
+        assert captured.out == expect
+        assert captured.err == ""

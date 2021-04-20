@@ -1,0 +1,6 @@
+Program:
+    GlobalDecl:
+        Decl: ID(name=N)
+            VarDecl:
+                Type: int @ 1:1
+            Constant: char, 'a' @ 1:9

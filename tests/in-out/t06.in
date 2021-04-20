@@ -9,7 +9,7 @@ int main() {
         n = n / 10;
     }
     if(temp == sum)
-        print("palindrome number ");
+        print("palindrome number");
     else
         print("not palindrome");
     return 0;

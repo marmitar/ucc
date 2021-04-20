@@ -1,9 +1,9 @@
-int main()
+void main()
 {
    int n, r = 0, t;
 
    print("Enter an integer to check if it's palindrome or not\n");
-   read("%d", n);
+   read(n);
 
    t = n;
 
@@ -11,13 +11,12 @@ int main()
    {
       r = r * 10;
       r = r + t%10;
-      t = t/10;
+      t = t / 10;
    }
 
    if (n == r)
-      print("%d is a palindrome number.\n", n);
+      print(n, " is a palindrome number.\n");
    else
-      print("%d isn't a palindrome number.\n", n);
+      print(n, " isn't a palindrome number.\n");
 
-   return 0;
 }

@@ -5,7 +5,7 @@ int main() {
     read(r, c);
 
     // Assigning elements to the matrix
-    print("Enter matrix elements:");
+    print("\nEnter matrix elements:\n");
     for (i = 0; i < r; i=i+1)
         for (j = 0; j < c; j=j+1) {
             print("Enter element [", i + 1, j + 1, "]: ");
@@ -13,7 +13,7 @@ int main() {
         }
 
     // Displaying the matrix a[][]
-    print("Entered matrix: ");
+    print("\nEntered matrix: \n");
     for (i = 0; i < r; i=i+1)
         for (j = 0; j < c; j=j+1) {
             print(a[i][j]);
@@ -28,7 +28,7 @@ int main() {
         }
 
     // Displaying the transpose of matrix a
-    print("Transpose of the matrix: ");
+    print("\nTranspose of the matrix:\n");
     for (i = 0; i < c; i=i+1)
         for (j = 0; j < r; j=j+1) {
             print(transpose[i][j]);

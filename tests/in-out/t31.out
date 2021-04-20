@@ -1,0 +1,24 @@
+Program:
+    FuncDef:
+        Type: void @ 1:1
+        Decl: ID(name=main)
+            FuncDecl:
+                VarDecl:
+                    Type: void @ 1:1
+        Compound: @ 1:13
+            For: @ 2:3
+                DeclList: @ 2:3
+                    Decl: ID(name=i)
+                        VarDecl:
+                            Type: int @ 2:7
+                        Constant: int, 0 @ 2:13
+                BinaryOp: < @ 2:15
+                    ID: i @ 2:15
+                    Constant: int, 10 @ 2:17
+                Assignment: = @ 2:20
+                    ID: i @ 2:20
+                    BinaryOp: + @ 2:22
+                        ID: i @ 2:22
+                        Constant: int, 1 @ 2:24
+                Print: @ 3:5
+                    ID: i @ 3:11

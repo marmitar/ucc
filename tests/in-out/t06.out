@@ -1,0 +1,60 @@
+Program:
+    FuncDef:
+        Type: int @ 1:1
+        Decl: ID(name=main)
+            FuncDecl:
+                VarDecl:
+                    Type: int @ 1:1
+        Compound: @ 1:12
+            Decl: ID(name=n)
+                VarDecl:
+                    Type: int @ 2:5
+            Decl: ID(name=r)
+                VarDecl:
+                    Type: int @ 2:5
+            Decl: ID(name=sum)
+                VarDecl:
+                    Type: int @ 2:5
+                Constant: int, 0 @ 2:21
+            Decl: ID(name=temp)
+                VarDecl:
+                    Type: int @ 2:5
+            Print: @ 3:5
+                Constant: string, enter the number =  @ 3:11
+            Read: @ 4:5
+                ID: n @ 4:10
+            Assignment: = @ 5:5
+                ID: temp @ 5:5
+                ID: n @ 5:12
+            While: @ 6:5
+                BinaryOp: > @ 6:11
+                    ID: n @ 6:11
+                    Constant: int, 0 @ 6:15
+                Compound: @ 6:18
+                    Assignment: = @ 7:9
+                        ID: r @ 7:9
+                        BinaryOp: % @ 7:13
+                            ID: n @ 7:13
+                            Constant: int, 10 @ 7:17
+                    Assignment: = @ 8:9
+                        ID: sum @ 8:9
+                        BinaryOp: + @ 8:16
+                            BinaryOp: * @ 8:16
+                                ID: sum @ 8:16
+                                Constant: int, 10 @ 8:22
+                            ID: r @ 8:28
+                    Assignment: = @ 9:9
+                        ID: n @ 9:9
+                        BinaryOp: / @ 9:13
+                            ID: n @ 9:13
+                            Constant: int, 10 @ 9:17
+            If: @ 11:5
+                BinaryOp: == @ 11:8
+                    ID: temp @ 11:8
+                    ID: sum @ 11:16
+                Print: @ 12:9
+                    Constant: string, palindrome number @ 12:15
+                Print: @ 14:9
+                    Constant: string, not palindrome @ 14:15
+            Return: @ 15:5
+                Constant: int, 0 @ 15:12

@@ -1,0 +1,6 @@
+Program:
+    GlobalDecl:
+        Decl: ID(name=main)
+            FuncDecl:
+                VarDecl:
+                    Type: void @ 1:1

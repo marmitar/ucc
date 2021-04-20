@@ -1,1 +1,67 @@
-ParserError: Before: i at 1:10
+Program:
+    FuncDef:
+        Type: int @ 1:1
+        Decl: ID(name=gcd)
+            FuncDecl:
+                ParamList:
+                    Decl: ID(name=x)
+                        VarDecl:
+                            Type: int @ 1:10
+                    Decl: ID(name=y)
+                        VarDecl:
+                            Type: int @ 1:17
+                VarDecl:
+                    Type: int @ 1:1
+        Compound: @ 1:24
+            Decl: ID(name=g)
+                VarDecl:
+                    Type: int @ 2:5
+                ID: y @ 2:13
+            While: @ 3:5
+                BinaryOp: > @ 3:12
+                    ID: x @ 3:12
+                    Constant: int, 0 @ 3:16
+                Compound: @ 3:19
+                    Assignment: = @ 4:9
+                        ID: g @ 4:9
+                        ID: x @ 4:13
+                    Assignment: = @ 5:9
+                        ID: x @ 5:9
+                        BinaryOp: - @ 5:13
+                            ID: y @ 5:13
+                            BinaryOp: * @ 5:18
+                                BinaryOp: / @ 5:18
+                                    ID: y @ 5:18
+                                    ID: x @ 5:20
+                                ID: x @ 5:25
+                    Assignment: = @ 6:9
+                        ID: y @ 6:9
+                        ID: g @ 6:13
+            Return: @ 8:5
+                ID: g @ 8:12
+    FuncDef:
+        Type: void @ 11:1
+        Decl: ID(name=main)
+            FuncDecl:
+                VarDecl:
+                    Type: void @ 11:1
+        Compound: @ 11:13
+            Decl: ID(name=a)
+                VarDecl:
+                    Type: int @ 12:5
+                Constant: int, 198 @ 12:13
+            Decl: ID(name=b)
+                VarDecl:
+                    Type: int @ 12:5
+            Assignment: = @ 13:5
+                ID: b @ 13:5
+                Constant: int, 36 @ 13:9
+            Assert: @ 14:5
+                BinaryOp: == @ 14:12
+                    FuncCall: @ 14:12
+                        ID: gcd @ 14:12
+                        ExprList: @ 14:16
+                            ID: a @ 14:16
+                            ID: b @ 14:19
+                    Constant: int, 18 @ 14:25
+            Return: @ 15:5

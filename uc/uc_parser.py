@@ -2,8 +2,60 @@ import argparse
 import pathlib
 import sys
 from ply.yacc import yacc
-from uc.asttypes import *
+from uc.uc_ast import (
+    ID,
+    ArrayDecl,
+    ArrayRef,
+    Assert,
+    Assignment,
+    BinaryOp,
+    Break,
+    Compound,
+    Constant,
+    Decl,
+    DeclList,
+    EmptyStatement,
+    ExprList,
+    For,
+    FuncCall,
+    FuncDecl,
+    FuncDef,
+    GlobalDecl,
+    If,
+    InitList,
+    ParamList,
+    Print,
+    Program,
+    Read,
+    Return,
+    Type,
+    UnaryOp,
+    VarDecl,
+    While,
+)
 from uc.uc_lexer import UCLexer
+
+
+class Coord:
+    """Coordinates of a syntactic element. Consists of:
+    - Line number
+    - (optional) column number, for the Lexer
+    """
+
+    __slots__ = ("line", "column")
+
+    def __init__(self, line, column=None):
+        self.line = line
+        self.column = column
+
+    def __str__(self):
+        if self.line and self.column is not None:
+            coord_str = "@ %s:%s" % (self.line, self.column)
+        elif self.line:
+            coord_str = "@ %s" % (self.line)
+        else:
+            coord_str = ""
+        return coord_str
 
 
 class UCParser:
@@ -17,30 +69,95 @@ class UCParser:
         # Keeps track of the last token given to yacc (the lookahead token)
         self._last_yielded_token = None
 
-    def show_parser_tree(self, text):
-        for declaration in self.parse(text):
-            print(declaration)
-            print()
-
     def parse(self, text, debuglevel=0):
         self.uclex.reset_lineno()
         self._last_yielded_token = None
         return self.ucparser.parse(input=text, lexer=self.uclex, debug=debuglevel)
 
     def _lexer_error(self, msg, line, column):
-        # use stderr to match with the output in the .out test files
-        print("LexerError: %s at %d:%d" % (msg, line, column), file=sys.stderr)
+        # use stdout to match with the output in the .out test files
+        print("LexerError: %s at %d:%d" % (msg, line, column), file=sys.stdout)
         sys.exit(1)
 
-    def _parser_error(self, msg, line=None, column=None):
-        # use stderr to match with the output in the .out test files
-        if line is None:
-            print("ParserError: %s" % (msg), file=sys.stderr)
-        elif column is None:
-            print("ParserError: %s at %s" % (msg, line), file=sys.stderr)
+    def _parser_error(self, msg, coord=None):
+        # use stdout to match with the output in the .out test files
+        if coord is None:
+            print("ParserError: %s" % (msg), file=sys.stdout)
         else:
-            print("ParserError: %s at %s:%s" % (msg, line, column), file=sys.stderr)
+            print("ParserError: %s %s" % (msg, coord), file=sys.stdout)
         sys.exit(1)
+
+    def _token_coord(self, p, token_idx):
+        last_cr = p.lexer.lexer.lexdata.rfind("\n", 0, p.lexpos(token_idx))
+        if last_cr < 0:
+            last_cr = -1
+        column = p.lexpos(token_idx) - (last_cr)
+        return Coord(p.lineno(token_idx), column)
+
+    def _build_declarations(self, spec, decls):
+        """Builds a list of declarations all sharing the given specifiers."""
+        declarations = []
+
+        for decl in decls:
+            assert decl["decl"] is not None
+            declaration = Decl(
+                name=None,
+                type=decl["decl"],
+                init=decl.get("init"),
+                coord=decl["decl"].coord,
+            )
+
+            fixed_decl = self._fix_decl_name_type(declaration, spec)
+            declarations.append(fixed_decl)
+
+        return declarations
+
+    def _fix_decl_name_type(self, decl, typename):
+        """Fixes a declaration. Modifies decl."""
+        # Reach the underlying basic type
+        type = decl
+        while not isinstance(type, VarDecl):
+            type = type.type
+
+        decl.name = type.declname
+        if not typename:
+            # Functions default to returning int
+            if not isinstance(decl.type, FuncDecl):
+                self._parser_error("Missing type in declaration", decl.coord)
+            type.type = Type("int", coord=decl.coord)
+        else:
+            type.type = Type(typename.name, coord=typename.coord)
+
+        return decl
+
+    def _type_modify_decl(self, decl, modifier):
+        """Tacks a type modifier on a declarator, and returns
+        the modified declarator.
+        Note: the declarator and modifier may be modified
+        """
+        modifier_head = modifier
+        modifier_tail = modifier
+
+        # The modifier may be a nested list. Reach its tail.
+        while modifier_tail.type:
+            modifier_tail = modifier_tail.type
+
+        # If the decl is a basic type, just tack the modifier onto it
+        if isinstance(decl, VarDecl):
+            modifier_tail.type = decl
+            return modifier
+        else:
+            # Otherwise, the decl is a list of modifiers. Reach
+            # its tail and splice the modifier onto the tail,
+            # pointing to the underlying basic type.
+            decl_tail = decl
+
+            while not isinstance(decl_tail.type, VarDecl):
+                decl_tail = decl_tail.type
+
+            modifier_tail.type = decl_tail.type
+            decl_tail.type = modifier_head
+            return decl
 
     # # # # # # # # #
     # DECLARATIONS  #
@@ -55,15 +172,17 @@ class UCParser:
         """
         p[0] = [p[1]] if len(p) == 2 else p[1] + [p[2]]
 
-    def p_global_declaration(self, p):
-        """global_declaration : function_definition
-        | declaration
-        """
+    def p_global_declaration_1(self, p):
+        """global_declaration    : declaration"""
+        p[0] = GlobalDecl(p[1])
+
+    def p_global_declaration_2(self, p):
+        """global_declaration    : function_definition"""
         p[0] = p[1]
 
     def p_function_definition(self, p):
         """function_definition : type_specifier declarator declaration_list compound_statement"""
-        p[0] = FunctionDef(p[1], p[2], p[3], p[4])
+        p[0] = FuncDef(p[1], p[2], p[3], p[4])
 
     def p_declaration_list(self, p):
         """declaration_list :
@@ -84,10 +203,10 @@ class UCParser:
             p[0] = p[1] if len(p) == 2 else p[2]
         # array declaration
         elif p[2] == "[":
-            p[0] = ArrayDeclarator(p[1], p[3] if len(p) == 5 else None)
+            p[0] = ArrayDecl(p[1], p[3] if len(p) == 5 else None)
         # function declaration
         else:
-            p[0] = FunctionDeclarator(p[1], p[3] if len(p) == 5 else [])
+            p[0] = FuncDecl(p[1], p[3] if len(p) == 5 else [])
 
     def p_parameter_list(self, p):
         """parameter_list :    parameter_declaration
@@ -97,13 +216,13 @@ class UCParser:
 
     def p_parameter_declaration(self, p):
         """parameter_declaration : type_specifier declarator"""
-        p[0] = Parameter(p[1], p[2])
+        p[0] = p[1], p[2]
 
     def p_declaration(self, p):
         """declaration  : type_specifier      SEMI
         | type_specifier init_declarator_list SEMI
         """
-        p[0] = Declaration(p[1], p[2] if len(p) > 3 else [])
+        p[0] = p[1], p[2] if len(p) > 3 else []
 
     def p_init_declarator_list(self, p):
         """init_declarator_list :    init_declarator
@@ -115,7 +234,7 @@ class UCParser:
         """init_declarator : declarator
         | declarator EQUALS initializer
         """
-        p[0] = InitDeclarator(p[1], p[3] if len(p) > 2 else None)
+        p[0] = p[1], p[3] if len(p) > 2 else None
 
     def p_initializer(self, p):
         """initializer : assignment_expression
@@ -128,7 +247,7 @@ class UCParser:
             p[0] = p[1]
         # array initializer
         else:
-            p[0] = ArrayInit(p[2] if len(p) > 3 else [])
+            p[0] = p[2] if len(p) > 3 else []
 
     def p_initializer_list(self, p):
         """initializer_list :    initializer
@@ -141,7 +260,7 @@ class UCParser:
 
     def p_compound_statement(self, p):
         """compound_statement : LBRACE declaration_list statement_list RBRACE"""
-        p[0] = CompoundStmt(p[2], p[3])
+        p[0] = Compound(p[2], p[3])
 
     def p_statement_list(self, p):
         """statement_list :
@@ -169,7 +288,7 @@ class UCParser:
         """selection_statement : IF LPAREN expression RPAREN statement
         | IF LPAREN expression RPAREN statement ELSE statement
         """
-        p[0] = IfStmt(p[3], p[5], p[7] if len(p) == 8 else None).set_lineinfo(p)
+        p[0] = If(p[3], p[5], p[7] if len(p) == 8 else None)
 
     def p_iteration_statement(self, p):
         """iteration_statement : WHILE LPAREN expression RPAREN statement
@@ -177,32 +296,32 @@ class UCParser:
         | FOR LPAREN declaration           maybe_expression SEMI maybe_expression RPAREN statement
         """
         if len(p) == 6:
-            p[0] = WhileStmt(p[3], p[5]).set_lineinfo(p)
+            p[0] = While(p[3], p[5])
         elif len(p) == 10:
-            p[0] = ForStmt(p[3], p[5], p[7], p[9]).set_lineinfo(p)
+            p[0] = For(p[3], p[5], p[7], p[9])
         else:
-            p[0] = ForStmt(p[3], p[4], p[6], p[8]).set_lineinfo(p)
+            p[0] = For(p[3], p[4], p[6], p[8])
 
     def p_jump_statement(self, p):
         """jump_statement : BREAK SEMI
         | RETURN maybe_expression SEMI
         """
         if len(p) == 3:
-            p[0] = BreakStmt().set_lineinfo(p)
+            p[0] = Break()  # .set_lineinfo(p)
         else:
-            p[0] = ReturnStmt(p[2]).set_lineinfo(p)
+            p[0] = Return(p[2])
 
     def p_assert_statement(self, p):
         """assert_statement : ASSERT expression SEMI"""
-        p[0] = AssertStmt(p[2]).set_lineinfo(p)
+        p[0] = Assert(p[2])
 
     def p_print_statement(self, p):
         """print_statement : PRINT LPAREN maybe_expression RPAREN SEMI"""
-        p[0] = PrintStmt(p[3]).set_lineinfo(p)
+        p[0] = Print(p[3])
 
     def p_read_statement(self, p):
         """read_statement : READ LPAREN argument_expression RPAREN SEMI"""
-        p[0] = ReadStmt(p[3]).set_lineinfo(p)
+        p[0] = Read(p[3])
 
     # # # # # # # #
     # EXPRESSIONS #
@@ -214,17 +333,25 @@ class UCParser:
         p[0] = p[1] if len(p) == 2 else None
 
     def p_expression(self, p):
-        """expression :    assignment_expression
+        """expression  : assignment_expression
         | expression COMMA assignment_expression
         """
-        p[0] = [p[1]] if len(p) == 2 else p[1] + [p[3]]
+        # single expression
+        if len(p) == 2:
+            p[0] = p[1]
+        else:
+            if not isinstance(p[1], ExprList):
+                p[1] = ExprList([p[1]])
+
+            p[1].exprs.append(p[3])
+            p[0] = p[1]
 
     def p_assignment_expression(self, p):
         """assignment_expression : binary_expression
         | unary_expression EQUALS assignment_expression
         """
         if len(p) > 2:
-            p[0] = AssignExpr(p[1], p[3])
+            p[0] = Assignment(p[1], p[3])
         else:
             p[0] = p[1]
 
@@ -251,8 +378,8 @@ class UCParser:
         | binary_expression   OR   binary_expression
         """
         if len(p) > 2:
-            op = Operator.from_token((None, p[2]), set_info=False)
-            p[0] = BinOp(op, p[1], p[3])
+            op = (None, p[2])  # Operator.from_token((None, p[2]), set_info=False)
+            p[0] = BinaryOp(op, p[1], p[3])
         else:
             p[0] = p[1]
 
@@ -273,7 +400,7 @@ class UCParser:
         | unary_operator unary_expression
         """
         if len(p) > 2:
-            p[0] = UnOp(p[1], p[2])
+            p[0] = UnaryOp(p[1], p[2])
         else:
             p[0] = p[1]
 
@@ -286,9 +413,9 @@ class UCParser:
         if len(p) == 2:
             p[0] = p[1]
         elif p[2] == "(":
-            p[0] = CallExpr(p[1], p[3] if len(p) == 5 else [])
+            p[0] = FuncCall(p[1], p[3] if len(p) == 5 else [])
         else:
-            p[0] = AccessExpr(p[1], p[3])
+            p[0] = ArrayRef(p[1], p[3])
 
     def p_primary_expression(self, p):
         """primary_expression : identifier
@@ -316,30 +443,30 @@ class UCParser:
         | CHAR
         | INT
         """
-        p[0] = TypeSpec.from_token(p)
+        p[0] = Type(p[1])  # TypeSpec.from_token(p)
 
     def p_unary_operator(self, p):
         """unary_operator : PLUS
         | MINUS
         | NOT
         """
-        p[0] = Operator.from_token(p)
+        p[0] = p[1]  # Operator.from_token(p)
 
     def p_integer_constant(self, p):
         """integer_constant : INT_CONST"""
-        p[0] = Int.from_token(p)
+        p[0] = Constant("int", p[1])  # Int.from_token(p)
 
     def p_character_constant(self, p):
         """character_constant : CHAR_CONST"""
-        p[0] = Char.from_token(p)
+        p[0] = Constant("char", p[1])  # Char.from_token(p)
 
     def p_identifier(self, p):
         """identifier : ID"""
-        p[0] = Ident.from_token(p)
+        p[0] = ID(p[1])  # Ident.from_token(p)
 
     def p_string(self, p):
         """string : STRING_LITERAL"""
-        p[0] = String.from_token(p)
+        p[0] = Constant("string", p[1])  # String.from_token(p)
 
     # # # # # #
     # ERRORS  #
@@ -347,7 +474,7 @@ class UCParser:
     def p_error(self, p):
         if p:
             self._parser_error(
-                "Before: %s" % p.value, p.lineno, self.uclex.find_tok_column(p)
+                "Before %s" % p.value, Coord(p.lineno, self.uclex.find_tok_column(p))
             )
         else:
             self._parser_error("At the end of input (%s)" % self.uclex.filename)
@@ -366,13 +493,14 @@ if __name__ == "__main__":
 
     # check if file exists
     if not input_path.exists():
-        print("Input", input_path, "not found", file=sys.stderr)
+        print("ERROR: Input", input_path, "not found", file=sys.stderr)
         sys.exit(1)
+
+    def print_error(msg, x, y):
+        print("Lexical error: %s at %d:%d" % (msg, x, y), file=sys.stderr)
 
     # set error function
     p = UCParser()
     # open file and print tokens
     with open(input_path) as f:
-        # p.parse(f.read())
-        # use show_parser_tree instead of parser to print it
-        p.show_parser_tree(f.read())
+        p.parse(f.read())
