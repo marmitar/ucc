@@ -435,8 +435,8 @@ class UCParser:
         """
         p[0] = p[1]
 
-    # # # # # # # # # # #
-    # TERMINAL  SYMBOLS #
+    # # # # # # # # #
+    # BASIC SYMBOLS #
 
     def p_type_specifier(self, p):
         """type_specifier : VOID

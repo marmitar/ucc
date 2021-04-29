@@ -108,6 +108,118 @@ class Node:
             child.show(buf, offset + 4, attrnames, nodenames, showcoord, child_name)
 
 
+# # # # # # # # #
+# DECLARATIONS  #
+
+
+class ArrayDecl:
+    pass
+
+
+class Decl:
+    pass
+
+
+class DeclList:
+    pass
+
+
+class FuncDecl:
+    pass
+
+
+class FuncDef:
+    pass
+
+
+class GlobalDecl:
+    pass
+
+
+class InitList:
+    pass
+
+
+class ParamList:
+    pass
+
+
+class Program(Node):
+    __slots__ = ("gdecls", "coord")
+
+    def __init__(self, gdecls, coord=None):
+        self.gdecls = gdecls
+        self.coord = coord
+
+    def children(self):
+        nodelist = []
+        for i, child in enumerate(self.gdecls or []):
+            nodelist.append(("gdecls[%d]" % i, child))
+        return tuple(nodelist)
+
+    attr_names = ()
+
+
+class VarDecl:
+    pass
+
+
+# # # # # # # #
+# STATEMENTS  #
+
+
+class Assert:
+    pass
+
+
+class Break:
+    pass
+
+
+class Compound:
+    pass
+
+
+class EmptyStatement:
+    pass
+
+
+class For:
+    pass
+
+
+class If:
+    pass
+
+
+class Print:
+    pass
+
+
+class Read:
+    pass
+
+
+class Return:
+    pass
+
+
+class While:
+    pass
+
+
+# # # # # # # #
+# EXPRESSIONS #
+
+
+class ArrayRef:
+    pass
+
+
+class Assignment:
+    pass
+
+
 class BinaryOp(Node):
     __slots__ = ("op", "lvalue", "rvalue", "coord")
 
@@ -128,6 +240,22 @@ class BinaryOp(Node):
     attr_names = ("op",)
 
 
+class ExprList:
+    pass
+
+
+class FuncCall:
+    pass
+
+
+class UnaryOp:
+    pass
+
+
+# # # # # # # # #
+# BASIC SYMBOLS #
+
+
 class Constant(Node):
     __slots__ = ("type", "value", "coord")
 
@@ -145,121 +273,9 @@ class Constant(Node):
     )
 
 
-class Program(Node):
-    __slots__ = ("gdecls", "coord")
-
-    def __init__(self, gdecls, coord=None):
-        self.gdecls = gdecls
-        self.coord = coord
-
-    def children(self):
-        nodelist = []
-        for i, child in enumerate(self.gdecls or []):
-            nodelist.append(("gdecls[%d]" % i, child))
-        return tuple(nodelist)
-
-    attr_names = ()
-
-
 class ID:
     pass
 
 
-class ArrayDecl:
-    pass
-
-
-class ArrayRef:
-    pass
-
-
-class Assert:
-    pass
-
-
-class Assignment:
-    pass
-
-
-class Break:
-    pass
-
-
-class Compound:
-    pass
-
-
-class Decl:
-    pass
-
-
-class DeclList:
-    pass
-
-
-class EmptyStatement:
-    pass
-
-
-class ExprList:
-    pass
-
-
-class For:
-    pass
-
-
-class FuncCall:
-    pass
-
-
-class FuncDecl:
-    pass
-
-
-class FuncDef:
-    pass
-
-
-class GlobalDecl:
-    pass
-
-
-class If:
-    pass
-
-
-class InitList:
-    pass
-
-
-class ParamList:
-    pass
-
-
-class Print:
-    pass
-
-
-class Read:
-    pass
-
-
-class Return:
-    pass
-
-
 class Type:
-    pass
-
-
-class UnaryOp:
-    pass
-
-
-class VarDecl:
-    pass
-
-
-class While:
     pass
