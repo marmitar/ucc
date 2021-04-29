@@ -1,4 +1,16 @@
+from __future__ import annotations
 import sys
+from typing import List, Literal, Optional, Protocol, Sequence, Tuple, Union, overload
+
+
+class Coordinates(Protocol):
+    """Protocol for 'uc_parser.Coord'."""
+
+    line: int
+    column: Optional[int]
+
+
+Coord = Optional[Coordinates]
 
 
 def represent_node(obj, indent):
@@ -43,19 +55,19 @@ def represent_node(obj, indent):
 class Node:
     """Abstract base class for AST nodes."""
 
-    __slots__ = "coord"
-    attr_names = ()
+    __slots__ = ("coord",)
+    attr_names: Sequence[str] = ()
 
-    def __init__(self, coord=None):
+    def __init__(self, coord: Coord = None):
         self.coord = coord
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Generates a python representation of the current node"""
         return represent_node(self, 0)
 
-    def children(self):
+    def children(self) -> Sequence[Tuple[str, Node]]:
         """A sequence of all children that are Nodes"""
-        pass
+        raise NotImplementedError()
 
     def show(
         self,
@@ -64,8 +76,8 @@ class Node:
         attrnames=False,
         nodenames=False,
         showcoord=False,
-        _my_node_name=None,
-    ):
+        _my_node_name: Optional[str] = None,
+    ) -> None:
         """Pretty print the Node and all its attributes and children (recursively) to a buffer.
         buf:
             Open IO buffer into which the Node is printed.
@@ -93,7 +105,7 @@ class Node:
                     for n in self.attr_names
                     if getattr(self, n) is not None
                 ]
-                attrstr = ", ".join("%s=%s" % nv for nv in nvlist)
+                attrstr = ", ".join(f"{nv}={nv}" for nv in nvlist)
             else:
                 vlist = [getattr(self, n) for n in self.attr_names]
                 attrstr = ", ".join(represent_node(v, offset + inner_offset + 1) for v in vlist)
@@ -145,13 +157,13 @@ class ParamList:
 
 
 class Program(Node):
-    __slots__ = ("gdecls", "coord")
+    __slots__ = "gdecls", "coord"
 
-    def __init__(self, gdecls, coord=None):
+    def __init__(self, gdecls: List[GlobalDecl], coord: Coord = None):
+        super().__init__(coord)
         self.gdecls = gdecls
-        self.coord = coord
 
-    def children(self):
+    def children(self) -> Sequence[Tuple[str, Node]]:
         nodelist = []
         for i, child in enumerate(self.gdecls or []):
             nodelist.append(("gdecls[%d]" % i, child))
@@ -221,15 +233,15 @@ class Assignment:
 
 
 class BinaryOp(Node):
-    __slots__ = ("op", "lvalue", "rvalue", "coord")
+    __slots__ = "op", "lvalue", "rvalue", "coord"
 
-    def __init__(self, op, left, right, coord=None):
+    def __init__(self, op: str, left: Node, right: Node, coord: Coord = None):
+        super().__init__(coord)
         self.op = op
         self.lvalue = left
         self.rvalue = right
-        self.coord = coord
 
-    def children(self):
+    def children(self) -> Sequence[Tuple[str, Node]]:
         nodelist = []
         if self.lvalue is not None:
             nodelist.append(("lvalue", self.lvalue))
@@ -257,14 +269,20 @@ class UnaryOp:
 
 
 class Constant(Node):
-    __slots__ = ("type", "value", "coord")
+    __slots__ = "type", "value", "coord"
 
-    def __init__(self, type, value, coord=None):
+    # fmt: off
+    @overload
+    def __init__(self, type: Literal["int"], value: int, coord: Coord = None): ...
+    @overload
+    def __init__(self, type: Literal["char", "string"], value: str, coord: Coord = None): ...
+    # fmt: on
+    def __init__(self, type: str, value: Union[int, str], coord: Coord = None):
+        super().__init__(coord)
         self.type = type
         self.value = value
-        self.coord = coord
 
-    def children(self):
+    def children(self) -> Sequence[Tuple[str, Node]]:
         return ()
 
     attr_names = (
