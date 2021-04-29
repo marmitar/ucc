@@ -67,7 +67,19 @@ class Node:
 
     def children(self) -> Sequence[Tuple[str, Node]]:
         """A sequence of all children that are Nodes"""
-        raise NotImplementedError()
+        nodelist = []
+        for attr in self.__slots__:
+            if attr in Node.__slots__ or attr in self.attr_names:
+                continue
+            # treat attributes not in attr_names as children
+            value = getattr(self, attr)
+            if isinstance(value, Sequence):
+                for i, child in enumerate(value):
+                    name = f"{attr}[{i}]"
+                    nodelist.append((name, child))
+            elif value is not None:
+                nodelist.append((attr, value))
+        return tuple(nodelist)
 
     def show(
         self,
@@ -163,12 +175,6 @@ class Program(Node):
         super().__init__(coord)
         self.gdecls = gdecls
 
-    def children(self) -> Sequence[Tuple[str, Node]]:
-        nodelist = []
-        for i, child in enumerate(self.gdecls or []):
-            nodelist.append(("gdecls[%d]" % i, child))
-        return tuple(nodelist)
-
     attr_names = ()
 
 
@@ -241,14 +247,6 @@ class BinaryOp(Node):
         self.lvalue = left
         self.rvalue = right
 
-    def children(self) -> Sequence[Tuple[str, Node]]:
-        nodelist = []
-        if self.lvalue is not None:
-            nodelist.append(("lvalue", self.lvalue))
-        if self.rvalue is not None:
-            nodelist.append(("rvalue", self.rvalue))
-        return tuple(nodelist)
-
     attr_names = ("op",)
 
 
@@ -281,9 +279,6 @@ class Constant(Node):
         super().__init__(coord)
         self.type = type
         self.value = value
-
-    def children(self) -> Sequence[Tuple[str, Node]]:
-        return ()
 
     attr_names = (
         "type",
