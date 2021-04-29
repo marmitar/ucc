@@ -10,12 +10,7 @@ def represent_node(obj, indent):
             indent += 1
             sep = ",\n" + (" " * indent)
             final_sep = ",\n" + (" " * (indent - 1))
-            return (
-                "["
-                + (sep.join((_repr(e, indent, printed_set) for e in obj)))
-                + final_sep
-                + "]"
-            )
+            return "[" + (sep.join((_repr(e, indent, printed_set) for e in obj))) + final_sep + "]"
         elif isinstance(obj, Node):
             if obj in printed_set:
                 return ""
@@ -94,16 +89,14 @@ class Node:
         if self.attr_names:
             if attrnames:
                 nvlist = [
-                    (n, represent_node(getattr(self, n), offset+inner_offset+1+len(n)+1))
+                    (n, represent_node(getattr(self, n), offset + inner_offset + 1 + len(n) + 1))
                     for n in self.attr_names
                     if getattr(self, n) is not None
                 ]
                 attrstr = ", ".join("%s=%s" % nv for nv in nvlist)
             else:
                 vlist = [getattr(self, n) for n in self.attr_names]
-                attrstr = ", ".join(
-                    represent_node(v, offset + inner_offset + 1) for v in vlist
-                )
+                attrstr = ", ".join(represent_node(v, offset + inner_offset + 1) for v in vlist)
             buf.write(" " + attrstr)
 
         if showcoord:
@@ -166,3 +159,107 @@ class Program(Node):
         return tuple(nodelist)
 
     attr_names = ()
+
+
+class ID:
+    pass
+
+
+class ArrayDecl:
+    pass
+
+
+class ArrayRef:
+    pass
+
+
+class Assert:
+    pass
+
+
+class Assignment:
+    pass
+
+
+class Break:
+    pass
+
+
+class Compound:
+    pass
+
+
+class Decl:
+    pass
+
+
+class DeclList:
+    pass
+
+
+class EmptyStatement:
+    pass
+
+
+class ExprList:
+    pass
+
+
+class For:
+    pass
+
+
+class FuncCall:
+    pass
+
+
+class FuncDecl:
+    pass
+
+
+class FuncDef:
+    pass
+
+
+class GlobalDecl:
+    pass
+
+
+class If:
+    pass
+
+
+class InitList:
+    pass
+
+
+class ParamList:
+    pass
+
+
+class Print:
+    pass
+
+
+class Read:
+    pass
+
+
+class Return:
+    pass
+
+
+class Type:
+    pass
+
+
+class UnaryOp:
+    pass
+
+
+class VarDecl:
+    pass
+
+
+class While:
+    pass
