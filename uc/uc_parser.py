@@ -400,7 +400,7 @@ class UCParser:
         | unary_operator unary_expression
         """
         if len(p) > 2:
-            p[0] = UnaryOp(p[1], p[2])
+            p[0] = p[1], p[2]
         else:
             p[0] = p[1]
 
@@ -443,30 +443,36 @@ class UCParser:
         | CHAR
         | INT
         """
-        p[0] = Type(p[1])  # TypeSpec.from_token(p)
+        coord = self._token_coord(p, 1)
+        p[0] = Type(p[1], coord)
 
     def p_unary_operator(self, p):
         """unary_operator : PLUS
         | MINUS
         | NOT
         """
-        p[0] = p[1]  # Operator.from_token(p)
+        coord = self._token_coord(p, 1)
+        p[0] = UnaryOp(p[1], coord)
 
     def p_integer_constant(self, p):
         """integer_constant : INT_CONST"""
-        p[0] = Constant("int", p[1])  # Int.from_token(p)
+        coord = self._token_coord(p, 1)
+        p[0] = Constant("int", int(p[1]), coord)
 
     def p_character_constant(self, p):
         """character_constant : CHAR_CONST"""
-        p[0] = Constant("char", p[1])  # Char.from_token(p)
+        coord = self._token_coord(p, 1)
+        p[0] = Constant("char", p[1], coord)
 
     def p_identifier(self, p):
         """identifier : ID"""
-        p[0] = ID(p[1])  # Ident.from_token(p)
+        coord = self._token_coord(p, 1)
+        p[0] = ID(p[1], coord)
 
     def p_string(self, p):
         """string : STRING_LITERAL"""
-        p[0] = Constant("string", p[1])  # String.from_token(p)
+        coord = self._token_coord(p, 1)
+        p[0] = Constant("string", p[1], coord)
 
     # # # # # #
     # ERRORS  #

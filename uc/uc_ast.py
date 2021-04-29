@@ -258,10 +258,6 @@ class FuncCall:
     pass
 
 
-class UnaryOp:
-    pass
-
-
 # # # # # # # # #
 # BASIC SYMBOLS #
 
@@ -286,9 +282,31 @@ class Constant(Node):
     )
 
 
-class ID:
-    pass
+class ID(Node):
+    __slots__ = "name", "coord"
+
+    def __init__(self, name: str, coord: Coord = None):
+        super().__init__(coord)
+        self.name = name
+
+    attr_names = ("name",)
 
 
-class Type:
-    pass
+class Type(Node):
+    __slots__ = "name", "coord"
+
+    def __init__(self, name: str, coord: Coord = None):
+        super().__init__(coord)
+        self.name = name
+
+    attr_names = ("name",)
+
+
+class UnaryOp(Node):
+    __slots__ = "op", "coord"
+
+    def __init__(self, op: str, coord: Coord = None):
+        super().__init__(coord)
+        self.op = op
+
+    attr_names = ("op",)
