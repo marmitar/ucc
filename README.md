@@ -10,7 +10,7 @@ You should do the following tasks:
 
 - [X] Paste your implementation of the lexer in `uc/uc_lexer.py`
 - [ ] Complete the implementation of `uc/uc_ast.py` with the AST nodes classes
-- [ ] Modify your parser implementation of the last assignment to use the AST nodes in `uc/uc_parser.py`.
+- [X] Modify your parser implementation of the last assignment to use the AST nodes in `uc/uc_parser.py`.
     - But use the functions defined in this file, **do not** copy the file from the last assignment over this one.
 
 
