@@ -1,7 +1,7 @@
 import argparse
 import pathlib
 import sys
-from typing import Sequence, TypeVar, Union
+from typing import List, Optional, Sequence, TypedDict, TypeVar, Union
 from ply.yacc import yacc
 from uc.uc_ast import (
     ID,
@@ -24,6 +24,7 @@ from uc.uc_ast import (
     GlobalDecl,
     If,
     InitList,
+    Node,
     ParamList,
     Print,
     Program,
@@ -72,6 +73,15 @@ def getitem(seq: Sequence[T], index: int, default: U = None) -> Union[T, U]:
         return default
 
 
+Modifier = Union[ArrayDecl, FuncDecl]
+Declaration = Union[VarDecl, Modifier]
+
+
+class DeclSpec(TypedDict):
+    decl: Declaration
+    init: Optional[Node]
+
+
 class UCParser:
     def __init__(self, debug=True):
         """Create a new uCParser."""
@@ -108,7 +118,7 @@ class UCParser:
         column = p.lexpos(token_idx) - (last_cr)
         return Coord(p.lineno(token_idx), column)
 
-    def _build_declarations(self, spec, decls):
+    def _build_declarations(self, spec: Optional[Type], decls: List[DeclSpec]) -> List[Decl]:
         """Builds a list of declarations all sharing the given specifiers."""
         declarations = []
 
@@ -126,7 +136,7 @@ class UCParser:
 
         return declarations
 
-    def _fix_decl_name_type(self, decl, typename):
+    def _fix_decl_name_type(self, decl: Decl, typename: Optional[Type]) -> Decl:
         """Fixes a declaration. Modifies decl."""
         # Reach the underlying basic type
         type = decl
@@ -144,7 +154,7 @@ class UCParser:
 
         return decl
 
-    def _type_modify_decl(self, decl, modifier):
+    def _type_modify_decl(self, decl: Declaration, modifier: Modifier) -> Declaration:
         """Tacks a type modifier on a declarator, and returns
         the modified declarator.
         Note: the declarator and modifier may be modified
@@ -236,13 +246,14 @@ class UCParser:
 
     def p_parameter_declaration(self, p):
         """parameter_declaration : type_specifier declarator"""
-        p[0] = p[1], p[2]
+        decl = self._build_declarations(p[1], [dict(decl=p[2])])
+        p[0] = decl[0]
 
     def p_declaration(self, p):
         """declaration  : type_specifier      SEMI
         | type_specifier init_declarator_list SEMI
         """
-        p[0] = p[1], p[2] if len(p) > 3 else []
+        p[0] = self._build_declarations(p[1], getitem(p, 2, []))
 
     def p_init_declarator_list(self, p):
         """init_declarator_list :    init_declarator
@@ -254,7 +265,7 @@ class UCParser:
         """init_declarator : declarator
         | declarator EQUALS initializer
         """
-        p[0] = p[1], p[3] if len(p) > 2 else None
+        p[0] = dict(decl=p[1], init=getitem(p, 3))
 
     def p_initializer(self, p):
         """initializer : assignment_expression
@@ -316,18 +327,20 @@ class UCParser:
         coord = self._token_coord(p, 1)
         p[0] = If(p[3], p[5], getitem(p, 7), coord)
 
-    def p_iteration_statement(self, p):
+    def p_iteration_statement_1(self, p):
         """iteration_statement : WHILE LPAREN expression RPAREN statement
         | FOR LPAREN maybe_expression SEMI maybe_expression SEMI maybe_expression RPAREN statement
-        | FOR LPAREN declaration           maybe_expression SEMI maybe_expression RPAREN statement
         """
         coord = self._token_coord(p, 1)
         if len(p) == 6:
             p[0] = While(p[3], p[5], coord)
-        elif len(p) == 10:
-            p[0] = For(p[3], p[5], p[7], p[9], coord)
         else:
-            p[0] = For(p[3], p[4], p[6], p[8], coord)
+            p[0] = For(p[3], p[5], p[7], p[9], coord)
+
+    def p_iteration_statement_2(self, p):
+        """iteration_statement : FOR LPAREN declaration maybe_expression SEMI maybe_expression RPAREN statement"""
+        coord = self._token_coord(p, 1)
+        p[0] = For(DeclList(p[3], coord), p[4], p[6], p[8], coord)
 
     def p_jump_statement(self, p):
         """jump_statement : BREAK SEMI
