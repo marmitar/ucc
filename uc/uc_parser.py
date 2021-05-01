@@ -351,7 +351,8 @@ class UCParser:
         | unary_expression EQUALS assignment_expression
         """
         if len(p) > 2:
-            p[0] = Assignment(p[1], p[3])
+            coord = self._token_coord(p, 2)
+            p[0] = Assignment(p[2], p[1], p[3], coord)
         else:
             p[0] = p[1]
 
@@ -378,8 +379,8 @@ class UCParser:
         | binary_expression   OR   binary_expression
         """
         if len(p) > 2:
-            op = (None, p[2])  # Operator.from_token((None, p[2]), set_info=False)
-            p[0] = BinaryOp(op, p[1], p[3])
+            coord = self._token_coord(p, 2)
+            p[0] = BinaryOp(p[2], p[1], p[3], coord)
         else:
             p[0] = p[1]
 
@@ -400,7 +401,8 @@ class UCParser:
         | unary_operator unary_expression
         """
         if len(p) > 2:
-            p[0] = p[1], p[2]
+            coord = self._token_coord(p, 1)
+            p[0] = UnaryOp(p[1], p[2], coord)
         else:
             p[0] = p[1]
 
@@ -451,8 +453,7 @@ class UCParser:
         | MINUS
         | NOT
         """
-        coord = self._token_coord(p, 1)
-        p[0] = UnaryOp(p[1], coord)
+        p[0] = p[1]
 
     def p_integer_constant(self, p):
         """integer_constant : INT_CONST"""
