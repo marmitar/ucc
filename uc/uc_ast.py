@@ -292,9 +292,9 @@ class Compound(Node):
     __slots__ = "declarations", "statements", "coord"
     attr_names = ()
 
-    def __init__(self, declarations: List[Node], statements: List[Node], coord: Coord):
+    def __init__(self, declarations: List[List[Node]], statements: List[Node], coord: Coord):
         super().__init__(coord)
-        self.declarations = tuple(declarations)
+        self.declarations = sum((tuple(d) for d in declarations), ())
         self.statements = tuple(statements)
 
 
