@@ -232,8 +232,14 @@ class While:
 # EXPRESSIONS #
 
 
-class ArrayRef:
-    pass
+class ArrayRef(Node):
+    __slots__ = "array", "index", "coord"
+    attr_names = ()
+
+    def __init__(self, array: Node, index: Node, coord: Coord = None):
+        super().__init__(coord or array.coord)
+        self.array = array
+        self.index = index
 
 
 class Assignment(Node):
@@ -241,7 +247,7 @@ class Assignment(Node):
     attr_names = ("op",)
 
     def __init__(self, op: str, lvalue: Node, expr: Node, coord: Coord = None):
-        super().__init__(coord)
+        super().__init__(coord or lvalue.coord)
         self.op = op
         self.lvalue = lvalue
         self.expr = expr
@@ -252,18 +258,43 @@ class BinaryOp(Node):
     attr_names = ("op",)
 
     def __init__(self, op: str, left: Node, right: Node, coord: Coord = None):
-        super().__init__(coord)
+        super().__init__(coord or left.coord)
         self.op = op
         self.left = left
         self.right = right
 
 
-class ExprList:
-    pass
+class ExprList(Node):
+    __slots__ = "expr", "coord"
+    attr_names = ()
+
+    # fmt: off
+    @overload
+    def __init__(self, list: ExprList): ...
+    @overload
+    def __init__(self, head: Node, coord: Coord = None): ...
+    # fmt: on
+    def __init__(self, head: Node, coord: Coord = None):
+        if isinstance(head, ExprList):
+            super.__init__(head.coord)
+            self.expr = head.expr
+        else:
+            super().__init__(coord or head.coord)
+            self.expr = (head,)
+
+    def append(self, expr: Node) -> ExprList:
+        self.expr += (expr,)
+        return self
 
 
-class FuncCall:
-    pass
+class FuncCall(Node):
+    __slots__ = "callable", "params", "coord"
+    attr_names = ()
+
+    def __init__(self, callable: Node, params: Optional[Node] = None, coord: Coord = None):
+        super().__init__(coord or callable.coord)
+        self.callable = callable
+        self.params = params
 
 
 class UnaryOp(Node):
@@ -271,7 +302,7 @@ class UnaryOp(Node):
     attr_names = ("op",)
 
     def __init__(self, op: str, expr: Node, coord: Coord = None):
-        super().__init__(coord)
+        super().__init__(coord or expr.coord)
         self.op = op
         self.expr = expr
 
