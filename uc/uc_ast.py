@@ -3,14 +3,11 @@ import sys
 from typing import List, Literal, Optional, Protocol, Sequence, Tuple, Union, overload
 
 
-class Coordinates(Protocol):
+class Coord(Protocol):
     """Protocol for 'uc_parser.Coord'."""
 
     line: int
     column: Optional[int]
-
-
-Coord = Optional[Coordinates]
 
 
 def represent_node(obj, indent):
@@ -58,7 +55,7 @@ class Node:
     __slots__ = ("coord",)
     attr_names: Sequence[str] = ()
 
-    def __init__(self, coord: Coord = None):
+    def __init__(self, coord: Optional[Coord] = None):
         self.coord = coord
 
     def __repr__(self) -> str:
@@ -175,8 +172,8 @@ class Program(Node):
     __slots__ = "gdecls", "coord"
     attr_names = ()
 
-    def __init__(self, gdecls: List[GlobalDecl], coord: Coord = None):
-        super().__init__(coord)
+    def __init__(self, gdecls: List[Node]):
+        super().__init__()
         self.gdecls = gdecls
 
 
@@ -192,20 +189,24 @@ class Assert(Node):
     __slots__ = "param", "coord"
     attr_names = ()
 
-    def __init__(self, param: Node, coord: Coord = None):
+    def __init__(self, param: Node, coord: Coord):
         super().__init__(coord)
         self.param = param
 
 
 class Break(Node):
-    pass
+    __slots__ = ("coord",)
+    attr_names = ()
+
+    def __init__(self, coord: Coord):
+        super().__init__(coord)
 
 
 class Compound(Node):
     __slots__ = "declarations", "statements", "coord"
     attr_names = ()
 
-    def __init__(self, declarations: List[Node], statements: List[Node], coord: Coord = None):
+    def __init__(self, declarations: List[Node], statements: List[Node], coord: Coord):
         super().__init__(coord)
         self.declarations = declarations
         self.statements = statements
@@ -225,7 +226,7 @@ class For(Node):
         condition: Optional[Node],
         update: Optional[Node],
         stmt: Optional[Node],
-        coord: Coord = None,
+        coord: Coord,
     ):
         super().__init__(coord)
         self.declaration = declaration
@@ -243,7 +244,7 @@ class If(Node):
         condition: Node,
         true_stmt: Optional[Node],
         false_stmt: Optional[Node],
-        coord: Coord = None,
+        coord: Coord,
     ):
         super().__init__(coord)
         self.condition = condition
@@ -255,7 +256,7 @@ class Print(Node):
     __slots__ = "param", "coord"
     attr_names = ()
 
-    def __init__(self, param: Optional[Node], coord: Coord = None):
+    def __init__(self, param: Optional[Node], coord: Coord):
         super().__init__(coord)
         self.param = param
 
@@ -264,7 +265,7 @@ class Read(Node):
     __slots__ = "param", "coord"
     attr_names = ()
 
-    def __init__(self, param: Node, coord: Coord = None):
+    def __init__(self, param: Node, coord: Coord):
         super().__init__(coord)
         self.param = param
 
@@ -273,7 +274,7 @@ class Return(Node):
     __slots__ = "result", "coord"
     attr_names = ()
 
-    def __init__(self, result: Optional[Node], coord: Coord = None):
+    def __init__(self, result: Optional[Node], coord: Coord):
         super().__init__(coord)
         self.result = result
 
@@ -282,7 +283,7 @@ class While(Node):
     __slots__ = "expression", "stmt", "coord"
     attr_names = ()
 
-    def __init__(self, expression: Node, stmt: Optional[Node], coord: Coord = None):
+    def __init__(self, expression: Node, stmt: Optional[Node], coord: Coord):
         super().__init__(coord)
         self.expression = expression
         self.stmt = stmt
@@ -296,8 +297,8 @@ class ArrayRef(Node):
     __slots__ = "array", "index", "coord"
     attr_names = ()
 
-    def __init__(self, array: Node, index: Node, coord: Coord = None):
-        super().__init__(coord or array.coord)
+    def __init__(self, array: Node, index: Node):
+        super().__init__(array.coord)
         self.array = array
         self.index = index
 
@@ -306,8 +307,8 @@ class Assignment(Node):
     __slots__ = "op", "lvalue", "expr", "coord"
     attr_names = ("op",)
 
-    def __init__(self, op: str, lvalue: Node, expr: Node, coord: Coord = None):
-        super().__init__(coord or lvalue.coord)
+    def __init__(self, op: str, lvalue: Node, expr: Node):
+        super().__init__(lvalue.coord)
         self.op = op
         self.lvalue = lvalue
         self.expr = expr
@@ -317,8 +318,8 @@ class BinaryOp(Node):
     __slots__ = "op", "left", "right", "coord"
     attr_names = ("op",)
 
-    def __init__(self, op: str, left: Node, right: Node, coord: Coord = None):
-        super().__init__(coord or left.coord)
+    def __init__(self, op: str, left: Node, right: Node):
+        super().__init__(left.coord)
         self.op = op
         self.left = left
         self.right = right
@@ -328,31 +329,27 @@ class ExprList(Node):
     __slots__ = "expr", "coord"
     attr_names = ()
 
-    # fmt: off
-    @overload
-    def __init__(self, list: ExprList): ...
-    @overload
-    def __init__(self, head: Node, coord: Coord = None): ...
-    # fmt: on
-    def __init__(self, head: Node, coord: Coord = None):
-        if isinstance(head, ExprList):
-            super.__init__(head.coord)
-            self.expr = head.expr
-        else:
-            super().__init__(coord or head.coord)
-            self.expr = (head,)
+    def __init__(self, head: Node):
+        super().__init__(head.coord)
+        self.expr = (head,)
 
-    def append(self, expr: Node) -> ExprList:
+    def append(self, expr: Node) -> None:
         self.expr += (expr,)
-        return self
+
+    def show(self, *args, **kwargs) -> None:
+        # hide list when containing a single symbol
+        if len(self.expr) < 2:
+            self.expr[0].show(*args, **kwargs)
+        else:
+            super().show(*args, **kwargs)
 
 
 class FuncCall(Node):
     __slots__ = "callable", "params", "coord"
     attr_names = ()
 
-    def __init__(self, callable: Node, params: Optional[Node] = None, coord: Coord = None):
-        super().__init__(coord or callable.coord)
+    def __init__(self, callable: Node, params: Optional[Node]):
+        super().__init__(callable.coord)
         self.callable = callable
         self.params = params
 
@@ -361,8 +358,8 @@ class UnaryOp(Node):
     __slots__ = "op", "expr", "coord"
     attr_names = ("op",)
 
-    def __init__(self, op: str, expr: Node, coord: Coord = None):
-        super().__init__(coord or expr.coord)
+    def __init__(self, op: str, expr: Node):
+        super().__init__(expr.coord)
         self.op = op
         self.expr = expr
 
@@ -377,11 +374,11 @@ class Constant(Node):
 
     # fmt: off
     @overload
-    def __init__(self, type: Literal["int"], value: int, coord: Coord = None): ...
+    def __init__(self, type: Literal["int"], value: int, coord: Coord): ...
     @overload
-    def __init__(self, type: Literal["char", "string"], value: str, coord: Coord = None): ...
+    def __init__(self, type: Literal["char", "string"], value: str, coord: Coord): ...
     # fmt: on
-    def __init__(self, type: str, value: Union[int, str], coord: Coord = None):
+    def __init__(self, type: str, value: Union[int, str], coord: Coord):
         super().__init__(coord)
         self.type = type
         self.value = value
@@ -391,7 +388,7 @@ class ID(Node):
     __slots__ = "name", "coord"
     attr_names = ("name",)
 
-    def __init__(self, name: str, coord: Coord = None):
+    def __init__(self, name: str, coord: Coord):
         super().__init__(coord)
         self.name = name
 
@@ -400,6 +397,6 @@ class Type(Node):
     __slots__ = "name", "coord"
     attr_names = ("name",)
 
-    def __init__(self, name: str, coord: Coord = None):
+    def __init__(self, name: str, coord: Coord):
         super().__init__(coord)
         self.name = name

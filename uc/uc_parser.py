@@ -260,7 +260,8 @@ class UCParser:
 
     def p_compound_statement(self, p):
         """compound_statement : LBRACE declaration_list statement_list RBRACE"""
-        p[0] = Compound(p[2], p[3])
+        coord = self._token_coord(p, 1)
+        p[0] = Compound(p[2], p[3], coord)
 
     def p_statement_list(self, p):
         """statement_list :
@@ -344,10 +345,11 @@ class UCParser:
         """
         # single expression
         if len(p) == 2:
-            p[0] = p[1]
+            p[0] = ExprList(p[1])
         # multiple expressions
         else:
-            p[0] = ExprList(p[1]).append(p[3])
+            p[1].append(p[3])
+            p[0] = p[1]
 
     def p_assignment_expression(self, p):
         """assignment_expression : binary_expression
@@ -365,10 +367,11 @@ class UCParser:
         """
         # single expression
         if len(p) == 2:
-            p[0] = p[1]
+            p[0] = ExprList(p[1])
         # multiple expressions
         else:
-            p[0] = ExprList(p[1]).append(p[3])
+            p[1].append(p[3])
+            p[0] = p[1]
 
     def p_binary_expression(self, p):
         """binary_expression : unary_expression
