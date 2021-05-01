@@ -156,12 +156,31 @@ class ArrayDecl(Node):
         self.size = size
 
 
-class Decl:
-    pass
+class Decl(Node):
+    __slots__ = "name", "type", "init", "coord"
+    attr_names = ("name",)
+
+    def __init__(
+        self, name: Optional[ID], type: Node, init: Optional[Node], coord: Optional[Coord] = None
+    ):
+        super().__init__(coord)
+        self.name = name
+        self.type = type
+        self.init = init
 
 
-class DeclList:
-    pass
+class DeclList(Node):
+    __slots__ = "decls", "coord"
+    attr_names = ()
+
+    def __init__(self, decls: List[Decl] = [], coord: Optional[Coord] = None):
+        super().__init__(coord)
+        self.decls = tuple(decls)
+
+    def show(self, *args, **kwargs):
+        # only show when not empty
+        if len(self.decls) > 0:
+            super().show(*args, **kwargs)
 
 
 class FuncDecl(Node):
