@@ -236,19 +236,26 @@ class ArrayRef:
     pass
 
 
-class Assignment:
-    pass
+class Assignment(Node):
+    __slots__ = "op", "lvalue", "expr", "coord"
+    attr_names = ("op",)
+
+    def __init__(self, op: str, lvalue: Node, expr: Node, coord: Coord = None):
+        super().__init__(coord)
+        self.op = op
+        self.lvalue = lvalue
+        self.expr = expr
 
 
 class BinaryOp(Node):
-    __slots__ = "op", "lvalue", "rvalue", "coord"
+    __slots__ = "op", "left", "right", "coord"
     attr_names = ("op",)
 
-    def __init__(self, op: str, left: Node, right: Node, coord: Coordinates):
+    def __init__(self, op: str, left: Node, right: Node, coord: Coord = None):
         super().__init__(coord)
         self.op = op
-        self.lvalue = left
-        self.rvalue = right
+        self.left = left
+        self.right = right
 
 
 class ExprList:
@@ -257,6 +264,16 @@ class ExprList:
 
 class FuncCall:
     pass
+
+
+class UnaryOp(Node):
+    __slots__ = "op", "expr", "coord"
+    attr_names = ("op",)
+
+    def __init__(self, op: str, expr: Node, coord: Coord = None):
+        super().__init__(coord)
+        self.op = op
+        self.expr = expr
 
 
 # # # # # # # # #
@@ -269,11 +286,11 @@ class Constant(Node):
 
     # fmt: off
     @overload
-    def __init__(self, type: Literal["int"], value: int, coord: Coordinates): ...
+    def __init__(self, type: Literal["int"], value: int, coord: Coord = None): ...
     @overload
-    def __init__(self, type: Literal["char", "string"], value: str, coord: Coordinates): ...
+    def __init__(self, type: Literal["char", "string"], value: str, coord: Coord = None): ...
     # fmt: on
-    def __init__(self, type: str, value: Union[int, str], coord: Coordinates):
+    def __init__(self, type: str, value: Union[int, str], coord: Coord = None):
         super().__init__(coord)
         self.type = type
         self.value = value
@@ -283,7 +300,7 @@ class ID(Node):
     __slots__ = "name", "coord"
     attr_names = ("name",)
 
-    def __init__(self, name: str, coord: Coordinates):
+    def __init__(self, name: str, coord: Coord = None):
         super().__init__(coord)
         self.name = name
 
@@ -292,15 +309,6 @@ class Type(Node):
     __slots__ = "name", "coord"
     attr_names = ("name",)
 
-    def __init__(self, name: str, coord: Coordinates):
+    def __init__(self, name: str, coord: Coord = None):
         super().__init__(coord)
         self.name = name
-
-
-class UnaryOp(Node):
-    __slots__ = "op", "coord"
-    attr_names = ("op",)
-
-    def __init__(self, op: str, coord: Coordinates):
-        super().__init__(coord)
-        self.op = op
