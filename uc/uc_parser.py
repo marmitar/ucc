@@ -212,7 +212,11 @@ class UCParser:
         """parameter_list :    parameter_declaration
         | parameter_list COMMA parameter_declaration
         """
-        p[0] = [p[1]] if len(p) == 2 else p[1] + [p[3]]
+        if len(p) == 2:
+            p[0] = ParamList(p[1])
+        else:
+            p[1].append(p[3])
+            p[0] = p[1]
 
     def p_parameter_declaration(self, p):
         """parameter_declaration : type_specifier declarator"""
@@ -247,13 +251,17 @@ class UCParser:
             p[0] = p[1]
         # array initializer
         else:
-            p[0] = p[2] if len(p) > 3 else []
+            p[0] = p[2] if len(p) > 3 else None
 
     def p_initializer_list(self, p):
         """initializer_list :    initializer
         | initializer_list COMMA initializer
         """
-        p[0] = [p[1]] if len(p) == 2 else p[1] + [p[3]]
+        if len(p) == 2:
+            p[0] = InitList(p[1])
+        else:
+            p[1].append(p[3])
+            p[0] = p[1]
 
     # # # # # # # #
     # STATEMENTS  #
