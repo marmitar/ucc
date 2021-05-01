@@ -1,6 +1,16 @@
 from __future__ import annotations
 import sys
-from typing import List, Literal, Optional, Protocol, Sequence, Tuple, Union, overload
+from typing import (
+    Iterable,
+    List,
+    Literal,
+    Optional,
+    Protocol,
+    Sequence,
+    Tuple,
+    Union,
+    overload,
+)
 
 
 class Coord(Protocol):
@@ -62,7 +72,7 @@ class Node:
         """Generates a python representation of the current node"""
         return represent_node(self, 0)
 
-    def children(self) -> Sequence[Tuple[str, Node]]:
+    def children(self) -> Iterable[Tuple[str, Node]]:
         """A sequence of all children that are Nodes"""
         nodelist = []
         for attr in self.__slots__:
@@ -136,8 +146,14 @@ class Node:
 # DECLARATIONS  #
 
 
-class ArrayDecl:
-    pass
+class ArrayDecl(Node):
+    __slots__ = "type", "size", "coord"
+    attr_names = ()
+
+    def __init__(self, type: Node, size: Optional[Node]):
+        super().__init__(type.coord)
+        self.type = type
+        self.size = size
 
 
 class Decl:
@@ -148,8 +164,14 @@ class DeclList:
     pass
 
 
-class FuncDecl:
-    pass
+class FuncDecl(Node):
+    __slots__ = "params", "type", "coord"
+    attr_names = ()
+
+    def __init__(self, type: Node, params: Optional[ParamList]):
+        super().__init__(type.coord)
+        self.type = type
+        self.params = params
 
 
 class FuncDef:
@@ -193,8 +215,18 @@ class Program(Node):
         self.gdecls = gdecls
 
 
-class VarDecl:
-    pass
+class VarDecl(Node):
+    __slots__ = "type", "declname", "coord"
+    attr_names = ()
+
+    def __init__(self, declname: ID, type: Optional[Type] = None):
+        super().__init__()
+        self.declname = declname
+        self.type = type
+
+    def children(self) -> Iterable[Tuple[str, Node]]:
+        if self.type is not None:
+            yield "type", self.type
 
 
 # # # # # # # #

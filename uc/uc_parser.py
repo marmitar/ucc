@@ -213,14 +213,16 @@ class UCParser:
         | declarator LPAREN parameter_list RPAREN
         """
         # simple identifier
-        if len(p) == 2 or p[1] == "(":
-            p[0] = p[1] if len(p) == 2 else p[2]
+        if len(p) == 2:
+            p[0] = VarDecl(p[1])
+        elif p[1] == "(":
+            p[0] = p[2]
         # array declaration
         elif p[2] == "[":
             p[0] = ArrayDecl(p[1], p[3] if len(p) == 5 else None)
         # function declaration
         else:
-            p[0] = FuncDecl(p[1], p[3] if len(p) == 5 else [])
+            p[0] = FuncDecl(p[1], p[3] if len(p) == 5 else None)
 
     def p_parameter_list(self, p):
         """parameter_list :    parameter_declaration
