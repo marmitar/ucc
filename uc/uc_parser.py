@@ -306,22 +306,26 @@ class UCParser:
         """jump_statement : BREAK SEMI
         | RETURN maybe_expression SEMI
         """
+        coord = self._token_coord(p, 1)
         if len(p) == 3:
-            p[0] = Break()  # .set_lineinfo(p)
+            p[0] = Break(coord)
         else:
-            p[0] = Return(p[2])
+            p[0] = Return(p[2], coord)
 
     def p_assert_statement(self, p):
         """assert_statement : ASSERT expression SEMI"""
-        p[0] = Assert(p[2])
+        coord = self._token_coord(p, 1)
+        p[0] = Assert(p[2], coord)
 
     def p_print_statement(self, p):
         """print_statement : PRINT LPAREN maybe_expression RPAREN SEMI"""
-        p[0] = Print(p[3])
+        coord = self._token_coord(p, 1)
+        p[0] = Print(p[3], coord)
 
     def p_read_statement(self, p):
         """read_statement : READ LPAREN argument_expression RPAREN SEMI"""
-        p[0] = Read(p[3])
+        coord = self._token_coord(p, 1)
+        p[0] = Read(p[3], coord)
 
     # # # # # # # #
     # EXPRESSIONS #
