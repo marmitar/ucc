@@ -189,7 +189,7 @@ class VarDecl:
 
 
 class Assert(Node):
-    __slots__ = ("param", "coord")
+    __slots__ = "param", "coord"
     attr_names = ()
 
     def __init__(self, param: Node, coord: Coord = None):
@@ -201,24 +201,58 @@ class Break(Node):
     pass
 
 
-class Compound:
-    pass
+class Compound(Node):
+    __slots__ = "declarations", "statements", "coord"
+    attr_names = ()
+
+    def __init__(self, declarations: List[Node], statements: List[Node], coord: Coord = None):
+        super().__init__(coord)
+        self.declarations = declarations
+        self.statements = statements
 
 
 class EmptyStatement(Node):
     pass
 
 
-class For:
-    pass
+class For(Node):
+    __slots__ = "declaration", "condition", "update", "stmt", "coord"
+    attr_names = ()
+
+    def __init__(
+        self,
+        declaration: Optional[Node],
+        condition: Optional[Node],
+        update: Optional[Node],
+        stmt: Optional[Node],
+        coord: Coord = None,
+    ):
+        super().__init__(coord)
+        self.declaration = declaration
+        self.condition = condition
+        self.update = update
+        self.stmt = stmt
 
 
-class If:
-    pass
+class If(Node):
+    __slots__ = "condition", "true_stmt", "false_stmt"
+    attr_names = ()
+
+    def __init__(
+        self,
+        condition: Node,
+        true_stmt: Optional[Node],
+        false_stmt: Optional[Node],
+        coord: Coord = None,
+    ):
+        super().__init__(coord)
+        self.condition = condition
+        self.true_stmt = true_stmt
+        self.false_stmt = false_stmt
 
 
 class Print(Node):
-    __slots__ = ("param", "coord")
+    __slots__ = "param", "coord"
     attr_names = ()
 
     def __init__(self, param: Optional[Node], coord: Coord = None):
@@ -227,7 +261,7 @@ class Print(Node):
 
 
 class Read(Node):
-    __slots__ = ("param", "coord")
+    __slots__ = "param", "coord"
     attr_names = ()
 
     def __init__(self, param: Node, coord: Coord = None):
@@ -236,7 +270,7 @@ class Read(Node):
 
 
 class Return(Node):
-    __slots__ = ("result", "coord")
+    __slots__ = "result", "coord"
     attr_names = ()
 
     def __init__(self, result: Optional[Node], coord: Coord = None):
@@ -244,8 +278,14 @@ class Return(Node):
         self.result = result
 
 
-class While:
-    pass
+class While(Node):
+    __slots__ = "expression", "stmt", "coord"
+    attr_names = ()
+
+    def __init__(self, expression: Node, stmt: Optional[Node], coord: Coord = None):
+        super().__init__(coord)
+        self.expression = expression
+        self.stmt = stmt
 
 
 # # # # # # # #
