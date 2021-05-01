@@ -45,7 +45,7 @@ def represent_node(obj, indent):
         elif isinstance(obj, str):
             return obj
         else:
-            return ""
+            return repr(obj)
 
     # avoid infinite recursion with printed_set
     printed_set = set()
@@ -103,12 +103,15 @@ class Node:
             Do you want the coordinates of each Node to be displayed.
         """
         lead = " " * offset
+        buf.write(lead)
+        inner_offset = 0
+
         if nodenames and _my_node_name is not None:
-            buf.write(lead + self.__class__.__name__ + " <" + _my_node_name + ">: ")
-            inner_offset = len(self.__class__.__name__ + " <" + _my_node_name + ">: ")
-        else:
-            buf.write(lead + self.__class__.__name__ + ":")
-            inner_offset = len(self.__class__.__name__ + ":")
+            buf.write(f"<{_my_node_name}> ")
+            inner_offset += len(f"<{_my_node_name}> ")
+
+        buf.write(self.__class__.__name__ + ":")
+        inner_offset += len(self.__class__.__name__ + ":")
 
         if self.attr_names:
             if attrnames:
@@ -117,7 +120,7 @@ class Node:
                     for n in self.attr_names
                     if getattr(self, n) is not None
                 ]
-                attrstr = ", ".join(f"{nv}={nv}" for nv in nvlist)
+                attrstr = ", ".join(f"{n}={v}" for n, v in nvlist)
             else:
                 vlist = [getattr(self, n) for n in self.attr_names]
                 attrstr = ", ".join(represent_node(v, offset + inner_offset + 1) for v in vlist)
