@@ -288,19 +288,21 @@ class UCParser:
         """selection_statement : IF LPAREN expression RPAREN statement
         | IF LPAREN expression RPAREN statement ELSE statement
         """
-        p[0] = If(p[3], p[5], p[7] if len(p) == 8 else None)
+        coord = self._token_coord(p, 1)
+        p[0] = If(p[3], p[5], p[7] if len(p) == 8 else None, coord)
 
     def p_iteration_statement(self, p):
         """iteration_statement : WHILE LPAREN expression RPAREN statement
         | FOR LPAREN maybe_expression SEMI maybe_expression SEMI maybe_expression RPAREN statement
         | FOR LPAREN declaration           maybe_expression SEMI maybe_expression RPAREN statement
         """
+        coord = self._token_coord(p, 1)
         if len(p) == 6:
-            p[0] = While(p[3], p[5])
+            p[0] = While(p[3], p[5], coord)
         elif len(p) == 10:
-            p[0] = For(p[3], p[5], p[7], p[9])
+            p[0] = For(p[3], p[5], p[7], p[9], coord)
         else:
-            p[0] = For(p[3], p[4], p[6], p[8])
+            p[0] = For(p[3], p[4], p[6], p[8], coord)
 
     def p_jump_statement(self, p):
         """jump_statement : BREAK SEMI
