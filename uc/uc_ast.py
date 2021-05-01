@@ -173,12 +173,11 @@ class ParamList:
 
 class Program(Node):
     __slots__ = "gdecls", "coord"
+    attr_names = ()
 
     def __init__(self, gdecls: List[GlobalDecl], coord: Coord = None):
         super().__init__(coord)
         self.gdecls = gdecls
-
-    attr_names = ()
 
 
 class VarDecl:
@@ -243,14 +242,13 @@ class Assignment:
 
 class BinaryOp(Node):
     __slots__ = "op", "lvalue", "rvalue", "coord"
+    attr_names = ("op",)
 
-    def __init__(self, op: str, left: Node, right: Node, coord: Coord = None):
+    def __init__(self, op: str, left: Node, right: Node, coord: Coordinates):
         super().__init__(coord)
         self.op = op
         self.lvalue = left
         self.rvalue = right
-
-    attr_names = ("op",)
 
 
 class ExprList:
@@ -267,49 +265,42 @@ class FuncCall:
 
 class Constant(Node):
     __slots__ = "type", "value", "coord"
+    attr_names = "type", "value"
 
     # fmt: off
     @overload
-    def __init__(self, type: Literal["int"], value: int, coord: Coord = None): ...
+    def __init__(self, type: Literal["int"], value: int, coord: Coordinates): ...
     @overload
-    def __init__(self, type: Literal["char", "string"], value: str, coord: Coord = None): ...
+    def __init__(self, type: Literal["char", "string"], value: str, coord: Coordinates): ...
     # fmt: on
-    def __init__(self, type: str, value: Union[int, str], coord: Coord = None):
+    def __init__(self, type: str, value: Union[int, str], coord: Coordinates):
         super().__init__(coord)
         self.type = type
         self.value = value
 
-    attr_names = (
-        "type",
-        "value",
-    )
-
 
 class ID(Node):
     __slots__ = "name", "coord"
+    attr_names = ("name",)
 
-    def __init__(self, name: str, coord: Coord = None):
+    def __init__(self, name: str, coord: Coordinates):
         super().__init__(coord)
         self.name = name
-
-    attr_names = ("name",)
 
 
 class Type(Node):
     __slots__ = "name", "coord"
+    attr_names = ("name",)
 
-    def __init__(self, name: str, coord: Coord = None):
+    def __init__(self, name: str, coord: Coordinates):
         super().__init__(coord)
         self.name = name
-
-    attr_names = ("name",)
 
 
 class UnaryOp(Node):
     __slots__ = "op", "coord"
+    attr_names = ("op",)
 
-    def __init__(self, op: str, coord: Coord = None):
+    def __init__(self, op: str, coord: Coordinates):
         super().__init__(coord)
         self.op = op
-
-    attr_names = ("op",)
