@@ -339,20 +339,17 @@ class UCParser:
         # single expression
         if len(p) == 2:
             p[0] = p[1]
+        # multiple expressions
         else:
-            if not isinstance(p[1], ExprList):
-                p[1] = ExprList([p[1]])
-
-            p[1].exprs.append(p[3])
-            p[0] = p[1]
+            p[0] = ExprList(p[1]).append(p[3])
 
     def p_assignment_expression(self, p):
         """assignment_expression : binary_expression
         | unary_expression EQUALS assignment_expression
         """
         if len(p) > 2:
-            coord = self._token_coord(p, 2)
-            p[0] = Assignment(p[2], p[1], p[3], coord)
+            # coord = self._token_coord(p, 2)
+            p[0] = Assignment(p[2], p[1], p[3])
         else:
             p[0] = p[1]
 
@@ -360,7 +357,12 @@ class UCParser:
         """argument_expression :    assignment_expression
         | argument_expression COMMA assignment_expression
         """
-        p[0] = [p[1]] if len(p) == 2 else p[1] + [p[3]]
+        # single expression
+        if len(p) == 2:
+            p[0] = p[1]
+        # multiple expressions
+        else:
+            p[0] = ExprList(p[1]).append(p[3])
 
     def p_binary_expression(self, p):
         """binary_expression : unary_expression
@@ -379,8 +381,8 @@ class UCParser:
         | binary_expression   OR   binary_expression
         """
         if len(p) > 2:
-            coord = self._token_coord(p, 2)
-            p[0] = BinaryOp(p[2], p[1], p[3], coord)
+            # coord = self._token_coord(p, 2)
+            p[0] = BinaryOp(p[2], p[1], p[3])
         else:
             p[0] = p[1]
 
@@ -401,8 +403,8 @@ class UCParser:
         | unary_operator unary_expression
         """
         if len(p) > 2:
-            coord = self._token_coord(p, 1)
-            p[0] = UnaryOp(p[1], p[2], coord)
+            # coord = self._token_coord(p, 1)
+            p[0] = UnaryOp(p[1], p[2])
         else:
             p[0] = p[1]
 
@@ -415,7 +417,7 @@ class UCParser:
         if len(p) == 2:
             p[0] = p[1]
         elif p[2] == "(":
-            p[0] = FuncCall(p[1], p[3] if len(p) == 5 else [])
+            p[0] = FuncCall(p[1], p[3] if len(p) == 5 else None)
         else:
             p[0] = ArrayRef(p[1], p[3])
 
