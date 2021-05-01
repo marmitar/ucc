@@ -160,12 +160,28 @@ class GlobalDecl:
     pass
 
 
-class InitList:
-    pass
+class InitList(Node):
+    __slots__ = "init", "coord"
+    attr_names = ()
+
+    def __init__(self, head: Node):
+        super().__init__(head.coord)
+        self.init = (head,)
+
+    def append(self, node: Node) -> None:
+        self.init += (node,)
 
 
-class ParamList:
-    pass
+class ParamList(Node):
+    __slots__ = "params", "coord"
+    attr_names = ()
+
+    def __init__(self, head: Node):
+        super().__init__(head.coord)
+        self.params = (head,)
+
+    def append(self, node: Node) -> None:
+        self.params += (node,)
 
 
 class Program(Node):
