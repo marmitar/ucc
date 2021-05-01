@@ -188,11 +188,16 @@ class VarDecl:
 # STATEMENTS  #
 
 
-class Assert:
-    pass
+class Assert(Node):
+    __slots__ = ("param", "coord")
+    attr_names = ()
+
+    def __init__(self, param: Node, coord: Coord = None):
+        super().__init__(coord)
+        self.param = param
 
 
-class Break:
+class Break(Node):
     pass
 
 
@@ -200,7 +205,7 @@ class Compound:
     pass
 
 
-class EmptyStatement:
+class EmptyStatement(Node):
     pass
 
 
@@ -212,16 +217,31 @@ class If:
     pass
 
 
-class Print:
-    pass
+class Print(Node):
+    __slots__ = ("param", "coord")
+    attr_names = ()
+
+    def __init__(self, param: Optional[Node], coord: Coord = None):
+        super().__init__(coord)
+        self.param = param
 
 
-class Read:
-    pass
+class Read(Node):
+    __slots__ = ("param", "coord")
+    attr_names = ()
+
+    def __init__(self, param: Node, coord: Coord = None):
+        super().__init__(coord)
+        self.param = param
 
 
-class Return:
-    pass
+class Return(Node):
+    __slots__ = ("result", "coord")
+    attr_names = ()
+
+    def __init__(self, result: Optional[Node], coord: Coord = None):
+        super().__init__(coord)
+        self.result = result
 
 
 class While:
