@@ -1,6 +1,7 @@
 import argparse
 import pathlib
 import sys
+from typing import Sequence, TypeVar, Union
 from ply.yacc import yacc
 from uc.uc_ast import (
     ID,
@@ -56,6 +57,19 @@ class Coord:
         else:
             coord_str = ""
         return coord_str
+
+
+T = TypeVar("T")
+U = TypeVar("U")
+
+
+def getitem(seq: Sequence[T], index: int, default: U = None) -> Union[T, U]:
+    """'getattr'-like helper for sequences"""
+
+    if 0 <= index < len(seq):
+        return seq[index]
+    else:
+        return default
 
 
 class UCParser:
@@ -298,7 +312,7 @@ class UCParser:
         | IF LPAREN expression RPAREN statement ELSE statement
         """
         coord = self._token_coord(p, 1)
-        p[0] = If(p[3], p[5], p[7] if len(p) == 8 else None, coord)
+        p[0] = If(p[3], p[5], getitem(p, 7), coord)
 
     def p_iteration_statement(self, p):
         """iteration_statement : WHILE LPAREN expression RPAREN statement
@@ -345,7 +359,7 @@ class UCParser:
         """maybe_expression :
         | expression
         """
-        p[0] = p[1] if len(p) == 2 else None
+        p[0] = getitem(p, 1)
 
     def p_expression(self, p):
         """expression  : assignment_expression
@@ -364,7 +378,6 @@ class UCParser:
         | unary_expression EQUALS assignment_expression
         """
         if len(p) > 2:
-            # coord = self._token_coord(p, 2)
             p[0] = Assignment(p[2], p[1], p[3])
         else:
             p[0] = p[1]
@@ -398,7 +411,6 @@ class UCParser:
         | binary_expression   OR   binary_expression
         """
         if len(p) > 2:
-            # coord = self._token_coord(p, 2)
             p[0] = BinaryOp(p[2], p[1], p[3])
         else:
             p[0] = p[1]
@@ -420,7 +432,6 @@ class UCParser:
         | unary_operator unary_expression
         """
         if len(p) > 2:
-            # coord = self._token_coord(p, 1)
             p[0] = UnaryOp(p[1], p[2])
         else:
             p[0] = p[1]
@@ -444,7 +455,7 @@ class UCParser:
         | string
         | LPAREN expression RPAREN
         """
-        p[0] = p[2] if len(p) == 4 else p[1]
+        p[0] = getitem(p, 2, p[1])
 
     def p_constant_expression(self, p):
         """constant_expression : binary_expression"""
