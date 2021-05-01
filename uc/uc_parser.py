@@ -206,7 +206,8 @@ class UCParser:
 
     def p_function_definition(self, p):
         """function_definition : type_specifier declarator declaration_list compound_statement"""
-        p[0] = FuncDef(p[1], p[2], p[3], p[4])
+        decl = self._build_declarations(p[1], [dict(decl=p[2])])
+        p[0] = FuncDef(p[1], decl[0], DeclList(p[3]), p[4])
 
     def p_declaration_list(self, p):
         """declaration_list :

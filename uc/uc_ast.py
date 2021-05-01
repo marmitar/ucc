@@ -193,12 +193,31 @@ class FuncDecl(Node):
         self.params = params
 
 
-class FuncDef:
-    pass
+class FuncDef(Node):
+    __slots__ = "return_type", "declaration", "decl_list", "implementation", "coord"
+    attr_names = ()
+
+    def __init__(
+        self,
+        return_type: Type,
+        declaration: Decl,
+        decl_list: DeclList,
+        implementation: Optional[Node],
+    ):
+        super().__init__()
+        self.return_type = return_type
+        self.declaration = declaration
+        self.decl_list = decl_list
+        self.implementation = implementation
 
 
-class GlobalDecl:
-    pass
+class GlobalDecl(Node):
+    __slots__ = "decl", "coord"
+    attr_names = ()
+
+    def __init__(self, decl: List[Decl]):
+        super().__init__()
+        self.decl = tuple(decl)
 
 
 class InitList(Node):
@@ -231,7 +250,7 @@ class Program(Node):
 
     def __init__(self, gdecls: List[Node]):
         super().__init__()
-        self.gdecls = gdecls
+        self.gdecls = tuple(gdecls)
 
 
 class VarDecl(Node):
@@ -275,8 +294,8 @@ class Compound(Node):
 
     def __init__(self, declarations: List[Node], statements: List[Node], coord: Coord):
         super().__init__(coord)
-        self.declarations = declarations
-        self.statements = statements
+        self.declarations = tuple(declarations)
+        self.statements = tuple(statements)
 
 
 class EmptyStatement(Node):
