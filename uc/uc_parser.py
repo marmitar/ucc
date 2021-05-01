@@ -230,10 +230,12 @@ class UCParser:
             p[0] = p[2]
         # array declaration
         elif p[2] == "[":
-            p[0] = ArrayDecl(p[1], p[3] if len(p) == 5 else None)
+            mod = ArrayDecl(p[3] if len(p) == 5 else None)
+            p[0] = self._type_modify_decl(p[1], mod)
         # function declaration
         else:
-            p[0] = FuncDecl(p[1], p[3] if len(p) == 5 else None)
+            mod = FuncDecl(p[3] if len(p) == 5 else None)
+            p[0] = self._type_modify_decl(p[1], mod)
 
     def p_parameter_list(self, p):
         """parameter_list :    parameter_declaration

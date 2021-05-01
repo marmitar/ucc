@@ -150,8 +150,8 @@ class ArrayDecl(Node):
     __slots__ = "type", "size", "coord"
     attr_names = ()
 
-    def __init__(self, type: Node, size: Optional[Node]):
-        super().__init__(type.coord)
+    def __init__(self, size: Optional[Node], type: Optional[Node] = None):
+        super().__init__()
         self.type = type
         self.size = size
 
@@ -187,8 +187,8 @@ class FuncDecl(Node):
     __slots__ = "params", "type", "coord"
     attr_names = ()
 
-    def __init__(self, type: Node, params: Optional[ParamList]):
-        super().__init__(type.coord)
+    def __init__(self, params: Optional[ParamList], type: Optional[Node] = None):
+        super().__init__()
         self.type = type
         self.params = params
 
