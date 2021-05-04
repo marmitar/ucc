@@ -1,0 +1,4 @@
+int main() {
+    int y[8][];
+    return 0;
+}

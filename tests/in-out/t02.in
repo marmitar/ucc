@@ -1,0 +1,5 @@
+int main()
+{
+  char arr[2] = "str";
+  return 0;
+}

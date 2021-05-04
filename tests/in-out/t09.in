@@ -1,0 +1,12 @@
+int main(){
+   int i, count, number[25];
+
+   print("How many elements are u going to enter (max=25)?");
+   read("value");
+
+   print("Enter", count, "elements: ");
+   for(i=0;i<count;i=i+1)
+      read(number[i]);
+
+   return 0;
+}

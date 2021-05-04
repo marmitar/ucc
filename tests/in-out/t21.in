@@ -1,0 +1,5 @@
+int main(char i, char j)
+{
+  int i, j;
+  return i+j;
+}

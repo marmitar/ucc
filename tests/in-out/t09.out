@@ -1,0 +1,3 @@
+SemanticError: Constant(rawtype=string,
+         value=value,
+         uc_type=) is not a variable @ 5:9

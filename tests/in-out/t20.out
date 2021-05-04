@@ -1,0 +1,1 @@
+SemanticError: Return of type(void) is incompatible with type(int) function definition @ 1:12

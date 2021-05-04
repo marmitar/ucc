@@ -1,0 +1,6 @@
+int main()
+{
+  int arr[2];
+  print(arr);
+  return 0;
+}
