@@ -1,4 +1,13 @@
-int main(int i, char c) {
-  int i, j
-  j = i + 1;
+int n = 3;
+
+int doubleMe (int x) {
+    return x * x;
+}
+
+void main ()
+{
+    int v = n;
+    v = doubleMe(v, 2);
+    assert v + n * n;
+    return;
 }

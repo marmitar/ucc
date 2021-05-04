@@ -1,1 +1,1 @@
-ParserError: Before m @ 16:15
+SemanticError: subscript must be of type(int), not type(char) @ 6:11

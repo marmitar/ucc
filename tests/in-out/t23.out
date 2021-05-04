@@ -1,1 +1,1 @@
-ParserError: Before = @ 1:15
+SemanticError: i is not a function @ 3:3

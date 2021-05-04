@@ -1,1 +1,6 @@
-int var = (1 < 4) && (5 >= 10) || (y != x);
+int main() {
+    char a = 'a';
+    char b = 'b';
+    char c = a + b;
+    return 0;
+}

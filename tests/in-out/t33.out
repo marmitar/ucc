@@ -1,9 +1,1 @@
-Program:
-    FuncDef:
-        Type: void @ 1:1
-        Decl: ID(name=main)
-            FuncDecl:
-                VarDecl:
-                    Type: void @ 1:1
-        Compound: @ 1:13
-            Break: @ 2:3
+SemanticError: The condition expression must be of type(bool) @ 3:6

@@ -1,8 +1,1 @@
-Program:
-    FuncDef:
-        Type: int @ 1:1
-        Decl: ID(name=main)
-            FuncDecl:
-                VarDecl:
-                    Type: int @ 1:1
-        Compound: @ 1:12
+SemanticError: Return of type(void) is incompatible with type(int) function definition @ 1:12

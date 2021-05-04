@@ -1,22 +1,18 @@
-void main()
-{
-   int n, r = 0, t;
+/* Bubble sort code */
 
-   print("Enter an integer to check if it's palindrome or not\n");
-   read(n);
-
-   t = n;
-
-   while (t != 0)
-   {
-      r = r * 10;
-      r = r + t%10;
-      t = t / 10;
-   }
-
-   if (n == r)
-      print(n, " is a palindrome number.\n");
-   else
-      print(n, " isn't a palindrome number.\n");
-
+int main() {
+    int v[10];
+    int n = 6, c, d, swap;
+    for (c=0; c<n; c=c+1)
+        v[c] = 10 - c;
+    for (c=0; c<n-1; c=c+1)
+        for (d=0; d<n-c-1; d=d+1)
+            if (v[d] = v[d+1]) {
+                swap = v[d];
+                v[d] = v[d+1];
+                v[d+1] = swap;
+            }
+    for (c=0; c<n; c=c+1)
+        assert v[c] == c + 5;
+    return 0;
 }

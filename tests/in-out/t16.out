@@ -1,1 +1,1 @@
-ParserError: Before } @ 5:1
+SemanticError: arr does not reference a variable of basic type @ 4:9

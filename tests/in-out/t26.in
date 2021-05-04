@@ -1,7 +1,4 @@
-int f() {
-  return 0;
-}
-
 int main(int argc) {
-  return f();
+  int argv = 'a';
+  return 0;
 }

@@ -1,6 +1,7 @@
 int v[] = {1, 2, 3, 4};
-int main()
+int main() {
+    char x = '3';
     for (int i = 1; i <= 4; i=i+1)
-        print(v[i]);
-    return;
+        v[i] = x;
+    return 0;
 }

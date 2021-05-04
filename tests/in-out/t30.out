@@ -1,16 +1,1 @@
-Program:
-    FuncDef:
-        Type: void @ 1:1
-        Decl: ID(name=main)
-            FuncDecl:
-                VarDecl:
-                    Type: void @ 1:1
-        Compound: @ 1:13
-            While: @ 2:3
-                Constant: int, 1 @ 2:9
-                Compound: @ 2:12
-                    Assignment: = @ 3:5
-                        ID: i @ 3:5
-                        BinaryOp: + @ 3:7
-                            ID: i @ 3:7
-                            Constant: int, 1 @ 3:9
+SemanticError: conditional expression is type(int), not type(bool) @ 2:3

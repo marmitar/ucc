@@ -1,9 +1,1 @@
-Program:
-    GlobalDecl:
-        Decl: ID(name=N)
-            VarDecl:
-                Type: int @ 1:1
-            UnaryOp: - @ 1:14
-                UnaryOp: + @ 1:14
-                    UnaryOp: ! @ 1:14
-                        Constant: int, 100 @ 1:14
+SemanticError: Unary operator ! is not supported @ 1:14

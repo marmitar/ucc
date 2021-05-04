@@ -1,1 +1,1 @@
-ParserError: Before { @ 7:31
+SemanticError: Name i is already defined in this scope @ 4:9
