@@ -4,9 +4,7 @@ class uCType:
     Types are declared as singleton instances of this type.
     """
 
-    def __init__(
-        self, name, binary_ops=set(), unary_ops=set(), rel_ops=set(), assign_ops=set()
-    ):
+    def __init__(self, name, binary_ops=set(), unary_ops=set(), rel_ops=set(), assign_ops=set()):
         """
         You must implement yourself and figure out what to store.
         """
@@ -17,8 +15,9 @@ class uCType:
         self.assign_ops = assign_ops
 
 
-# Create specific instances of basic types. You will need to add
-# appropriate arguments depending on your definition of uCType
+# # # # # # # #
+# Basic Types #
+
 IntType = uCType(
     "int",
     unary_ops={"-", "+"},
@@ -26,9 +25,12 @@ IntType = uCType(
     rel_ops={"==", "!=", "<", ">", "<=", ">="},
     assign_ops={"="},
 )
-# TODO: add other basic types
-# CharType = uCType("char", ...)
 
+CharType = uCType(
+    "char",
+    rel_ops={"==", "!=", "&&", "||"},
+    assign_ops={"="},
+)
 
 # TODO: add array and function types
 # Array and Function types need to be instantiated for each declaration
