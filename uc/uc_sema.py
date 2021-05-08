@@ -143,9 +143,7 @@ if __name__ == "__main__":
 
     # create argument parser
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "input_file", help="Path to file to be semantically checked", type=str
-    )
+    parser.add_argument("input_file", help="Path to file to be semantically checked", type=str)
     args = parser.parse_args()
 
     # get input path
