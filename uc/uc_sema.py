@@ -1,9 +1,10 @@
-import argparse
 import pathlib
 import sys
-from uc.uc_ast import ID
-from uc.uc_parser import UCParser
-from uc.uc_type import CharType, IntType
+from argparse import ArgumentParser
+from typing import Optional
+from uc.uc_ast import ID, Assignment, BinaryOp, Node, Program
+from uc.uc_parser import Coord, UCParser
+from uc.uc_type import CharType, IntType, uCType
 
 
 class SymbolTable(dict):
@@ -14,23 +15,23 @@ class SymbolTable(dict):
     def __init__(self):
         super().__init__()
 
-    def add(self, name, value):
+    def add(self, name: str, value: uCType) -> None:
         self[name] = value
 
-    def lookup(self, name):
+    def lookup(self, name: str) -> Optional[uCType]:
         return self.get(name, None)
 
 
 class NodeVisitor:
     """A base NodeVisitor class for visiting uc_ast nodes.
-    Subclass it and define your own visit_XXX methods, where
-    XXX is the class name you want to visit with these
+    Subclass it and define your own visit_NODE methods, where
+    NODE is the class name you want to visit with these
     methods.
     """
 
-    _method_cache = None
+    _method_cache = {}
 
-    def visit(self, node):
+    def visit(self, node: Node) -> None:
         """Visit a node."""
 
         visitor = self._method_cache.get(node.classname, None)
@@ -41,7 +42,7 @@ class NodeVisitor:
 
         return visitor(node)
 
-    def generic_visit(self, node):
+    def generic_visit(self, node: Node) -> None:
         """Called if no explicit visitor function exists for a
         node. Implements preorder visiting of the node.
         """
@@ -52,7 +53,7 @@ class NodeVisitor:
 class Visitor(NodeVisitor):
     """
     Program visitor class. This class uses the visitor pattern. You need to define methods
-    of the form visit_NodeName() for each kind of AST node that you want to process.
+    of the form visit_NODE() for each kind of AST node that you want to process.
     """
 
     def __init__(self):
@@ -65,7 +66,9 @@ class Visitor(NodeVisitor):
         }
         # TODO: Complete...
 
-    def _assert_semantic(self, condition, msg_code, coord, name="", ltype="", rtype=""):
+    def _assert_semantic(
+        self, condition: bool, msg_code: int, coord: Coord, name="", ltype="", rtype=""
+    ) -> None:
         """Check condition, if false print selected error message and exit"""
         error_msgs = {
             1: f"{name} is not defined",
@@ -101,13 +104,13 @@ class Visitor(NodeVisitor):
             print("SemanticError: %s %s" % (msg, coord), file=sys.stdout)
             sys.exit(1)
 
-    def visit_Program(self, node):
+    def visit_Program(self, node: Program) -> None:
         # Visit all of the global declarations
         for _decl in node.gdecls:
             self.visit(_decl)
         # TODO: Manage the symbol table
 
-    def visit_BinaryOp(self, node):
+    def visit_BinaryOp(self, node: BinaryOp) -> None:
         # Visit the left and right expression
         self.visit(node.left)
         ltype = node.left.uc_type
@@ -118,7 +121,7 @@ class Visitor(NodeVisitor):
         # - Make sure the operation is supported
         # - Assign the result type
 
-    def visit_Assignment(self, node):
+    def visit_Assignment(self, node: Assignment) -> None:
         # visit right side
         self.visit(node.rvalue)
         rtype = node.rvalue.uc_type
@@ -139,7 +142,7 @@ class Visitor(NodeVisitor):
 if __name__ == "__main__":
 
     # create argument parser
-    parser = argparse.ArgumentParser()
+    parser = ArgumentParser()
     parser.add_argument("input_file", help="Path to file to be semantically checked", type=str)
     args = parser.parse_args()
 
