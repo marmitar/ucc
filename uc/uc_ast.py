@@ -35,8 +35,8 @@ def represent_node(obj, indent):
                 return ""
             else:
                 printed_set.add(obj)
-            result = obj.__class__.__name__ + "("
-            indent += len(obj.__class__.__name__) + 1
+            result = obj.classname + "("
+            indent += len(obj.classname) + 1
             attrs = []
             for name in obj.__slots__[:-1]:
                 if name == "bind":
@@ -71,6 +71,14 @@ class Node:
     def __repr__(self) -> str:
         """Generates a python representation of the current node"""
         return represent_node(self, 0)
+
+    @classmethod
+    @property
+    def classname(cls) -> str:
+        """Name for the Node specialized class"""
+        if cls is Node:
+            raise NotImplementedError("'Node' is an abstract base class")
+        return cls.__name__
 
     def children(self) -> Iterable[Tuple[str, Node]]:
         """A sequence of all children that are Nodes"""
@@ -117,8 +125,8 @@ class Node:
             buf.write(f"<{_my_node_name}> ")
             inner_offset += len(f"<{_my_node_name}> ")
 
-        buf.write(self.__class__.__name__ + ":")
-        inner_offset += len(self.__class__.__name__ + ":")
+        buf.write(self.classname + ":")
+        inner_offset += len(self.classname + ":")
 
         if self.attr_names:
             if attrnames:

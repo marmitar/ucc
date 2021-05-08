@@ -33,14 +33,11 @@ class NodeVisitor:
     def visit(self, node):
         """Visit a node."""
 
-        if self._method_cache is None:
-            self._method_cache = {}
-
-        visitor = self._method_cache.get(node.__class__.__name__, None)
+        visitor = self._method_cache.get(node.classname, None)
         if visitor is None:
-            method = "visit_" + node.__class__.__name__
+            method = "visit_" + node.classname
             visitor = getattr(self, method, self.generic_visit)
-            self._method_cache[node.__class__.__name__] = visitor
+            self._method_cache[node.classname] = visitor
 
         return visitor(node)
 
