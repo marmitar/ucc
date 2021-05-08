@@ -2,7 +2,7 @@
 
 The objective of this assignment is to enforce semantic rules on the AST of the uC language.
 Further instructions can be seen in this
-[link](https://github.com/MC921-2s20/notebooks-2s20/blob/master/P4-Semantic.ipynb).
+[link](https://github.com/mc921-1s21/notebooks-1S21/blob/master/P4-Semantic.ipynb).
 
 ## Tasks
 
@@ -12,7 +12,7 @@ You should do the following tasks:
 - [X] Paste your implementation of the parser in `uc/uc_parser.py`
 - [X] Paste your implementation of the ast in `uc/uc_ast.py` and update it where it is necessary
 - [ ] Complete the implementation of the semantic analysis in `uc/uc_sema.py`
-- [ ] Complete the implementation of the the type classes in `uc/uc_type.py`
+- [X] Complete the implementation of the the type classes in `uc/uc_type.py`
 
 ## Requirements
 
