@@ -1,10 +1,20 @@
+from typing import Optional, Sequence, Set
+
+
 class uCType:
     """
     Class that represents a type in the uC language.  Basic
     Types are declared as singleton instances of this type.
     """
 
-    def __init__(self, name, binary_ops=set(), unary_ops=set(), rel_ops=set(), assign_ops=set()):
+    def __init__(
+        self,
+        name: Optional[str],
+        binary_ops: Set[str] = set(),
+        unary_ops: Set[str] = set(),
+        rel_ops: Set[str] = set(),
+        assign_ops: Set[str] = set(),
+    ):
         """
         You must implement yourself and figure out what to store.
         """
@@ -32,15 +42,30 @@ CharType = uCType(
     assign_ops={"="},
 )
 
-# TODO: add array and function types
-# Array and Function types need to be instantiated for each declaration
+
+# # # # # # # # # #
+# Compound Types  #
+
+
 class ArrayType(uCType):
-    def __init__(self, element_type, size=None):
+    def __init__(self, element_type: uCType, size: Optional[int] = None):
         """
         type: Any of the uCTypes can be used as the array's type. This
               means that there's support for nested types, like matrices.
         size: Integer with the length of the array.
         """
+        super().__init__(None, unary_ops={"*", "&"}, rel_ops={"==", "!="})
         self.type = element_type
         self.size = size
-        super().__init__(None, unary_ops={"*", "&"}, rel_ops={"==", "!="})
+
+
+class FunctionType(uCType):
+    def __init__(self, return_type: Optional[uCType], params: Sequence[uCType]):
+        """
+        return_type: Only the basic uCTypes can be used here. None is
+                     used to indicate the special 'void' type.
+        params: Sequence of types for each of the function parameters.
+        """
+        super().__init__(None)  # only valid operation is call
+        self.type = return_type
+        self.params = tuple(params)
