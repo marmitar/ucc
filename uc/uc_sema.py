@@ -35,9 +35,13 @@ class SymbolTable:
         finally:
             self.pop_scope()
 
-    def add(self, name: str, value: uCType) -> None:
-        """Add or change symbol in latest scope."""
+    def add(self, name: str, value: uCType) -> bool:
+        """Add symbol in latest scope."""
+        if name in self.scope_stack[-1]:
+            return False
+
         self.scope_stack[-1][name] = value
+        return True
 
     def lookup(self, name: str) -> Optional[uCType]:
         """Find symbol type from inner to outer scope."""
@@ -158,8 +162,7 @@ class Visitor(NodeVisitor):
             self.visit(node.init)
             rtype = node.init.uc_type
             # check if initilization is valid
-            self._assert_semantic(ltype == rtype, 4, node.coord, ltype=ltype, rtype=rtype)
-            self._assert_semantic("=" in ltype.assign_ops, 5, node.coord, node.op, ltype)
+            self._assert_semantic(ltype == rtype, 11, node.coord, node.op)
             # TODO: arrays
 
     # # # # # # # #
@@ -203,7 +206,8 @@ class Visitor(NodeVisitor):
             self._assert_semantic(uctype is not None, 1, node.coord, node.name)
         else:
             # initialize the type, kind, and scope attributes
-            self.symtab.add(node.name, uctype)
+            ok = self.symtab.add(node.name, uctype)
+            self._assert_semantic(ok, 25, node.coord, node.name)
         # bind identifier to its associated symbol type
         node.uc_type = uctype
 
