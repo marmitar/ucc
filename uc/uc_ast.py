@@ -1,16 +1,7 @@
 from __future__ import annotations
 import sys
-from typing import (
-    Iterable,
-    List,
-    Literal,
-    Optional,
-    Protocol,
-    Sequence,
-    Tuple,
-    Union,
-    overload,
-)
+from collections.abc import Sequence
+from typing import List, Literal, Optional, Protocol, Tuple, Union, overload
 from uc.uc_type import uCType
 
 
@@ -64,7 +55,7 @@ class Node:
     """Abstract base class for AST nodes."""
 
     __slots__ = "coord", "__uc_type"
-    attr_names: Sequence[str] = ()
+    attr_names: Tuple[str, ...] = ()
 
     def __init__(self, coord: Optional[Coord] = None):
         self.coord = coord
@@ -77,7 +68,7 @@ class Node:
     @classmethod
     @property
     def classname(cls) -> str:
-        """Name for the Node specialized class"""
+        """Name for the specialized Node class"""
         if cls is Node:
             raise NotImplementedError("'Node' is an abstract base class")
         return cls.__name__
@@ -94,7 +85,7 @@ class Node:
     def uc_type(self, type: uCType) -> None:
         self.__uc_type = type
 
-    def children(self) -> Iterable[Tuple[str, Node]]:
+    def children(self) -> Tuple[Tuple[str, Node], ...]:
         """A sequence of all children that are Nodes"""
         nodelist = []
         for attr in self.__slots__:
@@ -284,9 +275,11 @@ class VarDecl(Node):
         self.declname = declname
         self.type = type
 
-    def children(self) -> Iterable[Tuple[str, Node]]:
+    def children(self) -> Tuple[Tuple[str, Node], ...]:
         if self.type is not None:
-            yield "type", self.type
+            return (("type", self.type),)
+        else:
+            return ()
 
 
 # # # # # # # #
@@ -501,7 +494,7 @@ class ID(Node):
         self.name = name
         self.scope = None
 
-    def children(self) -> Iterable[Tuple[str, Node]]:
+    def children(self) -> Tuple[Tuple[str, Node], ...]:
         return ()  # scope isn't a child
 
 
