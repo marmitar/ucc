@@ -93,7 +93,7 @@ class UCParser:
         # Keeps track of the last token given to yacc (the lookahead token)
         self._last_yielded_token = None
 
-    def parse(self, text, debuglevel=0):
+    def parse(self, text, debuglevel=0) -> Program:
         self.uclex.reset_lineno()
         self._last_yielded_token = None
         return self.ucparser.parse(input=text, lexer=self.uclex, debug=debuglevel)
@@ -558,4 +558,5 @@ if __name__ == "__main__":
     p = UCParser()
     # open file and print tokens
     with open(input_path) as f:
-        p.parse(f.read())
+        program = p.parse(f.read())
+        program.show(attrnames=True, nodenames=True, showcoord=True)
