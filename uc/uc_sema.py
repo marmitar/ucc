@@ -1,25 +1,39 @@
 import pathlib
 import sys
 from argparse import ArgumentParser
-from typing import Optional
+from typing import Dict, List, Optional
 from uc.uc_ast import ID, Assignment, BinaryOp, Node, Program
 from uc.uc_parser import Coord, UCParser
 from uc.uc_type import CharType, IntType, VoidType, uCType
 
 
-class SymbolTable(dict):
+class SymbolTable:
     """Class representing a symbol table. It should provide functionality
     for adding and looking up nodes associated with identifiers.
     """
 
     def __init__(self):
-        super().__init__()
+        # stack of scoped symbols
+        self.scope_stack: List[Dict[str, uCType]] = []
+
+    def new_scope(self) -> None:
+        """Create new scope for symbol declarations."""
+        self.scope_stack.append({})
+
+    def pop_scope(self) -> Dict[str, uCType]:
+        """Remove latest scope from table stack."""
+        return self.scope_stack.pop()
 
     def add(self, name: str, value: uCType) -> None:
-        self[name] = value
+        """Add or change symbol in latest scope."""
+        self.scope_stack[-1][name] = value
 
     def lookup(self, name: str) -> Optional[uCType]:
-        return self.get(name, None)
+        """Find symbol type from inner to outer scope."""
+        for scope in reversed(self.scope_stack):
+            uctype = scope.get(name, None)
+            if uctype is not None:
+                return uctype
 
 
 class NodeVisitor:
@@ -115,10 +129,13 @@ class Visitor(NodeVisitor):
     # DECLARATIONS  #
 
     def visit_Program(self, node: Program) -> None:
+        # global scope
+        self.symtab.new_scope()
         # Visit all of the global declarations
         for decl in node.gdecls:
             self.visit(decl)
-        # TODO: Manage the symbol table
+
+        self.symtab.pop_scope()
 
     # # # # # # # #
     # STATEMENTS  #
@@ -144,11 +161,8 @@ class Visitor(NodeVisitor):
         self.visit(node.expr)
         rtype = node.expr.uc_type
         # visit left side (must be a location)
-        var = node.lvalue
-        self.visit(var)
-        if isinstance(var, ID):
-            self._assert_semantic(var.scope is not None, 1, node.coord, var.name)
-        ltype = var.uc_type
+        self.visit(node.lvalue)
+        ltype = node.lvalue.uc_type
         # Check that assignment is allowed
         self._assert_semantic(ltype == rtype, 4, node.coord, ltype=ltype, rtype=rtype)
         # Check that assign_ops is supported by the type
