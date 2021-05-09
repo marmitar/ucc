@@ -1,7 +1,9 @@
+from __future__ import annotations
 import pathlib
 import sys
 from argparse import ArgumentParser
-from typing import Dict, List, Optional
+from contextlib import contextmanager
+from typing import Dict, Iterator, List, Optional
 from uc.uc_ast import ID, Assignment, BinaryOp, Node, Program
 from uc.uc_parser import Coord, UCParser
 from uc.uc_type import CharType, IntType, VoidType, uCType
@@ -16,13 +18,22 @@ class SymbolTable:
         # stack of scoped symbols
         self.scope_stack: List[Dict[str, uCType]] = []
 
-    def new_scope(self) -> None:
+    def push_scope(self) -> None:
         """Create new scope for symbol declarations."""
         self.scope_stack.append({})
 
     def pop_scope(self) -> Dict[str, uCType]:
         """Remove latest scope from table stack."""
         return self.scope_stack.pop()
+
+    @contextmanager
+    def new_scope(self) -> Iterator[SymbolTable]:
+        """Context manager that automatically closes the scope."""
+        try:
+            self.push_scope()
+            yield self
+        finally:
+            self.pop_scope()
 
     def add(self, name: str, value: uCType) -> None:
         """Add or change symbol in latest scope."""
@@ -130,12 +141,10 @@ class Visitor(NodeVisitor):
 
     def visit_Program(self, node: Program) -> None:
         # global scope
-        self.symtab.new_scope()
-        # Visit all of the global declarations
-        for decl in node.gdecls:
-            self.visit(decl)
-
-        self.symtab.pop_scope()
+        with self.symtab.new_scope():
+            # Visit all of the global declarations
+            for decl in node.gdecls:
+                self.visit(decl)
 
     # # # # # # # #
     # STATEMENTS  #
