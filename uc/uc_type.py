@@ -47,6 +47,8 @@ CharType = uCType(
     assign_ops={"="},
 )
 
+VoidType = uCType("void")  # no valid operation
+
 
 # # # # # # # # # #
 # Compound Types  #
@@ -68,10 +70,9 @@ class ArrayType(uCType):
 
 
 class FunctionType(uCType):
-    def __init__(self, return_type: Optional[uCType], params: Sequence[uCType]):
+    def __init__(self, return_type: uCType, params: Sequence[uCType]):
         """
-        return_type: Only the basic uCTypes can be used here. None is
-                     used to indicate the special 'void' type.
+        return_type: Any uCType can be used here.
         params: Sequence of types for each of the function parameters.
         """
         super().__init__(None)  # only valid operation is call
