@@ -493,12 +493,16 @@ class Constant(Node):
 
 
 class ID(Node):
-    __slots__ = ("name",)
+    __slots__ = ("name", "scope")
     attr_names = ("name",)
 
     def __init__(self, name: str, coord: Coord):
         super().__init__(coord)
         self.name = name
+        self.scope = None
+
+    def children(self) -> Iterable[Tuple[str, Node]]:
+        return ()  # scope isn't a child
 
 
 class Type(Node):
