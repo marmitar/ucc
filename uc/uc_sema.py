@@ -4,9 +4,9 @@ import sys
 from argparse import ArgumentParser
 from contextlib import contextmanager
 from typing import Dict, Iterator, List, Optional
-from uc.uc_ast import ID, Assignment, BinaryOp, Node, Program
+from uc.uc_ast import ID, Assignment, BinaryOp, Constant, Node, Program, Type
 from uc.uc_parser import Coord, UCParser
-from uc.uc_type import CharType, IntType, VoidType, uCType
+from uc.uc_type import ArrayType, CharType, IntType, VoidType, uCType
 
 
 class SymbolTable:
@@ -88,6 +88,7 @@ class Visitor(NodeVisitor):
             "int": IntType,
             "char": CharType,
             "void": VoidType,
+            "string": ArrayType(CharType),
             # TODO
         }
         # TODO: Complete...
@@ -179,6 +180,20 @@ class Visitor(NodeVisitor):
 
     # # # # # # # # #
     # BASIC SYMBOLS #
+
+    def visit_ID(self, node: ID) -> None:
+        uctype = self.symtab.lookup(node.name)
+        self._assert_semantic(uctype is not None, 1, node.coord, node.name)
+        # bind identifier to its associated symbol type
+        node.uc_type = uctype
+
+    def visit_Constant(self, node: Constant) -> None:
+        # Get the matching uCType
+        node.uc_type = self.typemap[node.type]
+
+    def visit_Type(self, node: Type) -> None:
+        # Get the matching basic uCType
+        node.uc_type = self.typemap[node.name]
 
 
 if __name__ == "__main__":
