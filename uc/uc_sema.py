@@ -123,8 +123,8 @@ class Visitor(NodeVisitor):
 
     def visit_Assignment(self, node: Assignment) -> None:
         # visit right side
-        self.visit(node.rvalue)
-        rtype = node.rvalue.uc_type
+        self.visit(node.expr)
+        rtype = node.expr.uc_type
         # visit left side (must be a location)
         _var = node.lvalue
         self.visit(_var)
