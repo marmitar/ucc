@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 from typing import Optional
 from uc.uc_ast import ID, Assignment, BinaryOp, Node, Program
 from uc.uc_parser import Coord, UCParser
-from uc.uc_type import CharType, IntType, uCType
+from uc.uc_type import CharType, IntType, VoidType, uCType
 
 
 class SymbolTable(dict):
@@ -62,6 +62,7 @@ class Visitor(NodeVisitor):
         self.typemap = {
             "int": IntType,
             "char": CharType,
+            "void": VoidType,
             # TODO
         }
         # TODO: Complete...
