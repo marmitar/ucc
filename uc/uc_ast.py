@@ -11,6 +11,7 @@ from typing import (
     Union,
     overload,
 )
+from uc.uc_type import uCType
 
 
 class Coord(Protocol):
@@ -62,11 +63,12 @@ def represent_node(obj, indent):
 class Node:
     """Abstract base class for AST nodes."""
 
-    __slots__ = ("coord",)
+    __slots__ = "coord", "__uc_type"
     attr_names: Sequence[str] = ()
 
     def __init__(self, coord: Optional[Coord] = None):
         self.coord = coord
+        self.__uc_type = None
 
     def __repr__(self) -> str:
         """Generates a python representation of the current node"""
@@ -79,6 +81,18 @@ class Node:
         if cls is Node:
             raise NotImplementedError("'Node' is an abstract base class")
         return cls.__name__
+
+    @property
+    def uc_type(self) -> uCType:
+        """The type of given node, if defined"""
+        # guarantees that type is defined before using
+        if self.__uc_type is None:
+            raise ValueError(f"uc_type is not set for node {self}")
+        return self.__uc_type
+
+    @uc_type.setter
+    def uc_type(self, type: uCType) -> None:
+        self.__uc_type = type
 
     def children(self) -> Iterable[Tuple[str, Node]]:
         """A sequence of all children that are Nodes"""
