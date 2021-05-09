@@ -4,7 +4,7 @@ import sys
 from argparse import ArgumentParser
 from contextlib import contextmanager
 from typing import Dict, Iterator, List, Optional
-from uc.uc_ast import ID, Assignment, BinaryOp, Constant, Node, Program, Type
+from uc.uc_ast import ID, Assignment, BinaryOp, Constant, Decl, Node, Program, Type
 from uc.uc_parser import Coord, UCParser
 from uc.uc_type import ArrayType, CharType, IntType, VoidType, uCType
 
@@ -147,6 +147,21 @@ class Visitor(NodeVisitor):
             for decl in node.gdecls:
                 self.visit(decl)
 
+    def visit_Decl(self, node: Decl) -> None:
+        # Visit the types of the declaration
+        self.visit(node.type)
+        ltype = node.type.uc_type
+        # define the function or variable
+        self.visit_ID(node.name, ltype)
+        # If there is an initial value defined, visit it
+        if node.init is not None:
+            self.visit(node.init)
+            rtype = node.init.uc_type
+            # check if initilization is valid
+            self._assert_semantic(ltype == rtype, 4, node.coord, ltype=ltype, rtype=rtype)
+            self._assert_semantic("=" in ltype.assign_ops, 5, node.coord, node.op, ltype)
+            # TODO: arrays
+
     # # # # # # # #
     # STATEMENTS  #
 
@@ -181,9 +196,14 @@ class Visitor(NodeVisitor):
     # # # # # # # # #
     # BASIC SYMBOLS #
 
-    def visit_ID(self, node: ID) -> None:
-        uctype = self.symtab.lookup(node.name)
-        self._assert_semantic(uctype is not None, 1, node.coord, node.name)
+    def visit_ID(self, node: ID, uctype: Optional[uCType] = None) -> None:
+        if uctype is None:
+            # Look for its declaration in the symbol table
+            uctype = self.symtab.lookup(node.name)
+            self._assert_semantic(uctype is not None, 1, node.coord, node.name)
+        else:
+            # initialize the type, kind, and scope attributes
+            self.symtab.add(node.name, uctype)
         # bind identifier to its associated symbol type
         node.uc_type = uctype
 
