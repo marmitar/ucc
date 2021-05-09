@@ -66,7 +66,6 @@ U = TypeVar("U")
 
 def getitem(seq: Sequence[T], index: int, default: U = None) -> Union[T, U]:
     """'getattr'-like helper for sequences"""
-
     if 0 <= index < len(seq):
         return seq[index]
     else:

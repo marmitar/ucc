@@ -40,7 +40,7 @@ class NodeVisitor:
             visitor = getattr(self, method, self.generic_visit)
             self._method_cache[node.classname] = visitor
 
-        return visitor(node)
+        visitor(node)
 
     def generic_visit(self, node: Node) -> None:
         """Called if no explicit visitor function exists for a
@@ -110,11 +110,20 @@ class Visitor(NodeVisitor):
             print(f"SemanticError: {msg} {coord or ''}", file=sys.stdout)
             sys.exit(1)
 
+    # # # # # # # # #
+    # DECLARATIONS  #
+
     def visit_Program(self, node: Program) -> None:
         # Visit all of the global declarations
         for decl in node.gdecls:
             self.visit(decl)
         # TODO: Manage the symbol table
+
+    # # # # # # # #
+    # STATEMENTS  #
+
+    # # # # # # # #
+    # EXPRESSIONS #
 
     def visit_BinaryOp(self, node: BinaryOp) -> None:
         # Visit the left and right expression
@@ -143,6 +152,9 @@ class Visitor(NodeVisitor):
         self._assert_semantic(ltype == rtype, 4, node.coord, ltype=ltype, rtype=rtype)
         # Check that assign_ops is supported by the type
         self._assert_semantic(node.op in ltype.assign_ops, 5, node.coord, node.op, ltype)
+
+    # # # # # # # # #
+    # BASIC SYMBOLS #
 
 
 if __name__ == "__main__":
