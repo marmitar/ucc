@@ -67,7 +67,13 @@ class Visitor(NodeVisitor):
         # TODO: Complete...
 
     def _assert_semantic(
-        self, condition: bool, msg_code: int, coord: Coord, name="", ltype="", rtype=""
+        self,
+        condition: bool,
+        msg_code: int,
+        coord: Optional[Coord],
+        name="NONAME",
+        ltype="NOLTYPE",
+        rtype="NORTYPE",
     ) -> None:
         """Check condition, if false print selected error message and exit"""
         error_msgs = {
@@ -101,13 +107,13 @@ class Visitor(NodeVisitor):
         }
         if not condition:
             msg = error_msgs.get(msg_code)
-            print("SemanticError: %s %s" % (msg, coord), file=sys.stdout)
+            print(f"SemanticError: {msg} {coord or ''}", file=sys.stdout)
             sys.exit(1)
 
     def visit_Program(self, node: Program) -> None:
         # Visit all of the global declarations
-        for _decl in node.gdecls:
-            self.visit(_decl)
+        for decl in node.gdecls:
+            self.visit(decl)
         # TODO: Manage the symbol table
 
     def visit_BinaryOp(self, node: BinaryOp) -> None:
@@ -116,27 +122,27 @@ class Visitor(NodeVisitor):
         ltype = node.left.uc_type
         self.visit(node.right)
         rtype = node.right.uc_type
-        # TODO:
-        # - Make sure left and right operands have the same type
-        # - Make sure the operation is supported
-        # - Assign the result type
+        # Make sure left and right operands have the same type
+        self._assert_semantic(ltype == rtype, 6, node.coord, node.op, ltype, rtype)
+        # Make sure the operation is supported
+        self._assert_semantic(node.op in ltype.binary_ops, 7, node.coord, node.op, ltype)
+        # Assign the result type
+        node.uc_type = ltype
 
     def visit_Assignment(self, node: Assignment) -> None:
         # visit right side
         self.visit(node.expr)
         rtype = node.expr.uc_type
         # visit left side (must be a location)
-        _var = node.lvalue
-        self.visit(_var)
-        if isinstance(_var, ID):
-            self._assert_semantic(_var.scope is not None, 1, node.coord, name=_var.name)
-        ltype = node.lvalue.uc_type
+        var = node.lvalue
+        self.visit(var)
+        if isinstance(var, ID):
+            self._assert_semantic(var.scope is not None, 1, node.coord, var.name)
+        ltype = var.uc_type
         # Check that assignment is allowed
         self._assert_semantic(ltype == rtype, 4, node.coord, ltype=ltype, rtype=rtype)
         # Check that assign_ops is supported by the type
-        self._assert_semantic(
-            node.op in ltype.assign_ops, 5, node.coord, name=node.op, ltype=ltype
-        )
+        self._assert_semantic(node.op in ltype.assign_ops, 5, node.coord, node.op, ltype)
 
 
 if __name__ == "__main__":

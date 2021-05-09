@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Optional, Sequence, Set
 
 
@@ -24,9 +25,13 @@ class uCType:
         self.rel_ops = rel_ops
         self.assign_ops = assign_ops
 
+    def __eq__(self, other: uCType) -> bool:
+        """Primary types are only equal to themselves."""
+        return self is other
 
-# # # # # # # #
-# Basic Types #
+
+# # # # # # # # #
+# Primary Types #
 
 IntType = uCType(
     "int",
@@ -58,6 +63,9 @@ class ArrayType(uCType):
         self.type = element_type
         self.size = size
 
+    def __eq__(self, other: uCType) -> bool:
+        return isinstance(other, ArrayType) and self.type == other.type and self.size == other.size
+
 
 class FunctionType(uCType):
     def __init__(self, return_type: Optional[uCType], params: Sequence[uCType]):
@@ -69,3 +77,10 @@ class FunctionType(uCType):
         super().__init__(None)  # only valid operation is call
         self.type = return_type
         self.params = tuple(params)
+
+    def __eq__(self, other: uCType) -> bool:
+        return (
+            isinstance(other, FunctionType)
+            and self.type == other.type
+            and self.params == other.params
+        )
