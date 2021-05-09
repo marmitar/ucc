@@ -38,7 +38,7 @@ def represent_node(obj, indent):
             result = obj.classname + "("
             indent += len(obj.classname) + 1
             attrs = []
-            for name in obj.__slots__[:-1]:
+            for name in obj.__slots__:
                 if name == "bind":
                     continue
                 value = getattr(obj, name)
@@ -84,7 +84,7 @@ class Node:
         """A sequence of all children that are Nodes"""
         nodelist = []
         for attr in self.__slots__:
-            if attr in Node.__slots__ or attr in self.attr_names:
+            if attr in self.attr_names:
                 continue
             # treat attributes not in attr_names as children
             value = getattr(self, attr)
@@ -155,7 +155,7 @@ class Node:
 
 
 class ArrayDecl(Node):
-    __slots__ = "type", "size", "coord"
+    __slots__ = "type", "size"
     attr_names = ()
 
     def __init__(self, size: Optional[Node], type: Optional[Node] = None):
@@ -165,7 +165,7 @@ class ArrayDecl(Node):
 
 
 class Decl(Node):
-    __slots__ = "name", "type", "init", "coord"
+    __slots__ = "name", "type", "init"
     attr_names = ("name",)
 
     def __init__(
@@ -178,7 +178,7 @@ class Decl(Node):
 
 
 class DeclList(Node):
-    __slots__ = "decls", "coord"
+    __slots__ = ("decls",)
     attr_names = ()
 
     def __init__(self, decls: List[Decl] = [], coord: Optional[Coord] = None):
@@ -192,7 +192,7 @@ class DeclList(Node):
 
 
 class FuncDecl(Node):
-    __slots__ = "params", "type", "coord"
+    __slots__ = "params", "type"
     attr_names = ()
 
     def __init__(self, params: Optional[ParamList], type: Optional[Node] = None):
@@ -202,7 +202,7 @@ class FuncDecl(Node):
 
 
 class FuncDef(Node):
-    __slots__ = "return_type", "declaration", "decl_list", "implementation", "coord"
+    __slots__ = "return_type", "declaration", "decl_list", "implementation"
     attr_names = ()
 
     def __init__(
@@ -220,7 +220,7 @@ class FuncDef(Node):
 
 
 class GlobalDecl(Node):
-    __slots__ = "decl", "coord"
+    __slots__ = ("decl",)
     attr_names = ()
 
     def __init__(self, decl: List[Decl]):
@@ -229,7 +229,7 @@ class GlobalDecl(Node):
 
 
 class InitList(Node):
-    __slots__ = "init", "coord"
+    __slots__ = ("init",)
     attr_names = ()
 
     def __init__(self, head: Node):
@@ -241,7 +241,7 @@ class InitList(Node):
 
 
 class ParamList(Node):
-    __slots__ = "params", "coord"
+    __slots__ = ("params",)
     attr_names = ()
 
     def __init__(self, head: Node):
@@ -253,7 +253,7 @@ class ParamList(Node):
 
 
 class Program(Node):
-    __slots__ = "gdecls", "coord"
+    __slots__ = ("gdecls",)
     attr_names = ()
 
     def __init__(self, gdecls: List[Node]):
@@ -262,7 +262,7 @@ class Program(Node):
 
 
 class VarDecl(Node):
-    __slots__ = "type", "declname", "coord"
+    __slots__ = "type", "declname"
     attr_names = ()
 
     def __init__(self, declname: ID, type: Optional[Type] = None):
@@ -280,7 +280,7 @@ class VarDecl(Node):
 
 
 class Assert(Node):
-    __slots__ = "param", "coord"
+    __slots__ = ("param",)
     attr_names = ()
 
     def __init__(self, param: Node, coord: Coord):
@@ -289,7 +289,7 @@ class Assert(Node):
 
 
 class Break(Node):
-    __slots__ = ("coord",)
+    __slots__ = ()
     attr_names = ()
 
     def __init__(self, coord: Coord):
@@ -297,7 +297,7 @@ class Break(Node):
 
 
 class Compound(Node):
-    __slots__ = "declarations", "statements", "coord"
+    __slots__ = "declarations", "statements"
     attr_names = ()
 
     def __init__(self, declarations: List[List[Node]], statements: List[Node], coord: Coord):
@@ -311,7 +311,7 @@ class EmptyStatement(Node):
 
 
 class For(Node):
-    __slots__ = "declaration", "condition", "update", "stmt", "coord"
+    __slots__ = "declaration", "condition", "update", "stmt"
     attr_names = ()
 
     def __init__(
@@ -347,7 +347,7 @@ class If(Node):
 
 
 class Print(Node):
-    __slots__ = "param", "coord"
+    __slots__ = ("param",)
     attr_names = ()
 
     def __init__(self, param: Optional[Node], coord: Coord):
@@ -356,7 +356,7 @@ class Print(Node):
 
 
 class Read(Node):
-    __slots__ = "param", "coord"
+    __slots__ = ("param",)
     attr_names = ()
 
     def __init__(self, param: Node, coord: Coord):
@@ -365,7 +365,7 @@ class Read(Node):
 
 
 class Return(Node):
-    __slots__ = "result", "coord"
+    __slots__ = ("result",)
     attr_names = ()
 
     def __init__(self, result: Optional[Node], coord: Coord):
@@ -374,7 +374,7 @@ class Return(Node):
 
 
 class While(Node):
-    __slots__ = "expression", "stmt", "coord"
+    __slots__ = "expression", "stmt"
     attr_names = ()
 
     def __init__(self, expression: Node, stmt: Optional[Node], coord: Coord):
@@ -388,7 +388,7 @@ class While(Node):
 
 
 class ArrayRef(Node):
-    __slots__ = "array", "index", "coord"
+    __slots__ = "array", "index"
     attr_names = ()
 
     def __init__(self, array: Node, index: Node):
@@ -398,7 +398,7 @@ class ArrayRef(Node):
 
 
 class Assignment(Node):
-    __slots__ = "op", "lvalue", "expr", "coord"
+    __slots__ = "op", "lvalue", "expr"
     attr_names = ("op",)
 
     def __init__(self, op: str, lvalue: Node, expr: Node):
@@ -409,7 +409,7 @@ class Assignment(Node):
 
 
 class BinaryOp(Node):
-    __slots__ = "op", "left", "right", "coord"
+    __slots__ = "op", "left", "right"
     attr_names = ("op",)
 
     def __init__(self, op: str, left: Node, right: Node):
@@ -420,7 +420,7 @@ class BinaryOp(Node):
 
 
 class ExprList(Node):
-    __slots__ = "expr", "coord"
+    __slots__ = ("expr",)
     attr_names = ()
 
     def __init__(self, head: Node):
@@ -439,7 +439,7 @@ class ExprList(Node):
 
 
 class FuncCall(Node):
-    __slots__ = "callable", "params", "coord"
+    __slots__ = "callable", "params"
     attr_names = ()
 
     def __init__(self, callable: Node, params: Optional[Node]):
@@ -449,7 +449,7 @@ class FuncCall(Node):
 
 
 class UnaryOp(Node):
-    __slots__ = "op", "expr", "coord"
+    __slots__ = "op", "expr"
     attr_names = ("op",)
 
     def __init__(self, op: str, expr: Node):
@@ -463,7 +463,7 @@ class UnaryOp(Node):
 
 
 class Constant(Node):
-    __slots__ = "type", "value", "coord"
+    __slots__ = "type", "value"
     attr_names = "type", "value"
 
     # fmt: off
@@ -479,7 +479,7 @@ class Constant(Node):
 
 
 class ID(Node):
-    __slots__ = "name", "coord"
+    __slots__ = ("name",)
     attr_names = ("name",)
 
     def __init__(self, name: str, coord: Coord):
@@ -488,7 +488,7 @@ class ID(Node):
 
 
 class Type(Node):
-    __slots__ = "name", "coord"
+    __slots__ = ("name",)
     attr_names = ("name",)
 
     def __init__(self, name: str, coord: Coord):
