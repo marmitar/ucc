@@ -29,6 +29,7 @@ from uc.uc_ast import (
     Print,
     Program,
     Read,
+    RelationOp,
     Return,
     Type,
     UnaryOp,
@@ -411,19 +412,13 @@ class UCParser:
             p[1].append(p[3])
             p[0] = p[1]
 
-    def p_binary_expression(self, p):
+    def p_binary_expression_1(self, p):
         """binary_expression : unary_expression
         | binary_expression TIMES  binary_expression
         | binary_expression DIVIDE binary_expression
         | binary_expression  MOD   binary_expression
         | binary_expression  PLUS  binary_expression
         | binary_expression MINUS  binary_expression
-        | binary_expression   LT   binary_expression
-        | binary_expression   LE   binary_expression
-        | binary_expression   GT   binary_expression
-        | binary_expression   GE   binary_expression
-        | binary_expression   EQ   binary_expression
-        | binary_expression   NE   binary_expression
         | binary_expression  AND   binary_expression
         | binary_expression   OR   binary_expression
         """
@@ -431,6 +426,16 @@ class UCParser:
             p[0] = BinaryOp(p[2], p[1], p[3])
         else:
             p[0] = p[1]
+
+    def p_binary_expression_2(self, p):
+        """binary_expression : binary_expression LT binary_expression
+        | binary_expression  LE  binary_expression
+        | binary_expression  GT  binary_expression
+        | binary_expression  GE  binary_expression
+        | binary_expression  EQ  binary_expression
+        | binary_expression  NE  binary_expression
+        """
+        p[0] = RelationOp(p[2], p[1], p[3])
 
     precedence = (
         ("left", "COMMA"),

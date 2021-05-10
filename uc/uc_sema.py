@@ -4,9 +4,19 @@ import sys
 from argparse import ArgumentParser
 from contextlib import contextmanager
 from typing import Dict, Iterator, List, Optional
-from uc.uc_ast import ID, Assignment, BinaryOp, Constant, Decl, Node, Program, Type
+from uc.uc_ast import (
+    ID,
+    Assignment,
+    BinaryOp,
+    Constant,
+    Decl,
+    Node,
+    Program,
+    RelationOp,
+    Type,
+)
 from uc.uc_parser import Coord, UCParser
-from uc.uc_type import ArrayType, CharType, IntType, VoidType, uCType
+from uc.uc_type import ArrayType, BoolType, CharType, IntType, VoidType, uCType
 
 
 class SymbolTable:
@@ -93,6 +103,7 @@ class Visitor(NodeVisitor):
             "char": CharType,
             "void": VoidType,
             "string": ArrayType(CharType),
+            "bool": BoolType,
             # TODO
         }
         # TODO: Complete...
@@ -171,30 +182,28 @@ class Visitor(NodeVisitor):
     # # # # # # # #
     # EXPRESSIONS #
 
-    def visit_BinaryOp(self, node: BinaryOp) -> None:
+    def visit_BinaryOp(self, node: BinaryOp, kind="binary_ops", errno=(6, 7)) -> None:
         # Visit the left and right expression
         self.visit(node.left)
-        ltype = node.left.uc_type
+        ltype: uCType = node.left.uc_type
         self.visit(node.right)
         rtype = node.right.uc_type
         # Make sure left and right operands have the same type
-        self._assert_semantic(ltype == rtype, 6, node.coord, node.op, ltype, rtype)
+        self._assert_semantic(ltype == rtype, errno[0], node.coord, node.op, ltype, rtype)
         # Make sure the operation is supported
-        self._assert_semantic(node.op in ltype.binary_ops, 7, node.coord, node.op, ltype)
+        self._assert_semantic(
+            node.op in getattr(ltype, kind, {}), errno[1], node.coord, node.op, ltype, rtype
+        )
         # Assign the result type
         node.uc_type = ltype
 
+    def visit_RelationOp(self, node: RelationOp) -> None:
+        self.visit_BinaryOp(node, "rel_ops")
+        node.uc_type = BoolType
+
     def visit_Assignment(self, node: Assignment) -> None:
-        # visit right side
-        self.visit(node.expr)
-        rtype = node.expr.uc_type
-        # visit left side (must be a location)
-        self.visit(node.lvalue)
-        ltype = node.lvalue.uc_type
-        # Check that assignment is allowed
-        self._assert_semantic(ltype == rtype, 4, node.coord, ltype=ltype, rtype=rtype)
-        # Check that assign_ops is supported by the type
-        self._assert_semantic(node.op in ltype.assign_ops, 5, node.coord, node.op, ltype)
+        self.visit_BinaryOp(node, "assign_ops", errno=(4, 5))
+        node.uc_type = None
 
     # # # # # # # # #
     # BASIC SYMBOLS #
