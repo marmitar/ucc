@@ -159,8 +159,7 @@ class Visitor(NodeVisitor):
         # global scope
         with self.symtab.new_scope():
             # Visit all of the global declarations
-            for decl in node.gdecls:
-                self.visit(decl)
+            self.generic_visit(node)
 
     def visit_Decl(self, node: Decl) -> None:
         # Visit the types of the declaration
@@ -184,9 +183,8 @@ class Visitor(NodeVisitor):
 
     def visit_BinaryOp(self, node: BinaryOp, kind="binary_ops", errno=(6, 7)) -> None:
         # Visit the left and right expression
-        self.visit(node.left)
-        ltype: uCType = node.left.uc_type
-        self.visit(node.right)
+        self.generic_visit(node)
+        ltype = node.left.uc_type
         rtype = node.right.uc_type
         # Make sure left and right operands have the same type
         self._assert_semantic(ltype == rtype, errno[0], node.coord, node.op, ltype, rtype)
@@ -203,7 +201,7 @@ class Visitor(NodeVisitor):
 
     def visit_Assignment(self, node: Assignment) -> None:
         self.visit_BinaryOp(node, "assign_ops", errno=(4, 5))
-        node.uc_type = None
+        node.uc_type = VoidType  # TODO
 
     # # # # # # # # #
     # BASIC SYMBOLS #
@@ -217,6 +215,7 @@ class Visitor(NodeVisitor):
             # initialize the type, kind, and scope attributes
             ok = self.symtab.add(node.name, uctype)
             self._assert_semantic(ok, 25, node.coord, node.name)
+
         # bind identifier to its associated symbol type
         node.uc_type = uctype
 
