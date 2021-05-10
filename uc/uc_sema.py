@@ -213,7 +213,7 @@ class Visitor(NodeVisitor):
 
     def visit_Constant(self, node: Constant) -> None:
         # Get the matching uCType
-        node.uc_type = self.typemap[node.type]
+        node.uc_type = self.typemap[node.rawtype]
 
     def visit_Type(self, node: Type) -> None:
         # Get the matching basic uCType
