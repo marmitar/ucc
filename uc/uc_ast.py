@@ -56,10 +56,10 @@ class Node:
     __slots__ = "coord", "uc_type"
     attr_names: Tuple[str, ...] = ("uc_type",)
     special_attr: Tuple[str, ...] = ("coord",)
+    uc_type: uCType
 
     def __init__(self, coord: Optional[Coord] = None):
         self.coord = coord
-        self.uc_type: Optional[uCType] = None
 
     def __repr__(self) -> str:
         """Generates a python representation of the current node"""
