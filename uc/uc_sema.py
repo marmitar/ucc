@@ -6,14 +6,17 @@ from contextlib import contextmanager
 from typing import Dict, Iterator, List, Optional
 from uc.uc_ast import (
     ID,
+    ArrayRef,
     Assignment,
     BinaryOp,
     Constant,
     Decl,
+    ExprList,
     Node,
     Program,
     RelationOp,
     Type,
+    UnaryOp,
 )
 from uc.uc_parser import Coord, UCParser
 from uc.uc_type import ArrayType, BoolType, CharType, IntType, VoidType, uCType
@@ -111,8 +114,8 @@ class Visitor(NodeVisitor):
     def _assert_semantic(
         self,
         condition: bool,
-        msg_code: int,
-        coord: Optional[Coord],
+        msg_code=None,
+        coord: Optional[Coord] = None,
         name="NONAME",
         ltype="NOLTYPE",
         rtype="NORTYPE",
@@ -120,7 +123,7 @@ class Visitor(NodeVisitor):
         """Check condition, if false print selected error message and exit"""
         error_msgs = {
             1: f"{name} is not defined",
-            2: f"subscript must be of type(int), not {ltype}",
+            2: f"subscript must be of type(int), not {rtype}",
             3: "Expression must be of type(bool)",
             4: f"Cannot assign {rtype} to {ltype}",
             5: f"Assignment operator {name} is not supported by {ltype}",
@@ -148,7 +151,7 @@ class Visitor(NodeVisitor):
             27: "Undefined error",
         }
         if not condition:
-            msg = error_msgs.get(msg_code)
+            msg = error_msgs[msg_code or len(error_msgs) - 1]
             print(f"SemanticError: {msg} {coord or ''}", file=sys.stdout)
             sys.exit(1)
 
@@ -202,6 +205,28 @@ class Visitor(NodeVisitor):
     def visit_Assignment(self, node: Assignment) -> None:
         self.visit_BinaryOp(node, "assign_ops", errno=(4, 5))
         node.uc_type = VoidType  # TODO
+
+    def visit_UnaryOp(self, node: UnaryOp) -> None:
+        self.generic_visit(node)
+        rtype = node.expr.uc_type
+        # Make sure the operation is supported
+        self._assert_semantic(node.op in rtype.unary_ops, 26, node.op)
+        # Assign the result type
+        node.uc_type = rtype
+
+    def visit_ExprList(self, node: ExprList) -> None:
+        self.generic_visit(node)
+        # same type as last expression
+        node.uc_type = node.expr[-1].uc_type
+
+    def visit_ArrayRef(self, node: ArrayRef) -> None:
+        self.generic_visit(node)
+        # ltype must be an array type
+        ltype = node.array.uc_type
+        self._assert_semantic(isinstance(ltype, ArrayType), ltype=ltype)
+        # rtype must be 'int'
+        rtype = node.index.uc_type
+        self._assert_semantic(rtype == IntType, 2, rtype=rtype)
 
     # # # # # # # # #
     # BASIC SYMBOLS #
