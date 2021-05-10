@@ -1,4 +1,5 @@
 from __future__ import annotations
+import inspect
 import sys
 from collections.abc import Sequence
 from typing import List, Literal, Optional, Protocol, Tuple, Union, overload
@@ -30,9 +31,7 @@ def represent_node(obj, indent):
             result = obj.classname + "("
             indent += len(obj.classname) + 1
             attrs = []
-            for name in obj.__slots__:
-                if name == "bind":
-                    continue
+            for name in obj.attributes():
                 value = getattr(obj, name)
                 value_str = _repr(value, indent + len(name) + 1, printed_set)
                 attrs.append(name + "=" + value_str)
@@ -55,7 +54,7 @@ class Node:
     """Abstract base class for AST nodes."""
 
     __slots__ = "coord", "__uc_type"
-    attr_names: Tuple[str, ...] = ()
+    attr_names: Tuple[str, ...] = ("uc_type",)
 
     def __init__(self, coord: Optional[Coord] = None):
         self.coord = coord
@@ -64,6 +63,13 @@ class Node:
     def __repr__(self) -> str:
         """Generates a python representation of the current node"""
         return represent_node(self, 0)
+
+    @classmethod
+    def attributes(cls) -> Tuple[str, ...]:
+        attr = []
+        for base_class in inspect.getmro(cls):
+            attr.extend(base_class.attr_names)
+        return tuple(attr)
 
     @classmethod
     @property
@@ -133,16 +139,16 @@ class Node:
         buf.write(self.classname + ":")
         inner_offset += len(self.classname + ":")
 
-        if self.attr_names:
+        if self.attributes():
             if attrnames:
                 nvlist = [
                     (n, represent_node(getattr(self, n), offset + inner_offset + 1 + len(n) + 1))
-                    for n in self.attr_names
+                    for n in self.attributes()
                     if getattr(self, n) is not None
                 ]
                 attrstr = ", ".join(f"{n}={v}" for n, v in nvlist)
             else:
-                vlist = [getattr(self, n) for n in self.attr_names]
+                vlist = [getattr(self, n) for n in self.attributes()]
                 attrstr = ", ".join(represent_node(v, offset + inner_offset + 1) for v in vlist)
             buf.write(" " + attrstr)
 
@@ -151,7 +157,7 @@ class Node:
                 buf.write(" %s" % self.coord)
         buf.write("\n")
 
-        for (child_name, child) in self.children():
+        for child_name, child in self.children():
             child.show(buf, offset + 4, attrnames, nodenames, showcoord, child_name)
 
 
@@ -470,8 +476,8 @@ class UnaryOp(Node):
 
 
 class Constant(Node):
-    __slots__ = "type", "value"
-    attr_names = "type", "value"
+    __slots__ = "rawtype", "value"
+    attr_names = "rawtype", "value"
 
     # fmt: off
     @overload
@@ -481,7 +487,7 @@ class Constant(Node):
     # fmt: on
     def __init__(self, type: str, value: Union[int, str], coord: Coord):
         super().__init__(coord)
-        self.type = type
+        self.rawtype = type
         self.value = value
 
 
