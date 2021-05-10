@@ -53,23 +53,17 @@ def represent_node(obj, indent):
 class Node:
     """Abstract base class for AST nodes."""
 
-    __slots__ = "coord", "__uc_type"
+    __slots__ = "coord", "uc_type"
     attr_names: Tuple[str, ...] = ("uc_type",)
+    special_attr: Tuple[str, ...] = ("coord",)
 
     def __init__(self, coord: Optional[Coord] = None):
         self.coord = coord
-        self.__uc_type = None
+        self.uc_type: Optional[uCType] = None
 
     def __repr__(self) -> str:
         """Generates a python representation of the current node"""
         return represent_node(self, 0)
-
-    @classmethod
-    def attributes(cls) -> Tuple[str, ...]:
-        attr = []
-        for base_class in inspect.getmro(cls):
-            attr.extend(base_class.attr_names)
-        return tuple(attr)
 
     @classmethod
     @property
@@ -79,23 +73,38 @@ class Node:
             raise NotImplementedError("'Node' is an abstract base class")
         return cls.__name__
 
-    @property
-    def uc_type(self) -> uCType:
-        """The type of given node, if defined"""
-        # guarantees that type is defined before using
-        if self.__uc_type is None:
-            raise ValueError(f"uc_type is not set for node {self}")
-        return self.__uc_type
+    @classmethod
+    def attributes(cls) -> Tuple[str, ...]:
+        """Names of predefined node attributes."""
+        attr = []
+        for base_class in inspect.getmro(cls):
+            attr.extend(getattr(base_class, "attr_names", ()))
+        return tuple(attr)
 
-    @uc_type.setter
-    def uc_type(self, type: uCType) -> None:
-        self.__uc_type = type
+    @classmethod
+    def _slots(cls) -> Tuple[str, ...]:
+        """All fields in node, attributes and children."""
+        attr = []
+        for base_class in inspect.getmro(cls):
+            attr.extend(getattr(base_class, "__slots__", ()))
+        return tuple(attr)
+
+    @classmethod
+    def _special_attrs(cls) -> Tuple[str, ...]:
+        """Special attributes that are ignored in show."""
+        attr = []
+        for base_class in inspect.getmro(cls):
+            attr.extend(getattr(base_class, "special_attr", ()))
+        return tuple(attr)
 
     def children(self) -> Tuple[Tuple[str, Node], ...]:
         """A sequence of all children that are Nodes"""
+        attr_names = frozenset(self.attributes())
+        special = frozenset(self._special_attrs())
+
         nodelist = []
-        for attr in self.__slots__:
-            if attr in self.attr_names:
+        for attr in self._slots():
+            if attr in attr_names or attr in special:
                 continue
             # treat attributes not in attr_names as children
             value = getattr(self, attr)
@@ -275,17 +284,12 @@ class Program(Node):
 class VarDecl(Node):
     __slots__ = "type", "declname"
     attr_names = ()
+    special_attr = ("declname",)
 
     def __init__(self, declname: ID, type: Optional[Type] = None):
         super().__init__()
         self.declname = declname
         self.type = type
-
-    def children(self) -> Tuple[Tuple[str, Node], ...]:
-        if self.type is not None:
-            return (("type", self.type),)
-        else:
-            return ()
 
 
 # # # # # # # #
