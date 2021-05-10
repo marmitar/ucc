@@ -466,10 +466,12 @@ class UCParser:
         """
         if len(p) == 2:
             p[0] = p[1]
-        elif p[2] == "(":
-            p[0] = FuncCall(p[1], p[3] if len(p) == 5 else None)
-        else:
+        elif p[2] == "[":
             p[0] = ArrayRef(p[1], p[3])
+        elif len(p) == 5:
+            p[0] = FuncCall(p[1], p[3])
+        else:
+            p[0] = FuncCall(p[1])
 
     def p_primary_expression(self, p):
         """primary_expression : identifier
