@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional, Sequence, Set
+from typing import Optional, Sequence, Set, Tuple
 
 
 class uCType:
@@ -76,18 +76,22 @@ class ArrayType(uCType):
 
 
 class FunctionType(uCType):
-    def __init__(self, return_type: uCType, params: Sequence[uCType]):
+    def __init__(self, name: str, return_type: uCType, params: Sequence[Tuple[str, uCType]] = ()):
         """
+        name: Function definition name.
         return_type: Any uCType can be used here.
-        params: Sequence of types for each of the function parameters.
+        params: Sequence of 'name, type' for each of the function parameters.
         """
-        super().__init__(None)  # only valid operation is call
+        super().__init__(name)  # only valid operation is call
         self.type = return_type
         self.params = tuple(params)
+
+    def param_types(self) -> Tuple[uCType, ...]:
+        return tuple(t for _, t in self.params)
 
     def __eq__(self, other: uCType) -> bool:
         return (
             isinstance(other, FunctionType)
             and self.type == other.type
-            and self.params == other.params
+            and self.param_types() == other.param_types()
         )

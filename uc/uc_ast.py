@@ -434,12 +434,15 @@ class ExprList(Node):
     __slots__ = ("expr",)
     attr_names = ()
 
-    def __init__(self, head: Node):
-        super().__init__(head.coord)
-        self.expr = (head,)
+    def __init__(self, *nodes: Node):
+        super().__init__()
+        self.expr = ()
+        self.append(nodes)
 
-    def append(self, expr: Node) -> None:
-        self.expr += (expr,)
+    def append(self, *expr: Node) -> None:
+        if len(self.expr) == 0 and len(expr) > 0:
+            self.coord = expr[0].coord
+        self.expr += expr
 
     def show(self, *args, **kwargs) -> None:
         # hide list when containing a single symbol
@@ -453,7 +456,7 @@ class FuncCall(Node):
     __slots__ = "callable", "params"
     attr_names = ()
 
-    def __init__(self, callable: Node, params: Optional[Node]):
+    def __init__(self, callable: Node, params: ExprList = ExprList()):
         super().__init__(callable.coord)
         self.callable = callable
         self.params = params

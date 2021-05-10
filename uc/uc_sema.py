@@ -3,6 +3,7 @@ import pathlib
 import sys
 from argparse import ArgumentParser
 from contextlib import contextmanager
+from itertools import zip_longest
 from typing import Dict, Iterator, List, Optional
 from uc.uc_ast import (
     ID,
@@ -12,6 +13,7 @@ from uc.uc_ast import (
     Constant,
     Decl,
     ExprList,
+    FuncCall,
     Node,
     Program,
     RelationOp,
@@ -19,7 +21,15 @@ from uc.uc_ast import (
     UnaryOp,
 )
 from uc.uc_parser import Coord, UCParser
-from uc.uc_type import ArrayType, BoolType, CharType, IntType, VoidType, uCType
+from uc.uc_type import (
+    ArrayType,
+    BoolType,
+    CharType,
+    FunctionType,
+    IntType,
+    VoidType,
+    uCType,
+)
 
 
 class SymbolTable:
@@ -227,6 +237,21 @@ class Visitor(NodeVisitor):
         # rtype must be 'int'
         rtype = node.index.uc_type
         self._assert_semantic(rtype == IntType, 2, rtype=rtype)
+
+    def visit_FuncCall(self, node: FuncCall) -> None:
+        self.generic_visit(node)
+        # ltype must be a function type
+        ltype: FunctionType = node.callable.uc_type
+        self._assert_semantic(isinstance(ltype, FunctionType), 16, ltype=ltype)
+        # check length and types
+        for param, value in zip_longest(ltype.params, node.params.expr):
+            self._assert_semantic(
+                param is not None and value is not None, 17, value.coord, ltype.typename
+            )
+            name, type = param
+            self._assert_semantic(type == value.uc_type, 18, value.coord, name)
+
+        node.uc_type = ltype.type
 
     # # # # # # # # #
     # BASIC SYMBOLS #
