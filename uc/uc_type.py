@@ -20,10 +20,10 @@ class uCType:
         You must implement yourself and figure out what to store.
         """
         self.typename = name
-        self.unary_ops = unary_ops
-        self.binary_ops = binary_ops
-        self.rel_ops = rel_ops
-        self.assign_ops = assign_ops
+        self.unary_ops = frozenset(unary_ops)
+        self.binary_ops = frozenset(binary_ops)
+        self.rel_ops = frozenset(rel_ops)
+        self.assign_ops = frozenset(assign_ops)
 
     def __eq__(self, other: uCType) -> bool:
         """Primary types are only equal to themselves."""
@@ -43,6 +43,12 @@ IntType = uCType(
 
 CharType = uCType(
     "char",
+    rel_ops={"==", "!=", "&&", "||"},
+    assign_ops={"="},
+)
+
+BoolType = uCType(
+    "bool",
     rel_ops={"==", "!=", "&&", "||"},
     assign_ops={"="},
 )

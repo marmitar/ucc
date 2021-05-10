@@ -414,17 +414,6 @@ class ArrayRef(Node):
         self.index = index
 
 
-class Assignment(Node):
-    __slots__ = "op", "lvalue", "expr"
-    attr_names = ("op",)
-
-    def __init__(self, op: str, lvalue: Node, expr: Node):
-        super().__init__(lvalue.coord)
-        self.op = op
-        self.lvalue = lvalue
-        self.expr = expr
-
-
 class BinaryOp(Node):
     __slots__ = "op", "left", "right"
     attr_names = ("op",)
@@ -434,6 +423,11 @@ class BinaryOp(Node):
         self.op = op
         self.left = left
         self.right = right
+
+
+class Assignment(BinaryOp):
+    __slots__ = ()
+    attr_names = ()
 
 
 class ExprList(Node):
@@ -463,6 +457,11 @@ class FuncCall(Node):
         super().__init__(callable.coord)
         self.callable = callable
         self.params = params
+
+
+class RelationOp(BinaryOp):
+    __slots__ = ()
+    attr_names = ()
 
 
 class UnaryOp(Node):
