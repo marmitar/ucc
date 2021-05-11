@@ -1,7 +1,16 @@
 import argparse
 import pathlib
 import sys
-from typing import List, Optional, Sequence, TypedDict, TypeVar, Union
+from typing import (
+    List,
+    NoReturn,
+    Optional,
+    Sequence,
+    TypedDict,
+    TypeVar,
+    Union,
+    overload,
+)
 from ply.yacc import yacc
 from uc.uc_ast import (
     ID,
@@ -47,11 +56,11 @@ class Coord:
 
     __slots__ = ("line", "column")
 
-    def __init__(self, line, column=None):
+    def __init__(self, line: int, column: Optional[int] = None):
         self.line = line
         self.column = column
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.line and self.column is not None:
             coord_str = "@ %s:%s" % (self.line, self.column)
         elif self.line:
@@ -64,7 +73,11 @@ class Coord:
 T = TypeVar("T")
 U = TypeVar("U")
 
-
+# fmt: off
+@overload
+def getitem(seq: Sequence[T], index: int) -> Optional[T]: ...
+def getitem(seq: Sequence[T], index: int, default: U) -> Union[T, U]: ...
+# fmt: on
 def getitem(seq: Sequence[T], index: int, default: U = None) -> Union[T, U]:
     """'getattr'-like helper for sequences"""
     if 0 <= index < len(seq):
@@ -83,7 +96,7 @@ class DeclSpec(TypedDict):
 
 
 class UCParser:
-    def __init__(self, debug=True):
+    def __init__(self, debug: bool = True):
         """Create a new uCParser."""
         self.uclex = UCLexer(self._lexer_error)
         self.uclex.build()
@@ -93,17 +106,17 @@ class UCParser:
         # Keeps track of the last token given to yacc (the lookahead token)
         self._last_yielded_token = None
 
-    def parse(self, text, debuglevel=0) -> Program:
+    def parse(self, text: str, debuglevel: int = 0) -> Program:
         self.uclex.reset_lineno()
         self._last_yielded_token = None
         return self.ucparser.parse(input=text, lexer=self.uclex, debug=debuglevel)
 
-    def _lexer_error(self, msg, line, column):
+    def _lexer_error(self, msg: str, line: int, column: int) -> NoReturn:
         # use stdout to match with the output in the .out test files
         print("LexerError: %s at %d:%d" % (msg, line, column), file=sys.stdout)
         sys.exit(1)
 
-    def _parser_error(self, msg, coord=None):
+    def _parser_error(self, msg: str, coord: Optional[Coord] = None) -> NoReturn:
         # use stdout to match with the output in the .out test files
         if coord is None:
             print("ParserError: %s" % (msg), file=sys.stdout)
@@ -111,7 +124,7 @@ class UCParser:
             print("ParserError: %s %s" % (msg, coord), file=sys.stdout)
         sys.exit(1)
 
-    def _token_coord(self, p, token_idx):
+    def _token_coord(self, p, token_idx: int) -> Coord:
         last_cr = p.lexer.lexer.lexdata.rfind("\n", 0, p.lexpos(token_idx))
         if last_cr < 0:
             last_cr = -1
@@ -123,13 +136,7 @@ class UCParser:
         declarations = []
 
         for decl in decls:
-            assert decl["decl"] is not None
-            declaration = Decl(
-                name=None,
-                type=decl["decl"],
-                init=decl.get("init"),
-                coord=decl["decl"].coord,
-            )
+            declaration = Decl(decl["decl"], decl.get("init"))
 
             fixed_decl = self._fix_decl_name_type(declaration, spec)
             declarations.append(fixed_decl)
@@ -532,7 +539,7 @@ class UCParser:
     # # # # # #
     # ERRORS  #
 
-    def p_error(self, p):
+    def p_error(self, p) -> NoReturn:
         if p:
             self._parser_error(
                 "Before %s" % p.value, Coord(p.lineno, self.uclex.find_tok_column(p))

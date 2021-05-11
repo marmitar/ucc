@@ -85,7 +85,7 @@ class SemanticError(Exception):
         super().__init__(self.message)
 
     def __str__(self) -> str:
-        return f"SemanticError: {self.message} {self.coord or ''}"
+        return f"{self.message} {self.coord or ''}"
 
 
 class UnexpectedType(SemanticError):
@@ -342,7 +342,7 @@ class Visitor(NodeVisitor):
         ltype = node.callable.uc_type
         if not isinstance(ltype, FunctionType):
             raise ExprIsNotAFunction(node.callable)
-        # check length and types
+        # check length and types # TODO: check NONE
         for param, value in zip_longest(ltype.params, node.params.expr):
             self._assert_semantic(
                 param is not None and value is not None, 17, value.coord, ltype.typename
