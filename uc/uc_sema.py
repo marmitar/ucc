@@ -39,13 +39,13 @@ class SymbolTable:
 
     def __init__(self):
         # stack of scoped symbols
-        self.scope_stack: List[Dict[str, uCType]] = []
+        self.scope_stack: List[Dict[str, ID]] = []
 
     def push_scope(self) -> None:
         """Create new scope for symbol declarations."""
         self.scope_stack.append({})
 
-    def pop_scope(self) -> Dict[str, uCType]:
+    def pop_scope(self) -> Dict[str, ID]:
         """Remove latest scope from table stack."""
         return self.scope_stack.pop()
 
@@ -58,20 +58,25 @@ class SymbolTable:
         finally:
             self.pop_scope()
 
-    def add(self, name: str, value: uCType) -> bool:
-        """Add symbol in latest scope."""
-        if name in self.scope_stack[-1]:
-            return False
+    @property
+    def current_scope(self) -> Dict[str, ID]:
+        """The innermost scope for current 'Node'."""
+        return self.scope_stack[-1]
 
-        self.scope_stack[-1][name] = value
-        return True
+    def add(self, name: str, definition: ID) -> bool:
+        """Add or change symbol definition in current scope."""
+        self.current_scope[name] = definition
 
-    def lookup(self, name: str) -> Optional[uCType]:
-        """Find symbol type from inner to outer scope."""
+    def lookup(self, name: str) -> Optional[ID]:
+        """Find symbol type from inner to outermost scope."""
         for scope in reversed(self.scope_stack):
-            uctype = scope.get(name, None)
-            if uctype is not None:
-                return uctype
+            ident = scope.get(name, None)
+            if ident is not None:
+                return ident
+
+
+# # # # # # # #
+# EXCEPTIONS  #
 
 
 class SemanticError(Exception):
@@ -86,6 +91,27 @@ class SemanticError(Exception):
 
     def __str__(self) -> str:
         return f"{self.message} {self.coord or ''}"
+
+
+class UndefinedIdentifier(SemanticError):  # msg_code: 1
+    def __init__(self, ident: ID):
+        msg = f"{ident.name} is not defined"
+        super().__init__(msg, ident.coord)
+
+
+class NameAlreadyDefined(SemanticError):  # msg_code: 25
+    def __init__(self, ident: ID):
+        msg = f"Name {ident.name} is already defined in this scope"
+        super().__init__(msg, ident.coord)
+
+
+class NodeIsNotAVariable(SemanticError):  # msg_code: 23
+    def __init__(self, node: Node):
+        super().__init__(f"{node} is not a variable", node.coord)
+
+
+# # # # # # # #
+# TYPE ERRORS #
 
 
 class UnexpectedType(SemanticError):
@@ -170,6 +196,10 @@ class VariableHasCompoundType(ExprHasCompoundType):  # msg_code: 22
         super().__init__(symbol=variable)
 
 
+# # # # # # # #
+# AST VISITOR #
+
+
 class NodeVisitor:
     """A base NodeVisitor class for visiting uc_ast nodes.
     Subclass it and define your own visit_NODE methods, where
@@ -228,7 +258,7 @@ class Visitor(NodeVisitor):
     ) -> None:
         """Check condition, if false print selected error message and exit"""
         error_msgs = {
-            1: f"{name} is not defined",
+            # 1: f"{name} is not defined",
             # 2: f"subscript must be of type(int), not {rtype}",
             # 3: "Expression must be of type(bool)",
             # 4: f"Cannot assign {rtype} to {ltype}",
@@ -250,9 +280,9 @@ class Visitor(NodeVisitor):
             20: "Expression must be a constant",
             # 21: "Expression is not of basic type",
             # 22: f"{name} does not reference a variable of basic type",
-            23: f"{name} is not a variable",
+            # 23: f"{name} is not a variable",
             # 24: f"Return of {ltype} is incompatible with {rtype} function definition",
-            25: f"Name {name} is already defined in this scope",
+            # 25: f"Name {name} is already defined in this scope",
             26: f"Unary operator {name} is not supported",
             27: "Undefined error",
         }
@@ -359,15 +389,18 @@ class Visitor(NodeVisitor):
     def visit_ID(self, node: ID, uctype: Optional[uCType] = None) -> None:
         if uctype is None:
             # Look for its declaration in the symbol table
-            uctype = self.symtab.lookup(node.name)
-            self._assert_semantic(uctype is not None, 1, node.coord, node.name)
-        else:
-            # initialize the type, kind, and scope attributes
-            ok = self.symtab.add(node.name, uctype)
-            self._assert_semantic(ok, 25, node.coord, node.name)
+            definition = self.symtab.lookup(node.name)
+            if definition is None:
+                raise UndefinedIdentifier(node)
+            # bind identifier to its associated symbol type
+            node.uc_type = definition.uc_type
 
-        # bind identifier to its associated symbol type
-        node.uc_type = uctype
+        else:
+            if node.name in self.symtab.current_scope:
+                raise NameAlreadyDefined(node)
+            # initialize the type, # TODO kind, and scope attributes
+            node.uc_type = uctype
+            self.symtab.add(node.name, node)
 
     def visit_Constant(self, node: Constant) -> None:
         # Get the matching uCType
