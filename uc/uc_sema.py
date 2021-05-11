@@ -3,8 +3,9 @@ import pathlib
 import sys
 from argparse import ArgumentParser
 from contextlib import contextmanager
+from functools import cache
 from itertools import zip_longest
-from typing import Dict, Iterator, List, Optional, Union
+from typing import Callable, Dict, Iterator, List, Optional, Union
 from uc.uc_ast import (
     ID,
     ArrayRef,
@@ -312,37 +313,9 @@ class FuncParamsLengthMismatch(ExprParamMismatch):  # msg: 17
 
 
 class NodeVisitor:
-    """A base NodeVisitor class for visiting uc_ast nodes.
-    Subclass it and define your own visit_NODE methods, where
-    NODE is the class name you want to visit with these
-    methods.
-    """
-
-    _method_cache = {}
-
-    def visit(self, node: Node) -> None:
-        """Visit a node."""
-
-        visitor = self._method_cache.get(node.classname, None)
-        if visitor is None:
-            method = "visit_" + node.classname
-            visitor = getattr(self, method, self.generic_visit)
-            self._method_cache[node.classname] = visitor
-
-        visitor(node)
-
-    def generic_visit(self, node: Node) -> None:
-        """Called if no explicit visitor function exists for a
-        node. Implements preorder visiting of the node.
-        """
-        for _, child in node.children():
-            self.visit(child)
-
-
-class Visitor(NodeVisitor):
-    """
-    Program visitor class. This class uses the visitor pattern. You need to define methods
-    of the form visit_NODE() for each kind of AST node that you want to process.
+    """A base NodeVisitor class for visiting uc_ast nodes. This class
+    uses the visitor pattern. You need to define methods of the form
+    visit_NODE() for each kind of AST node that you want to process.
     """
 
     def __init__(self):
@@ -358,49 +331,22 @@ class Visitor(NodeVisitor):
         }
         # TODO: Complete...
 
-    def _assert_semantic(
-        self,
-        condition: bool,
-        msg_code=None,
-        coord: Optional[Coord] = None,
-        name="NONAME",
-        ltype="NOLTYPE",
-        rtype="NORTYPE",
-    ) -> None:
-        """Check condition, if false print selected error message and exit"""
-        error_msgs = {
-            # 1: f"{name} is not defined",
-            # 2: f"subscript must be of type(int), not {rtype}",
-            # 3: "Expression must be of type(bool)",
-            # 4: f"Cannot assign {rtype} to {ltype}",
-            # 5: f"Assignment operator {name} is not supported by {ltype}",
-            # 6: f"Binary operator {name} does not have matching LHS/RHS types",
-            # 7: f"Binary operator {name} is not supported by {ltype}",
-            # 8: "Break statement must be inside a loop",
-            # 9: "Array dimension mismatch",
-            # 10: f"Size mismatch on {name} initialization",
-            # 11: f"{name} initialization type mismatch",
-            # 12: f"{name} initialization must be a single element",
-            # 13: "Lists have different sizes",
-            # 14: "List & variable have different sizes",
-            # 15: f"conditional expression is {ltype}, not type(bool)",
-            # 16: f"{name} is not a function",
-            # 17: f"no. arguments to call {name} function mismatch",
-            # 18: f"Type mismatch with parameter {name}",
-            # 19: "The condition expression must be of type(bool)",
-            # 20: "Expression must be a constant",
-            # 21: "Expression is not of basic type",
-            # 22: f"{name} does not reference a variable of basic type",
-            # 23: f"{name} is not a variable",
-            # 24: f"Return of {ltype} is incompatible with {rtype} function definition",
-            # 25: f"Name {name} is already defined in this scope",
-            # 26: f"Unary operator {name} is not supported",
-            # 27: "Undefined error",
-        }
-        if not condition:
-            msg = error_msgs[msg_code or len(error_msgs) - 1]
-            print(f"SemanticError: {msg} {coord or ''}", file=sys.stdout)
-            sys.exit(1)
+    @cache
+    def visitor_for(self, node: str) -> Callable[[Node], None]:
+        """Find visitor method for a node class."""
+        return getattr(self, f"visit_{node}", self.generic_visit)
+
+    def visit(self, node: Node) -> None:
+        """Visit a node."""
+        visitor = self.visitor_for(node.classname)
+        visitor(node)
+
+    def generic_visit(self, node: Node) -> None:
+        """Called if no explicit visitor function exists for a
+        node. Implements preorder visiting of the node.
+        """
+        for _, child in node.children():
+            self.visit(child)
 
     # # # # # # # # #
     # DECLARATIONS  #
@@ -432,7 +378,7 @@ class Visitor(NodeVisitor):
     # # # # # # # #
     # EXPRESSIONS #
 
-    def visit_BinaryOp(self, node: BinaryOp, kind="binary_ops") -> None:
+    def visit_BinaryOp(self, node: BinaryOp, kind: str = "binary_ops") -> None:
         # Visit the left and right expression
         self.generic_visit(node)
         ltype = node.left.uc_type
@@ -522,6 +468,23 @@ class Visitor(NodeVisitor):
     def visit_Type(self, node: Type) -> None:
         # Get the matching basic uCType
         node.uc_type = self.typemap[node.name]
+
+
+class Visitor:
+    """
+    Program visitor class.
+    """
+
+    def __init__(self):
+        self.node_visitor = NodeVisitor()
+
+    def visit(self, node: Node) -> None:
+        """Print and exit in case of semantic errors."""
+        try:
+            self.node_visitor.visit(node)
+        except SemanticError as err:
+            print("SemanticError:", err, file=sys.stdout)
+            sys.exit(1)
 
 
 if __name__ == "__main__":
