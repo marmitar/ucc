@@ -436,7 +436,7 @@ class ExprList(Node):
 
     def __init__(self, *nodes: Node):
         super().__init__()
-        self.expr = ()
+        self.expr: Tuple[Node, ...] = ()
         self.append(nodes)
 
     def append(self, *expr: Node) -> None:
