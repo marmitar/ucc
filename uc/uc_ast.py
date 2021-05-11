@@ -2,8 +2,8 @@ from __future__ import annotations
 import inspect
 import sys
 from collections.abc import Sequence
-from typing import List, Literal, Optional, Protocol, Tuple, Union, overload
-from uc.uc_type import uCType
+from typing import List, Literal, Optional, Protocol, TextIO, Tuple, Union, overload
+from uc.uc_type import ArrayType, FunctionType, uCType
 
 
 class Coord(Protocol):
@@ -13,8 +13,8 @@ class Coord(Protocol):
     column: Optional[int]
 
 
-def represent_node(obj, indent):
-    def _repr(obj, indent, printed_set):
+def represent_node(obj, indent: int) -> str:
+    def _repr(obj, indent: int, printed_set: set) -> str:
         """
         Get the representation of an object, with dedicated pprint-like format for lists.
         """
@@ -56,6 +56,7 @@ class Node:
     __slots__ = "coord", "uc_type"
     attr_names: Tuple[str, ...] = ("uc_type",)
     special_attr: Tuple[str, ...] = ("coord",)
+
     uc_type: uCType
 
     def __init__(self, coord: Optional[Coord] = None):
@@ -74,36 +75,25 @@ class Node:
         return cls.__name__
 
     @classmethod
+    def _get_tuple_attrs(cls, attr_name: str) -> Tuple[str, ...]:
+        """Get class and parent attributes with 'attr_name'."""
+        attr = []
+        for base_class in inspect.getmro(cls):
+            attr.extend(getattr(base_class, attr_name, ()))
+        return tuple(attr)
+
+    @classmethod
     def attributes(cls) -> Tuple[str, ...]:
         """Names of predefined node attributes."""
-        attr = []
-        for base_class in inspect.getmro(cls):
-            attr.extend(getattr(base_class, "attr_names", ()))
-        return tuple(attr)
-
-    @classmethod
-    def _slots(cls) -> Tuple[str, ...]:
-        """All fields in node, attributes and children."""
-        attr = []
-        for base_class in inspect.getmro(cls):
-            attr.extend(getattr(base_class, "__slots__", ()))
-        return tuple(attr)
-
-    @classmethod
-    def _special_attrs(cls) -> Tuple[str, ...]:
-        """Special attributes that are ignored in show."""
-        attr = []
-        for base_class in inspect.getmro(cls):
-            attr.extend(getattr(base_class, "special_attr", ()))
-        return tuple(attr)
+        return cls._get_tuple_attrs("attr_names")
 
     def children(self) -> Tuple[Tuple[str, Node], ...]:
         """A sequence of all children that are Nodes"""
         attr_names = frozenset(self.attributes())
-        special = frozenset(self._special_attrs())
+        special = frozenset(self._get_tuple_attrs("special_attr"))
 
         nodelist = []
-        for attr in self._slots():
+        for attr in self._get_tuple_attrs("__slots__"):
             if attr in attr_names or attr in special:
                 continue
             # treat attributes not in attr_names as children
@@ -118,11 +108,11 @@ class Node:
 
     def show(
         self,
-        buf=sys.stdout,
-        offset=0,
-        attrnames=False,
-        nodenames=False,
-        showcoord=False,
+        buf: TextIO = sys.stdout,
+        offset: int = 0,
+        attrnames: bool = False,
+        nodenames: bool = False,
+        showcoord: bool = False,
         _my_node_name: Optional[str] = None,
     ) -> None:
         """Pretty print the Node and all its attributes and children (recursively) to a buffer.
@@ -178,9 +168,11 @@ class ArrayDecl(Node):
     __slots__ = "type", "size"
     attr_names = ()
 
-    def __init__(self, size: Optional[Node], type: Optional[Node] = None):
+    type: Union[ArrayDecl, FuncDecl, VarDecl]
+
+    def __init__(self, size: Optional[Node]):
         super().__init__()
-        self.type = type
+        self.type = None
         self.size = size
 
 
@@ -188,11 +180,10 @@ class Decl(Node):
     __slots__ = "name", "type", "init"
     attr_names = ("name",)
 
-    def __init__(
-        self, name: Optional[ID], type: Node, init: Optional[Node], coord: Optional[Coord] = None
-    ):
-        super().__init__(coord)
-        self.name = name
+    name: ID
+
+    def __init__(self, type: Union[ArrayDecl, FuncDecl, VarDecl], init: Optional[Node]):
+        super().__init__(type.coord)
         self.type = type
         self.init = init
 
@@ -215,9 +206,11 @@ class FuncDecl(Node):
     __slots__ = "params", "type"
     attr_names = ()
 
-    def __init__(self, params: Optional[ParamList], type: Optional[Node] = None):
+    type: Union[ArrayDecl, FuncDecl, VarDecl]
+
+    def __init__(self, params: Optional[ParamList]):
         super().__init__()
-        self.type = type
+        self.type = None
         self.params = params
 
 
@@ -252,24 +245,24 @@ class InitList(Node):
     __slots__ = ("init",)
     attr_names = ()
 
-    def __init__(self, head: Node):
+    def __init__(self, head: Node, *rest: Node):
         super().__init__(head.coord)
-        self.init = (head,)
+        self.init = (head,) + rest
 
-    def append(self, node: Node) -> None:
-        self.init += (node,)
+    def append(self, *nodes: Node) -> None:
+        self.init += nodes
 
 
 class ParamList(Node):
     __slots__ = ("params",)
     attr_names = ()
 
-    def __init__(self, head: Node):
+    def __init__(self, head: Node, *rest: Node):
         super().__init__(head.coord)
-        self.params = (head,)
+        self.params = (head,) + rest
 
-    def append(self, node: Node) -> None:
-        self.params += (node,)
+    def append(self, *nodes: Node) -> None:
+        self.params += nodes
 
 
 class Program(Node):
@@ -286,10 +279,12 @@ class VarDecl(Node):
     attr_names = ()
     special_attr = ("declname",)
 
-    def __init__(self, declname: ID, type: Optional[Type] = None):
+    type: Type
+
+    def __init__(self, declname: ID):
         super().__init__()
         self.declname = declname
-        self.type = type
+        self.type = None
 
 
 # # # # # # # #
@@ -319,7 +314,7 @@ class Compound(Node):
 
     def __init__(self, declarations: List[List[Node]], statements: List[Node], coord: Coord):
         super().__init__(coord)
-        self.declarations = sum((tuple(d) for d in declarations), ())
+        self.declarations: Tuple[Node, ...] = sum((tuple(d) for d in declarations), ())
         self.statements = tuple(statements)
 
 
@@ -408,6 +403,8 @@ class ArrayRef(Node):
     __slots__ = "array", "index"
     attr_names = ()
 
+    uc_type: ArrayType
+
     def __init__(self, array: Node, index: Node):
         super().__init__(array.coord)
         self.array = array
@@ -434,19 +431,16 @@ class ExprList(Node):
     __slots__ = ("expr",)
     attr_names = ()
 
-    def __init__(self, *nodes: Node):
-        super().__init__()
-        self.expr: Tuple[Node, ...] = ()
-        self.append(nodes)
+    def __init__(self, head: Node, *rest: Node):
+        super().__init__(head.coord)
+        self.expr = (head,) + rest
 
     def append(self, *expr: Node) -> None:
-        if len(self.expr) == 0 and len(expr) > 0:
-            self.coord = expr[0].coord
         self.expr += expr
 
     def show(self, *args, **kwargs) -> None:
         # hide list when containing a single symbol
-        if len(self.expr) < 2:
+        if len(self.expr) == 1:
             self.expr[0].show(*args, **kwargs)
         else:
             super().show(*args, **kwargs)
@@ -456,7 +450,9 @@ class FuncCall(Node):
     __slots__ = "callable", "params"
     attr_names = ()
 
-    def __init__(self, callable: Node, params: ExprList = ExprList()):
+    uc_type: FunctionType
+
+    def __init__(self, callable: Node, params: Optional[ExprList] = None):
         super().__init__(callable.coord)
         self.callable = callable
         self.params = params

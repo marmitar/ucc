@@ -2,6 +2,7 @@ import argparse
 import pathlib
 import re
 import sys
+from typing import Callable, Tuple
 import ply.lex as lex
 
 
@@ -11,7 +12,7 @@ class UCLexer:
     tokens.
     """
 
-    def __init__(self, error_func):
+    def __init__(self, error_func: Callable[[str, int, int], None]):
         """Create a new Lexer.
         An error function. Will be called with an error
         message, line and column as arguments, in case of
@@ -23,7 +24,7 @@ class UCLexer:
         # Keeps track of the last token returned from self.token()
         self.last_token = None
 
-    def build(self, **kwargs):
+    def build(self, **kwargs) -> None:
         """Builds the lexer from the specification. Must be
         called after the lexer object is created.
 
@@ -33,29 +34,29 @@ class UCLexer:
         flags = re.DOTALL | re.MULTILINE | re.VERBOSE
         self.lexer = lex.lex(object=self, reflags=flags, **kwargs)
 
-    def reset_lineno(self):
+    def reset_lineno(self) -> None:
         """Resets the internal line number counter of the lexer."""
         self.lexer.lineno = 1
 
-    def input(self, text):
+    def input(self, text: str) -> None:
         self.lexer.input(text)
 
     def token(self):
         self.last_token = self.lexer.token()
         return self.last_token
 
-    def find_tok_column(self, token):
+    def find_tok_column(self, token) -> int:
         """Find the column of the token in its line."""
         last_cr = self.lexer.lexdata.rfind("\n", 0, token.lexpos)
         return token.lexpos - last_cr
 
     # Internal auxiliary methods
-    def _error(self, msg, token):
+    def _error(self, msg: str, token) -> None:
         location = self._make_tok_location(token)
         self.error_func(msg, location[0], location[1])
         self.lexer.skip(1)
 
-    def _make_tok_location(self, token):
+    def _make_tok_location(self, token) -> Tuple[int, int]:
         return (token.lineno, self.find_tok_column(token))
 
     # Reserved keywords
@@ -192,7 +193,7 @@ class UCLexer:
         self._error(msg, t)
 
     # Scanner (used only for test)
-    def scan(self, data):
+    def scan(self, data: str) -> str:
         self.lexer.input(data)
         output = ""
         while True:
@@ -220,7 +221,7 @@ if __name__ == "__main__":
         print("Input", input_path, "not found", file=sys.stderr)
         sys.exit(1)
 
-    def print_error(msg, x, y):
+    def print_error(msg: str, x: int, y: int):
         # use stdout to match with the output in the .out test files
         print("Lexical error: %s at %d:%d" % (msg, x, y), file=sys.stdout)
 
