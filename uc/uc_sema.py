@@ -5,7 +5,18 @@ from argparse import ArgumentParser
 from contextlib import contextmanager
 from functools import cache
 from itertools import zip_longest
-from typing import Callable, Dict, Iterator, List, Optional, Union
+from typing import (
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+    overload,
+)
 from uc.uc_ast import (
     ID,
     ArrayRef,
@@ -310,6 +321,13 @@ class FuncParamsLengthMismatch(ExprParamMismatch):  # msg: 17
 
 # # # # # # # #
 # AST VISITOR #
+
+T, U = TypeVar("T"), TypeVar("U")
+
+# type hint for 'zip_longest' as used here
+@overload
+def zip_longest(i0: Iterable[T], i1: Iterable[U]) -> Iterator[Tuple[Optional[T], Optional[U]]]:
+    ...
 
 
 class NodeVisitor:
