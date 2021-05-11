@@ -10,6 +10,7 @@ from uc.uc_ast import (
     ArrayRef,
     Assignment,
     BinaryOp,
+    Break,
     Constant,
     Decl,
     ExprList,
@@ -112,7 +113,22 @@ class NodeIsNotAVariable(SemanticError):  # msg_code: 23
 
 class ExprIsNotAnArray(SemanticError):
     def __init__(self, node: Node):
-        super().__init__(f"expression is not an array", node.coord)
+        super().__init__("expression is not an array", node.coord)
+
+
+class ExprIsNotConstant(SemanticError):  # msg_code: 20
+    def __init__(self, node: Node):
+        super().__init__("Expression must be a constant", node.coord)
+
+
+class BreakOutsideLoop(SemanticError):  # msg_code: 8
+    def __init__(self, stmt: Break):
+        super().__init__("Break statement must be inside a loop", stmt.coord)
+
+
+class UndefinedError(SemanticError):  # msg_code: 27
+    def __init__(self, coord: Optional[Coord]):
+        super().__init__("Undefined error", coord)
 
 
 # # # # # # # #
@@ -215,7 +231,7 @@ class InvalidOperation(SemanticError):
         super().__init__(msg, expr.coord)
 
 
-class OperationTypeDoesNotMatch(InvalidOperation):  # msg: 4, 6
+class OperationTypeDoesNotMatch(InvalidOperation):  # msg_code: 4, 6
     problem = "does not have matching LHS/RHS types"
 
     def __init__(self, expr: BinaryOp):
@@ -228,7 +244,7 @@ class OperationTypeDoesNotMatch(InvalidOperation):  # msg: 4, 6
             super().__init__(expr)
 
 
-class UnsupportedOperation(InvalidOperation):  # msg: 5, 7, 26
+class UnsupportedOperation(InvalidOperation):  # msg_code: 5, 7, 26
     problem = "is not supported"
 
     def __init__(self, expr: Union[BinaryOp, UnaryOp]):
@@ -360,7 +376,7 @@ class Visitor(NodeVisitor):
             # 5: f"Assignment operator {name} is not supported by {ltype}",
             # 6: f"Binary operator {name} does not have matching LHS/RHS types",
             # 7: f"Binary operator {name} is not supported by {ltype}",
-            8: "Break statement must be inside a loop",
+            # 8: "Break statement must be inside a loop",
             # 9: "Array dimension mismatch",
             # 10: f"Size mismatch on {name} initialization",
             # 11: f"{name} initialization type mismatch",
@@ -372,14 +388,14 @@ class Visitor(NodeVisitor):
             # 17: f"no. arguments to call {name} function mismatch",
             # 18: f"Type mismatch with parameter {name}",
             # 19: "The condition expression must be of type(bool)",
-            20: "Expression must be a constant",
+            # 20: "Expression must be a constant",
             # 21: "Expression is not of basic type",
             # 22: f"{name} does not reference a variable of basic type",
             # 23: f"{name} is not a variable",
             # 24: f"Return of {ltype} is incompatible with {rtype} function definition",
             # 25: f"Name {name} is already defined in this scope",
             # 26: f"Unary operator {name} is not supported",
-            27: "Undefined error",
+            # 27: "Undefined error",
         }
         if not condition:
             msg = error_msgs[msg_code or len(error_msgs) - 1]
