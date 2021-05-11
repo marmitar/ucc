@@ -8,7 +8,7 @@ class uCType:
     Types are declared as singleton instances of this type.
     """
 
-    __slots__ = "name", "binary_ops", "unary_ops", "rel_ops", "assign_ops"
+    __slots__ = "_typename", "binary_ops", "unary_ops", "rel_ops", "assign_ops"
 
     def __init__(
         self,
@@ -21,7 +21,7 @@ class uCType:
         """
         You must implement yourself and figure out what to store.
         """
-        self.typename = name
+        self._typename = name
         self.unary_ops = frozenset(unary_ops)
         self.binary_ops = frozenset(binary_ops)
         self.rel_ops = frozenset(rel_ops)
@@ -31,14 +31,20 @@ class uCType:
         """Primary types are only equal to themselves."""
         return self is other
 
-    def __repr__(self) -> str:
-        return f"type({self})"
+    def typename(self) -> str:
+        """The name of the uCType."""
+        return self._typename or "<unnamed>"
 
     def __str__(self) -> str:
-        if self.typename is None:
-            return "<unnamed>"
-        else:
-            return self.typename
+        """Standard type formatting."""
+        return f"type({self.typename()})"
+
+    def __format__(self, format_spec: str) -> str:
+        """Special 't' format for types that only show the typename."""
+        if format_spec == "t":
+            return self.typename()
+
+        return super().__format__(format_spec)
 
 
 # # # # # # # # #
@@ -73,7 +79,6 @@ VoidType = uCType("void")  # no valid operation
 
 class ArrayType(uCType):
     __slots__ = "type", "size"
-    typename: None
 
     def __init__(self, element_type: uCType, size: Optional[int] = None):
         """
@@ -88,13 +93,12 @@ class ArrayType(uCType):
     def __eq__(self, other: uCType) -> bool:
         return isinstance(other, ArrayType) and self.type == other.type and self.size == other.size
 
-    def __str__(self) -> str:
-        return f"{self.type}[{self.size or ''}]"
+    def typename(self) -> str:
+        return f"{self.type:t}[{self.size or ''}]"
 
 
 class FunctionType(uCType):
-    __slots__ = "rettype", "params"
-    typename: str
+    __slots__ = "function_name", "rettype", "params"
 
     def __init__(self, name: str, return_type: uCType, params: Sequence[Tuple[str, uCType]] = ()):
         """
@@ -102,7 +106,8 @@ class FunctionType(uCType):
         return_type: Any uCType can be used here.
         params: Sequence of 'name, type' for each of the function parameters.
         """
-        super().__init__(name)  # only valid operation is call
+        super().__init__()  # only valid operation is call
+        self.function_name = name
         self.rettype = return_type
         self.params = tuple(params)
 
@@ -117,11 +122,18 @@ class FunctionType(uCType):
             and self.param_types == other.param_types
         )
 
-    def __str__(self, show_names: bool = False) -> str:
+    def typename(self, *, show_names: bool = False) -> str:
         if show_names:
-            params = ", ".join(f"{n}: {t}" for n, t in self.params)
+            params = ", ".join(f"{n}: {t:t}" for n, t in self.params)
             return f"{self.rettype} {self.typename}({params})"
         else:
             # no space between parameters
-            params = ",".join(str(t) for t in self.param_types)
+            params = ",".join(f"{t:t}" for t in self.param_types)
             return f"{self.rettype}({params})"
+
+    def __format__(self, format_spec: str) -> str:
+        """Special 'tn' format that show parameter and function names."""
+        if format_spec == "tn":
+            return self.typename(show_names=True)
+
+        return super().__format__(format_spec)

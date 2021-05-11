@@ -122,8 +122,8 @@ class UnexpectedType(SemanticError):
     expected: uCType
 
     def __init__(self, symbol: Optional[Node] = None, *, coord: Optional[Coord] = None):
-        uc_type = repr(symbol and symbol.uc_type)
-        msg = self.error_format.format(item=self.item, expected=repr(self.expected), type=uc_type)
+        uc_type = symbol and symbol.uc_type
+        msg = self.error_format.format(item=self.item, expected=self.expected, type=uc_type)
         # uses 'coord' if given, or symbol coordinates
         super().__init__(msg, coord or (symbol and symbol.coord))
 
