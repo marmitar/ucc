@@ -74,6 +74,102 @@ class SymbolTable:
                 return uctype
 
 
+class SemanticError(Exception):
+    """Abstract Exception for any kind of semantic error."""
+
+    __slots__ = "message", "coord"
+
+    def __init__(self, msg: str, coord: Optional[Coord]):
+        self.message = msg
+        self.coord = coord
+        super().__init__(self.message)
+
+    def __str__(self) -> str:
+        return f"SemanticError: {self.message} {self.coord or ''}"
+
+
+class UnexpectedType(SemanticError):
+    """Abstract Exception for all type checking errors."""
+
+    error_format = "{item} must be of {expected}"
+    item: str
+    expected: uCType
+
+    def __init__(self, symbol: Optional[Node] = None, *, coord: Optional[Coord] = None):
+        uc_type = repr(symbol and symbol.uc_type)
+        msg = self.error_format.format(item=self.item, expected=repr(self.expected), type=uc_type)
+        # uses 'coord' if given, or symbol coordinates
+        super().__init__(msg, coord or (symbol and symbol.coord))
+
+
+class InvalidSubscriptType(UnexpectedType):  # msg_code: 2
+    error_format = UnexpectedType.error_format + ", not {type}"
+    item = "subscript"
+    expected = IntType
+
+
+class InvalidBooleanExpression(UnexpectedType):  # msg_code: 3
+    item = "Expression"
+    expected = BoolType
+
+
+class InvalidConditionalExpression(InvalidBooleanExpression):  # msg_code: 15
+    error_format = "{item} is {type}, not {expected}"
+    item = "conditional expression"
+
+
+class InvalidLoopCondition(InvalidBooleanExpression):  # msg_code: 19
+    item = "The condition expression"
+
+
+class InvalidReturnType(UnexpectedType):  # msg_code: 24
+    error_format = "Return of {type} is incompatible with {expected} function definition"
+
+
+class InvalidAssignmentType(UnexpectedType):  # msg_code: 4
+    error_format = "Cannot assign {type} to {expected}"
+
+    def __init__(self, assign: Assignment):
+        self.expected = assign.left.uc_type
+        super().__init__(assign.right, coord=assign.coord)
+
+
+class InvalidInitializationType(UnexpectedType):  # msg_code: 11
+    error_format = "{item} initialization type mismatch"
+
+    def __init__(self, ident: ID):
+        self.item = ident.name
+        super().__init__(symbol=ident)
+
+
+class ExprIsNotAFunction(UnexpectedType):  # msg_code: 16
+    error_format = "{item} is not a function"
+
+    def __init__(self, item: Node):
+        self.item = getattr(item, "name", "<expression>")
+        super().__init__(symbol=item)
+
+
+class InvalidParameterType(UnexpectedType):  # msg_code: 18
+    error_format = "Type mismatch with parameter {item}"
+
+    def __init__(self, name: str, value: Node):
+        self.item = name
+        super().__init__(symbol=value)
+
+
+class ExprHasCompoundType(UnexpectedType):  # msg_code: 21
+    error_format = "Expression is not of basic type"
+
+
+class VariableHasCompoundType(ExprHasCompoundType):  # msg_code: 22
+    error_format = "{item} does not reference a variable of basic type"
+
+    def __init__(self, variable: ID):
+        self.item = variable.name
+        super().__init__(symbol=variable)
+
+
 class NodeVisitor:
     """A base NodeVisitor class for visiting uc_ast nodes.
     Subclass it and define your own visit_NODE methods, where
@@ -133,29 +229,29 @@ class Visitor(NodeVisitor):
         """Check condition, if false print selected error message and exit"""
         error_msgs = {
             1: f"{name} is not defined",
-            2: f"subscript must be of type(int), not {rtype}",
-            3: "Expression must be of type(bool)",
-            4: f"Cannot assign {rtype} to {ltype}",
+            # 2: f"subscript must be of type(int), not {rtype}",
+            # 3: "Expression must be of type(bool)",
+            # 4: f"Cannot assign {rtype} to {ltype}",
             5: f"Assignment operator {name} is not supported by {ltype}",
             6: f"Binary operator {name} does not have matching LHS/RHS types",
             7: f"Binary operator {name} is not supported by {ltype}",
             8: "Break statement must be inside a loop",
             9: "Array dimension mismatch",
             10: f"Size mismatch on {name} initialization",
-            11: f"{name} initialization type mismatch",
+            # 11: f"{name} initialization type mismatch",
             12: f"{name} initialization must be a single element",
             13: "Lists have different sizes",
             14: "List & variable have different sizes",
-            15: f"conditional expression is {ltype}, not type(bool)",
-            16: f"{name} is not a function",
+            # 15: f"conditional expression is {ltype}, not type(bool)",
+            # 16: f"{name} is not a function",
             17: f"no. arguments to call {name} function mismatch",
-            18: f"Type mismatch with parameter {name}",
-            19: "The condition expression must be of type(bool)",
+            # 18: f"Type mismatch with parameter {name}",
+            # 19: "The condition expression must be of type(bool)",
             20: "Expression must be a constant",
-            21: "Expression is not of basic type",
-            22: f"{name} does not reference a variable of basic type",
+            # 21: "Expression is not of basic type",
+            # 22: f"{name} does not reference a variable of basic type",
             23: f"{name} is not a variable",
-            24: f"Return of {ltype} is incompatible with {rtype} function definition",
+            # 24: f"Return of {ltype} is incompatible with {rtype} function definition",
             25: f"Name {name} is already defined in this scope",
             26: f"Unary operator {name} is not supported",
             27: "Undefined error",
@@ -185,7 +281,8 @@ class Visitor(NodeVisitor):
             self.visit(node.init)
             rtype = node.init.uc_type
             # check if initilization is valid
-            self._assert_semantic(ltype == rtype, 11, node.coord, node.op)
+            if ltype != rtype:
+                raise InvalidInitializationType(node.name)
             # TODO: arrays
 
     # # # # # # # #
@@ -232,24 +329,27 @@ class Visitor(NodeVisitor):
     def visit_ArrayRef(self, node: ArrayRef) -> None:
         self.generic_visit(node)
         # ltype must be an array type
-        ltype = node.array.uc_type
-        self._assert_semantic(isinstance(ltype, ArrayType), ltype=ltype)
-        # rtype must be 'int'
-        rtype = node.index.uc_type
-        self._assert_semantic(rtype == IntType, 2, rtype=rtype)
+        uc_type = node.array.uc_type
+        self._assert_semantic(isinstance(uc_type, ArrayType), ltype=uc_type)
+        # index must be 'int'
+        if node.index.uc_type != IntType:
+            raise InvalidSubscriptType(node.index)
+        # TODO: check size?
 
     def visit_FuncCall(self, node: FuncCall) -> None:
         self.generic_visit(node)
         # ltype must be a function type
-        ltype: FunctionType = node.callable.uc_type
-        self._assert_semantic(isinstance(ltype, FunctionType), 16, ltype=ltype)
+        ltype = node.callable.uc_type
+        if not isinstance(ltype, FunctionType):
+            raise ExprIsNotAFunction(node.callable)
         # check length and types
         for param, value in zip_longest(ltype.params, node.params.expr):
             self._assert_semantic(
                 param is not None and value is not None, 17, value.coord, ltype.typename
             )
             name, type = param
-            self._assert_semantic(type == value.uc_type, 18, value.coord, name)
+            if value.uc_type != type:
+                raise InvalidParameterType(name, value)
 
         node.uc_type = ltype.type
 
