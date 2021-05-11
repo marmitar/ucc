@@ -4,7 +4,7 @@ import sys
 from argparse import ArgumentParser
 from contextlib import contextmanager
 from itertools import zip_longest
-from typing import Dict, Iterator, List, Optional
+from typing import Dict, Iterator, List, Optional, Union
 from uc.uc_ast import (
     ID,
     ArrayRef,
@@ -152,14 +152,6 @@ class InvalidReturnType(UnexpectedType):  # msg_code: 24
     error_format = "Return of {type} is incompatible with {expected} function definition"
 
 
-class InvalidAssignmentType(UnexpectedType):  # msg_code: 4
-    error_format = "Cannot assign {type} to {expected}"
-
-    def __init__(self, assign: Assignment):
-        self.expected = assign.left.uc_type
-        super().__init__(assign.right, coord=assign.coord)
-
-
 class InvalidInitializationType(UnexpectedType):  # msg_code: 11
     error_format = "{item} initialization type mismatch"
 
@@ -194,6 +186,58 @@ class VariableHasCompoundType(ExprHasCompoundType):  # msg_code: 22
     def __init__(self, variable: ID):
         self.item = variable.name
         super().__init__(symbol=variable)
+
+
+# # # # # # # # # # # # #
+# OPERATION TYPE ERRORS #
+
+
+class InvalidOperation(SemanticError):
+    """Abstract Exception for invalid operations."""
+
+    kind: str
+    problem: str
+    type: Optional[uCType]
+
+    def __init__(self, expr: Union[BinaryOp, UnaryOp], msg: Optional[str] = None):
+        if msg is None:
+            # default message, if not given
+            msg = f"{self.kind} operator {expr.op} {self.problem}"
+
+            if getattr(self, "type", None) is not None:
+                msg += f" by {self.type}"
+
+        super().__init__(msg, expr.coord)
+
+
+class OperationTypeDoesNotMatch(InvalidOperation):  # msg: 4, 6
+    problem = "does not have matching LHS/RHS types"
+
+    def __init__(self, expr: BinaryOp):
+        if isinstance(expr, Assignment):
+            # special message on assignments
+            ltype, rtype = expr.left.uc_type, expr.right.uc_type
+            super().__init__(expr, f"Cannot assign {rtype} to {ltype}")
+        else:
+            self.kind = "Binary"
+            super().__init__(expr)
+
+
+class UnsupportedOperation(InvalidOperation):  # msg: 5, 7, 26
+    problem = "is not supported"
+
+    def __init__(self, expr: Union[BinaryOp, UnaryOp]):
+        if isinstance(expr, UnaryOp):
+            self.kind = "Unary"
+            # don't show type
+        elif isinstance(expr, Assignment):
+            self.kind = "Assignment"
+            self.type = expr.left.uc_type
+        else:
+            self.kind = "Binary"
+            self.type = expr.left.uc_type
+
+        super().__init__(expr)
 
 
 # # # # # # # #
@@ -262,9 +306,9 @@ class Visitor(NodeVisitor):
             # 2: f"subscript must be of type(int), not {rtype}",
             # 3: "Expression must be of type(bool)",
             # 4: f"Cannot assign {rtype} to {ltype}",
-            5: f"Assignment operator {name} is not supported by {ltype}",
-            6: f"Binary operator {name} does not have matching LHS/RHS types",
-            7: f"Binary operator {name} is not supported by {ltype}",
+            # 5: f"Assignment operator {name} is not supported by {ltype}",
+            # 6: f"Binary operator {name} does not have matching LHS/RHS types",
+            # 7: f"Binary operator {name} is not supported by {ltype}",
             8: "Break statement must be inside a loop",
             9: "Array dimension mismatch",
             10: f"Size mismatch on {name} initialization",
@@ -283,7 +327,7 @@ class Visitor(NodeVisitor):
             # 23: f"{name} is not a variable",
             # 24: f"Return of {ltype} is incompatible with {rtype} function definition",
             # 25: f"Name {name} is already defined in this scope",
-            26: f"Unary operator {name} is not supported",
+            # 26: f"Unary operator {name} is not supported",
             27: "Undefined error",
         }
         if not condition:
@@ -321,35 +365,36 @@ class Visitor(NodeVisitor):
     # # # # # # # #
     # EXPRESSIONS #
 
-    def visit_BinaryOp(self, node: BinaryOp, kind="binary_ops", errno=(6, 7)) -> None:
+    def visit_BinaryOp(self, node: BinaryOp, kind="binary_ops") -> None:
         # Visit the left and right expression
         self.generic_visit(node)
         ltype = node.left.uc_type
         rtype = node.right.uc_type
         # Make sure left and right operands have the same type
-        self._assert_semantic(ltype == rtype, errno[0], node.coord, node.op, ltype, rtype)
+        if ltype != rtype:
+            raise OperationTypeDoesNotMatch(node)
         # Make sure the operation is supported
-        self._assert_semantic(
-            node.op in getattr(ltype, kind, {}), errno[1], node.coord, node.op, ltype, rtype
-        )
+        if node.op not in getattr(ltype, kind, {}):
+            raise UnsupportedOperation(node)
         # Assign the result type
         node.uc_type = ltype
 
     def visit_RelationOp(self, node: RelationOp) -> None:
         self.visit_BinaryOp(node, "rel_ops")
+        # comparison results in boolean
         node.uc_type = BoolType
 
     def visit_Assignment(self, node: Assignment) -> None:
-        self.visit_BinaryOp(node, "assign_ops", errno=(4, 5))
-        node.uc_type = VoidType  # TODO
+        self.visit_BinaryOp(node, "assign_ops")
 
     def visit_UnaryOp(self, node: UnaryOp) -> None:
         self.generic_visit(node)
-        rtype = node.expr.uc_type
+        uctype = node.expr.uc_type
         # Make sure the operation is supported
-        self._assert_semantic(node.op in rtype.unary_ops, 26, node.op)
+        if node.op not in uctype.unary_ops:
+            raise UnsupportedOperation(node)
         # Assign the result type
-        node.uc_type = rtype
+        node.uc_type = uctype
 
     def visit_ExprList(self, node: ExprList) -> None:
         self.generic_visit(node)
