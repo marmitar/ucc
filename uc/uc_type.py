@@ -107,7 +107,7 @@ class FunctionType(uCType):
         params: Sequence of 'name, type' for each of the function parameters.
         """
         super().__init__()  # only valid operation is call
-        self.function_name = name
+        self.funcname = name
         self.rettype = return_type
         self.params = tuple(params)
 
@@ -125,11 +125,11 @@ class FunctionType(uCType):
     def typename(self, *, show_names: bool = False) -> str:
         if show_names:
             params = ", ".join(f"{n}: {t:t}" for n, t in self.params)
-            return f"{self.rettype} {self.typename}({params})"
+            return f"{self.rettype:t} {self.funcname}({params})"
         else:
             # no space between parameters
             params = ",".join(f"{t:t}" for t in self.param_types)
-            return f"{self.rettype}({params})"
+            return f"{self.rettype:t}({params})"
 
     def __format__(self, format_spec: str) -> str:
         """Special 'tn' format that show parameter and function names."""

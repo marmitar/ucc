@@ -110,6 +110,11 @@ class NodeIsNotAVariable(SemanticError):  # msg_code: 23
         super().__init__(f"{node} is not a variable", node.coord)
 
 
+class ExprIsNotAnArray(SemanticError):
+    def __init__(self, node: Node):
+        super().__init__(f"expression is not an array", node.coord)
+
+
 # # # # # # # #
 # TYPE ERRORS #
 
@@ -240,6 +245,52 @@ class UnsupportedOperation(InvalidOperation):  # msg: 5, 7, 26
         super().__init__(expr)
 
 
+# # # # # # # # # # # # # # # #
+# HIGHER ORDER PARAM MISMATCH #
+
+
+class ExprParamMismatch(SemanticError):
+    """Abstract Exception for sizes mismatches."""
+
+    error_fmt: str
+
+    def __init__(self, expr: Node, *, default: str = "<UNNAMED>"):
+        # extract name from declaration or identifier
+        if isinstance(expr, Decl):
+            msg = self.error_fmt.format(name=expr.name.name)
+        elif isinstance(expr, ID):
+            msg = self.error_fmt.format(name=expr.name)
+        # or use the default name
+        else:
+            msg = self.error_fmt.format(name=default)
+
+        super().__init__(msg, expr.coord)
+
+
+class ArrayDimensionMismatch(ExprParamMismatch):  # msg: 9
+    error_fmt = "Array dimension mismatch"
+
+
+class ArraySizeMismatch(ExprParamMismatch):  # msg: 10
+    error_fmt = "Size mismatch on {name} initialization"
+
+
+class ArrayHigherSizeMismatch(ArraySizeMismatch):  # msg: 14
+    error_fmt = "List & variable have different sizes"
+
+
+class ArrayIsNotHomogeneous(ArrayDimensionMismatch):  # msg: 13
+    error_fmt = "Lists have different sizes"
+
+
+class VariableIsNotArray(ExprParamMismatch):  # msg: 12
+    error_fmt = "{name} initialization must be a single element"
+
+
+class FuncParamsLengthMismatch(ExprParamMismatch):  # msg: 17
+    error_fmt = "no. arguments to call {name} function mismatch"
+
+
 # # # # # # # #
 # AST VISITOR #
 
@@ -310,15 +361,15 @@ class Visitor(NodeVisitor):
             # 6: f"Binary operator {name} does not have matching LHS/RHS types",
             # 7: f"Binary operator {name} is not supported by {ltype}",
             8: "Break statement must be inside a loop",
-            9: "Array dimension mismatch",
-            10: f"Size mismatch on {name} initialization",
+            # 9: "Array dimension mismatch",
+            # 10: f"Size mismatch on {name} initialization",
             # 11: f"{name} initialization type mismatch",
-            12: f"{name} initialization must be a single element",
-            13: "Lists have different sizes",
-            14: "List & variable have different sizes",
+            # 12: f"{name} initialization must be a single element",
+            # 13: "Lists have different sizes",
+            # 14: "List & variable have different sizes",
             # 15: f"conditional expression is {ltype}, not type(bool)",
             # 16: f"{name} is not a function",
-            17: f"no. arguments to call {name} function mismatch",
+            # 17: f"no. arguments to call {name} function mismatch",
             # 18: f"Type mismatch with parameter {name}",
             # 19: "The condition expression must be of type(bool)",
             20: "Expression must be a constant",
@@ -386,6 +437,7 @@ class Visitor(NodeVisitor):
 
     def visit_Assignment(self, node: Assignment) -> None:
         self.visit_BinaryOp(node, "assign_ops")
+        # TODO: arrays
 
     def visit_UnaryOp(self, node: UnaryOp) -> None:
         self.generic_visit(node)
@@ -405,7 +457,8 @@ class Visitor(NodeVisitor):
         self.generic_visit(node)
         # ltype must be an array type
         uc_type = node.array.uc_type
-        self._assert_semantic(isinstance(uc_type, ArrayType), ltype=uc_type)
+        if not isinstance(uc_type, ArrayType):
+            raise ExprIsNotAnArray(node.array)
         # index must be 'int'
         if node.index.uc_type != IntType:
             raise InvalidSubscriptType(node.index)
@@ -419,9 +472,8 @@ class Visitor(NodeVisitor):
             raise ExprIsNotAFunction(node.callable)
         # check length and types # TODO: check NONE
         for param, value in zip_longest(ltype.params, node.params.expr):
-            self._assert_semantic(
-                param is not None and value is not None, 17, value.coord, ltype.typename
-            )
+            if param is None or value is None:
+                raise FuncParamsLengthMismatch(node.callable, default=ltype.funcname)
             name, type = param
             if value.uc_type != type:
                 raise InvalidParameterType(name, value)
