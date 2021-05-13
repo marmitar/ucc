@@ -218,6 +218,14 @@ class UnexpectedType(SemanticError):
         super().__init__(msg, coord or (symbol and symbol.coord))
 
 
+class UnknownType(UnexpectedType):
+    error_format = "Unknown type {item}"
+
+    def __init__(self, name: str, coord: Optional[Coord] = None):
+        self.item = name
+        super().__init__(coord=coord)
+
+
 class InvalidSubscriptType(UnexpectedType):  # msg_code: 2
     error_format = UnexpectedType.error_format + ", not {type}"
     item = "subscript"
@@ -242,7 +250,11 @@ class InvalidReturnType(UnexpectedType):  # msg_code: 24
     error_format = "Return of {type} is incompatible with {expected} function definition"
 
 
-class InvalidInitializationType(UnexpectedType):  # msg_code: 11
+class IncompatibleListType(UnexpectedType):
+    error_format = "initilization list has incompatible types"
+
+
+class InvalidInitializationType(IncompatibleListType):  # msg_code: 11
     error_format = "{item} initialization type mismatch"
 
     def __init__(self, ident: ID):
@@ -276,6 +288,14 @@ class VariableHasCompoundType(ExprHasCompoundType):  # msg_code: 22
     def __init__(self, variable: ID):
         self.item = variable.name
         super().__init__(symbol=variable)
+
+
+class InvalidVariableType(UnexpectedType):
+    error_format = "Cannot create {item} of {type}.."
+
+    def __init__(self, symbol: Node, kind: str = "a variable"):
+        self.item = kind
+        super().__init__(symbol)
 
 
 # # # # # # # # # # # # #
@@ -450,6 +470,8 @@ class NodeVisitor:
         if isinstance(elem_type, ArrayType) and elem_type.size is None:
             # only outer array modifier may be unsized
             raise ArrayDimensionMismatch(node.type)
+        elif elem_type == VoidType:
+            raise InvalidVariableType(node.type, "an array")
 
         if node.size is not None:
             size = node.size
@@ -479,8 +501,7 @@ class NodeVisitor:
         for elem in node.init:
             # types must match
             if elem.uc_type != elem_type:
-                msg = "type mismatch in initialization list"
-                raise SemanticError(msg, elem.coord)
+                raise IncompatibleListType(elem)
             # sizes must match
             if isinstance(elem_type, ArrayType) and elem_type.size != elem.uc_type.size:
                 raise ArrayIsNotHomogeneous(elem)
@@ -648,13 +669,13 @@ class NodeVisitor:
             # bind identifier to its associated symbol type
             node.uc_type = definition.type
 
-        else:
+        else:  # initialize the type
+            node.uc_type = uctype
             if uctype == VoidType:
-                raise SemanticError("Cannot declare a 'void' variable.", node.coord)
+                raise InvalidVariableType("a variable", node)
             if node.name in self.symtab.current_scope:
                 raise NameAlreadyDefined(node)
-            # initialize the type, # TODO kind, and scope attributes
-            node.uc_type = uctype
+            # TODO kind, and scope attributes
             self.symtab.add(node)
 
     def _get_primary_type(self, typename: str, coord: Optional[Coord]) -> uCType:
@@ -662,8 +683,7 @@ class NodeVisitor:
         uc_type = PrimaryType.get(typename)
         # check if type exists
         if uc_type is None:
-            msg = f"Unknown type: {typename}"
-            raise SemanticError(msg, coord)
+            raise UnknownType(typename, coord)
         return uc_type
 
     def visit_Constant(self, node: Constant) -> None:
