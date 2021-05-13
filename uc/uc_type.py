@@ -1,4 +1,5 @@
 from __future__ import annotations
+from enum import Enum, unique
 from typing import NamedTuple, Optional, Sequence, Set, Tuple
 
 
@@ -50,27 +51,42 @@ class uCType:
 # # # # # # # # #
 # Primary Types #
 
-IntType = uCType(
-    "int",
-    unary_ops={"-", "+"},
-    binary_ops={"+", "-", "*", "/", "%"},
-    rel_ops={"==", "!=", "<", ">", "<=", ">="},
-    assign_ops={"="},
-)
 
-CharType = uCType(
-    "char",
-    rel_ops={"==", "!=", "&&", "||"},
-    assign_ops={"="},
-)
+@unique
+class PrimaryType(uCType, Enum):
+    def __init__(self, *op_sets: Set[str]):
+        # use enum name
+        super().__init__(self.name, *op_sets)
 
-BoolType = uCType(
-    "bool",
-    rel_ops={"==", "!=", "&&", "||"},
-    assign_ops={"="},
-)
+    @classmethod
+    def get(cls, typename: str) -> Optional[PrimaryType]:
+        return getattr(cls, typename, None)
 
-VoidType = uCType("void")  # no valid operation
+    int = (
+        {"-", "+"},
+        {"+", "-", "*", "/", "%"},
+        {"==", "!=", "<", ">", "<=", ">="},
+        {"="},
+    )
+    char = (
+        {},
+        {},
+        {"==", "!=", "&&", "||"},
+        {"="},
+    )
+    bool = (
+        {"!"},
+        {},
+        {"==", "!=", "&&", "||"},
+        {"="},
+    )
+    void = ()  # no valid operation
+
+
+IntType = PrimaryType.int
+CharType = PrimaryType.char
+BoolType = PrimaryType.bool
+VoidType = PrimaryType.void
 
 
 # # # # # # # # # #
