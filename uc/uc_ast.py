@@ -253,24 +253,31 @@ class InitList(Node):
     __slots__ = ("init",)
     attr_names = ()
 
-    def __init__(self, head: Node, *rest: Node):
-        super().__init__(head.coord)
-        self.init = (head,) + rest
+    def __init__(self, head: Optional[Node] = None):
+        super().__init__()
+        self.init: Tuple[Node, ...] = ()
+        self.append(head)
 
-    def append(self, *nodes: Node) -> None:
-        self.init += nodes
+    def append(self, node: Optional[Node]) -> None:
+        if node is not None:
+            if len(self) == 0:
+                self.coord = node.coord
+            self.init += (node,)
+
+    def __len__(self) -> int:
+        return len(self.init)
 
 
 class ParamList(Node):
     __slots__ = ("params",)
     attr_names = ()
 
-    def __init__(self, head: Decl, *rest: Decl):
+    def __init__(self, head: Decl):
         super().__init__(head.coord)
-        self.params = (head,) + rest
+        self.params: Tuple[Decl, ...] = (head,)
 
-    def append(self, *nodes: Decl) -> None:
-        self.params += nodes
+    def append(self, node: Decl) -> None:
+        self.params += (node,)
 
 
 class Program(Node):
