@@ -411,12 +411,12 @@ class NodeVisitor:
         node.uc_type = ltype
 
     def visit_RelationOp(self, node: RelationOp) -> None:
-        self.visit_BinaryOp(node, "rel_ops")
+        self.visit_BinaryOp(node, kind="rel_ops")
         # comparison results in boolean
         node.uc_type = BoolType
 
     def visit_Assignment(self, node: Assignment) -> None:
-        self.visit_BinaryOp(node, "assign_ops")
+        self.visit_BinaryOp(node, kind="assign_ops")
         # TODO: arrays
 
     def visit_UnaryOp(self, node: UnaryOp) -> None:

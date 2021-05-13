@@ -192,9 +192,14 @@ class DeclList(Node):
     __slots__ = ("decls",)
     attr_names = ()
 
-    def __init__(self, decls: List[Decl] = [], coord: Optional[Coord] = None):
-        super().__init__(coord)
+    def __init__(self, decls: Sequence[Decl] = []):
+        super().__init__(decls[0].coord if decls else None)
         self.decls = tuple(decls)
+
+    def extend(self, decl: DeclList) -> None:
+        if not self.decls:
+            self.coord = decl.coord
+        self.decls += tuple(decl.decls)
 
     def show(self, *args, **kwargs):
         # only show when not empty
@@ -232,13 +237,12 @@ class FuncDef(Node):
         self.implementation = implementation
 
 
-class GlobalDecl(Node):
-    __slots__ = ("decl",)
+class GlobalDecl(DeclList):
+    __slots__ = ()
     attr_names = ()
 
-    def __init__(self, decl: List[Decl]):
-        super().__init__()
-        self.decl = tuple(decl)
+    def __init__(self, decl: DeclList):
+        super().__init__(decl.decls)
 
 
 class InitList(Node):
@@ -257,11 +261,11 @@ class ParamList(Node):
     __slots__ = ("params",)
     attr_names = ()
 
-    def __init__(self, head: Node, *rest: Node):
+    def __init__(self, head: Decl, *rest: Decl):
         super().__init__(head.coord)
         self.params = (head,) + rest
 
-    def append(self, *nodes: Node) -> None:
+    def append(self, *nodes: Decl) -> None:
         self.params += nodes
 
 
@@ -295,7 +299,7 @@ class Assert(Node):
     __slots__ = ("param",)
     attr_names = ()
 
-    def __init__(self, param: Node, coord: Coord):
+    def __init__(self, param: ExprList, coord: Coord):
         super().__init__(coord)
         self.param = param
 
@@ -312,9 +316,9 @@ class Compound(Node):
     __slots__ = "declarations", "statements"
     attr_names = ()
 
-    def __init__(self, declarations: List[List[Node]], statements: List[Node], coord: Coord):
+    def __init__(self, declarations: DeclList, statements: List[Node], coord: Coord):
         super().__init__(coord)
-        self.declarations: Tuple[Node, ...] = sum((tuple(d) for d in declarations), ())
+        self.declarations = declarations
         self.statements = tuple(statements)
 
 
@@ -328,9 +332,9 @@ class For(Node):
 
     def __init__(
         self,
-        declaration: Optional[Node],
-        condition: Optional[Node],
-        update: Optional[Node],
+        declaration: Union[DeclList, Optional[ExprList]],
+        condition: Optional[ExprList],
+        update: Optional[ExprList],
         stmt: Optional[Node],
         coord: Coord,
     ):
@@ -347,7 +351,7 @@ class If(Node):
 
     def __init__(
         self,
-        condition: Node,
+        condition: ExprList,
         true_stmt: Optional[Node],
         false_stmt: Optional[Node],
         coord: Coord,
@@ -362,7 +366,7 @@ class Print(Node):
     __slots__ = ("param",)
     attr_names = ()
 
-    def __init__(self, param: Optional[Node], coord: Coord):
+    def __init__(self, param: Optional[ExprList], coord: Coord):
         super().__init__(coord)
         self.param = param
 
@@ -371,7 +375,7 @@ class Read(Node):
     __slots__ = ("param",)
     attr_names = ()
 
-    def __init__(self, param: Node, coord: Coord):
+    def __init__(self, param: ExprList, coord: Coord):
         super().__init__(coord)
         self.param = param
 
@@ -380,7 +384,7 @@ class Return(Node):
     __slots__ = ("result",)
     attr_names = ()
 
-    def __init__(self, result: Optional[Node], coord: Coord):
+    def __init__(self, result: Optional[ExprList], coord: Coord):
         super().__init__(coord)
         self.result = result
 
@@ -389,7 +393,7 @@ class While(Node):
     __slots__ = "expression", "stmt"
     attr_names = ()
 
-    def __init__(self, expression: Node, stmt: Optional[Node], coord: Coord):
+    def __init__(self, expression: ExprList, stmt: Optional[Node], coord: Coord):
         super().__init__(coord)
         self.expression = expression
         self.stmt = stmt
