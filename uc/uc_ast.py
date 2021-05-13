@@ -461,6 +461,12 @@ class FuncCall(Node):
         self.callable = callable
         self.params = params
 
+    def parameters(self) -> Tuple[Node, ...]:
+        if self.params:
+            return self.params.expr
+        else:
+            return ()
+
 
 class RelationOp(BinaryOp):
     __slots__ = ()

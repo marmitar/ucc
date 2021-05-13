@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional, Sequence, Set, Tuple
+from typing import NamedTuple, Optional, Sequence, Set, Tuple
 
 
 class uCType:
@@ -97,6 +97,11 @@ class ArrayType(uCType):
         return f"{self.type:t}[{self.size or ''}]"
 
 
+class ParamSpec(NamedTuple):
+    name: str
+    type: uCType
+
+
 class FunctionType(uCType):
     __slots__ = "function_name", "rettype", "params"
 
@@ -109,7 +114,7 @@ class FunctionType(uCType):
         super().__init__()  # only valid operation is call
         self.funcname = name
         self.rettype = return_type
-        self.params = tuple(params)
+        self.params = tuple(ParamSpec(n, t) for n, t in params)
 
     @property
     def param_types(self) -> Tuple[uCType, ...]:

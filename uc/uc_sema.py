@@ -450,15 +450,14 @@ class NodeVisitor:
         ltype = node.callable.uc_type
         if not isinstance(ltype, FunctionType):
             raise ExprIsNotAFunction(node.callable)
-        # check length and types # TODO: check NONE
-        for param, value in zip_longest(ltype.params, node.params.expr):
+        # check parameters types and length
+        for param, value in zip_longest(ltype.params, node.parameters()):
             if param is None or value is None:
                 raise FuncParamsLengthMismatch(node.callable, default=ltype.funcname)
-            name, type = param
-            if value.uc_type != type:
-                raise InvalidParameterType(name, value)
+            if value.uc_type != param.type:
+                raise InvalidParameterType(param.name, value)
 
-        node.uc_type = ltype.type
+        node.uc_type = ltype.rettype
 
     # # # # # # # # #
     # BASIC SYMBOLS #
