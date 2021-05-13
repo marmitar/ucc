@@ -96,7 +96,7 @@ VoidType = PrimaryType.void
 class ArrayType(uCType):
     __slots__ = "elem_type", "size"
 
-    def __init__(self, element_type: uCType, size: Optional[int] = None):
+    def __init__(self, element_type: Optional[uCType] = None, size: Optional[int] = None):
         """
         element_type: Any of the uCTypes can be used as the array's type. This
             means that there's support for nested types, like matrices.
@@ -106,11 +106,15 @@ class ArrayType(uCType):
         self.elem_type = element_type
         self.size = size
 
+    def element_matches(self, uc_type: Optional[uCType]) -> bool:
+        # untyped arrays can be coerced to any type
+        return self.elem_type is None or uc_type is None or self.elem_type == uc_type
+
     def __eq__(self, other: uCType) -> bool:
         return (
             isinstance(other, ArrayType)
-            and self.elem_type == other.elem_type
-            and self.size == other.size
+            and self.element_matches(other.elem_type)
+            # don't check sizes here
         )
 
     def typename(self) -> str:
