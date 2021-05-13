@@ -32,6 +32,7 @@ from uc.uc_ast import (
     For,
     FuncCall,
     If,
+    InitList,
     IterationStmt,
     Node,
     Print,
@@ -431,6 +432,28 @@ class NodeVisitor:
         # check if initilization is valid
         if ltype != rtype:
             raise InvalidInitializationType(node.name)
+
+    def visit_InitList(self, node: InitList) -> None:
+        self.generic_visit(node)
+        if len(node) > 0:
+            elem_type = node.init[0].uc_type
+        # init lists without elements have no type, but can be coerced
+        else:
+            elem_type = None
+
+        for elem in node.init:
+            # types must match
+            if elem.uc_type != elem_type:
+                msg = "type mismatch in initialization list"
+                raise SemanticError(msg, elem.coord)
+            # sizes must match
+            if isinstance(elem_type, ArrayType) and elem_type.size != elem.uc_type.size:
+                raise ArrayIsNotHomogeneous(elem)
+            # items must be constant or list
+            if not isinstance(elem, (InitList, Constant)):
+                raise ExprIsNotConstant(elem)
+
+        node.uc_type = ArrayType(elem_type, len(node))
 
     # # # # # # # #
     # STATEMENTS  #
