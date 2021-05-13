@@ -50,6 +50,7 @@ from uc.uc_type import (
     CharType,
     FunctionType,
     IntType,
+    PrimaryType,
     VoidType,
     uCType,
 )
@@ -592,13 +593,25 @@ class NodeVisitor:
             node.uc_type = uctype
             self.symtab.add(node)
 
+    def _get_primary_type(self, typename: str, coord: Optional[Coord]) -> uCType:
+        """Get primary type from type name."""
+        uc_type = PrimaryType.get(typename)
+        # check if type exists
+        if uc_type is None:
+            msg = f"Unknown type: {typename}"
+            raise SemanticError(msg, coord)
+        return uc_type
+
     def visit_Constant(self, node: Constant) -> None:
         # Get the matching uCType
-        node.uc_type = self.typemap[node.rawtype]
+        if node.rawtype == "string":
+            node.uc_type = ArrayType(CharType, len(node.value) + 1)  # TODO: size?
+        else:
+            node.uc_type = self._get_primary_type(node.rawtype, node.coord)
 
     def visit_Type(self, node: Type) -> None:
         # Get the matching basic uCType
-        node.uc_type = self.typemap[node.name]
+        node.uc_type = self._get_primary_type(node.name, node.coord)
 
 
 class Visitor:
