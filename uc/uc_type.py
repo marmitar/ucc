@@ -92,11 +92,14 @@ VoidType = PrimaryType.void
 # # # # # # # # # #
 # Compound Types  #
 
+# special type for empty lists that can be coerced to any type
+_UndefinedType = uCType("<undefined>")
+
 
 class ArrayType(uCType):
     __slots__ = "elem_type", "size"
 
-    def __init__(self, element_type: Optional[uCType] = None, size: Optional[int] = None):
+    def __init__(self, element_type: uCType, size: Optional[int] = None):
         """
         element_type: Any of the uCTypes can be used as the array's type. This
             means that there's support for nested types, like matrices.
@@ -106,19 +109,25 @@ class ArrayType(uCType):
         self.elem_type = element_type
         self.size = size
 
-    def element_matches(self, uc_type: Optional[uCType]) -> bool:
-        # untyped arrays can be coerced to any type
-        return self.elem_type is None or uc_type is None or self.elem_type == uc_type
-
     def __eq__(self, other: uCType) -> bool:
-        return (
-            isinstance(other, ArrayType)
-            and self.element_matches(other.elem_type)
-            # don't check sizes here
-        )
+        """Array are equal to other arrays with same basic type and dimensions."""
+        if not isinstance(other, ArrayType):
+            return False
+        # undefined type coercions
+        if self.elem_type == _UndefinedType:
+            self.elem_type = other.elem_type
+        elif other.elem_type == _UndefinedType:
+            other.elem_type = self.elem_type
+        # type must match after coerced
+        return self.elem_type == other.elem_type
 
     def typename(self) -> str:
         return f"{self.elem_type:t}[{self.size or ''}]"
+
+    @staticmethod
+    def empty_list() -> ArrayType:
+        """Special type for empty init. lists: '{}'."""
+        return ArrayType(_UndefinedType, 0)
 
 
 class ParamSpec(NamedTuple):
