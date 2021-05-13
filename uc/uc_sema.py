@@ -11,6 +11,7 @@ from typing import (
     Iterable,
     Iterator,
     List,
+    NamedTuple,
     Optional,
     Tuple,
     TypeVar,
@@ -53,47 +54,72 @@ from uc.uc_type import (
 )
 
 
+class Symbol(NamedTuple):
+    """Symbol information."""
+
+    definition: ID
+
+    @property
+    def name(self) -> str:
+        return self.definition.name
+
+    @property
+    def type(self) -> uCType:
+        return self.definition.uc_type
+
+
+class Scope(Dict[str, Symbol]):
+    """Scope with symbol mappings."""
+
+    __slots__ = ()
+
+    def add(self, symb: Symbol) -> None:
+        """Add or change symbol definition in scope."""
+        self[symb.name] = symb
+
+
 class SymbolTable:
     """Class representing a symbol table. It should provide functionality
     for adding and looking up nodes associated with identifiers.
     """
 
     def __init__(self):
-        # stack of scoped symbols
-        self.scope_stack: List[Dict[str, ID]] = []
-
-    def push_scope(self) -> None:
-        """Create new scope for symbol declarations."""
-        self.scope_stack.append({})
-
-    def pop_scope(self) -> Dict[str, ID]:
-        """Remove latest scope from table stack."""
-        return self.scope_stack.pop()
+        # lookup stack of scope
+        self.stack: List[Scope] = []
 
     @contextmanager
-    def new_scope(self) -> Iterator[SymbolTable]:
-        """Context manager that automatically closes the scope."""
+    def new(self, scope: Optional[Scope] = None) -> Iterator[Scope]:
+        """
+        Insert new scope in the lookup stack and automatically
+        removes it when closed.
+        """
+        new_scope = scope or Scope()
+        self.stack.append(new_scope)
         try:
-            self.push_scope()
-            yield self
+            yield new_scope
         finally:
-            self.pop_scope()
+            self.stack.pop()
 
     @property
-    def current_scope(self) -> Dict[str, ID]:
+    def current_scope(self) -> Scope:
         """The innermost scope for current 'Node'."""
-        return self.scope_stack[-1]
+        return self.stack[-1]
 
-    def add(self, name: str, definition: ID) -> bool:
+    def add(self, definition: ID) -> bool:
         """Add or change symbol definition in current scope."""
-        self.current_scope[name] = definition
+        self.current_scope.add(Symbol(definition))
 
-    def lookup(self, name: str) -> Optional[ID]:
+    def find(self, matches: Callable[[Scope], bool]) -> Optional[Scope]:
+        """Find scope with given property, from inner to outermost."""
+        for scope in reversed(self.stack):
+            if matches(scope):
+                return scope
+
+    def lookup(self, name: str) -> Optional[Symbol]:
         """Find symbol type from inner to outermost scope."""
-        for scope in reversed(self.scope_stack):
-            ident = scope.get(name, None)
-            if ident is not None:
-                return ident
+        scope = self.find(lambda scope: name in scope)
+        if scope is not None:
+            return scope[name]
 
 
 # # # # # # # #
@@ -384,7 +410,7 @@ class NodeVisitor:
 
     def visit_Program(self, node: Program) -> None:
         # global scope
-        with self.symtab.new_scope():
+        with self.symtab.new():
             # Visit all of the global declarations
             self.generic_visit(node)
 
@@ -418,7 +444,7 @@ class NodeVisitor:
         # TODO: Check the Break statement is inside a loop.
 
     def visit_Compound(self, node: Compound) -> None:
-        with self.symtab.new_scope():
+        with self.symtab.new():
             self.generic_visit(node)
 
     def visit_Read(self, node: Read) -> None:
@@ -445,7 +471,7 @@ class NodeVisitor:
         # TODO: check that its type is identical to the return type of the function definition
 
     def visit_For(self, node: For) -> None:
-        with self.symtab.new_scope():  # TODO: breakable scope
+        with self.symtab.new():  # TODO: breakable scope
             self.generic_visit(node)
         # check if the conditional expression is of boolean type
         if node.condition is not None and node.condition.uc_type != BoolType:
@@ -541,14 +567,14 @@ class NodeVisitor:
             if definition is None:
                 raise UndefinedIdentifier(node)
             # bind identifier to its associated symbol type
-            node.uc_type = definition.uc_type
+            node.uc_type = definition.type
 
         else:
             if node.name in self.symtab.current_scope:
                 raise NameAlreadyDefined(node)
             # initialize the type, # TODO kind, and scope attributes
             node.uc_type = uctype
-            self.symtab.add(node.name, node)
+            self.symtab.add(node)
 
     def visit_Constant(self, node: Constant) -> None:
         # Get the matching uCType
