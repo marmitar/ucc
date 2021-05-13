@@ -305,11 +305,18 @@ class Assert(Node):
 
 
 class Break(Node):
-    __slots__ = ()
+    __slots__ = ("iteration",)
     attr_names = ()
+    special_attr = ("iteration",)
+
+    iteration: IterationStmt
 
     def __init__(self, coord: Coord):
         super().__init__(coord)
+
+    def bind(self, iteration_stmt: IterationStmt) -> None:
+        iteration_stmt.add_break(self)
+        self.iteration = iteration_stmt
 
 
 class Compound(Node):
@@ -326,8 +333,23 @@ class EmptyStatement(Node):
     pass
 
 
-class For(Node):
-    __slots__ = "declaration", "condition", "update", "stmt"
+class IterationStmt(Node):
+    __slots__ = "condition", "body", "break_locations"
+    attr_names = ()
+    special_attr = ("break_locations",)
+
+    def __init__(self, condition: Optional[ExprList], body: Optional[Node], coord: Coord):
+        super().__init__(coord)
+        self.condition = condition
+        self.body = body
+        self.break_locations: Tuple[Break, ...] = ()
+
+    def add_break(self, node: Break) -> None:
+        self.break_locations += (node,)
+
+
+class For(IterationStmt):
+    __slots__ = "declaration", "update"
     attr_names = ()
 
     def __init__(
@@ -335,14 +357,12 @@ class For(Node):
         declaration: Union[DeclList, Optional[ExprList]],
         condition: Optional[ExprList],
         update: Optional[ExprList],
-        stmt: Optional[Node],
+        body: Optional[Node],
         coord: Coord,
     ):
-        super().__init__(coord)
+        super().__init__(condition, body, coord)
         self.declaration = declaration
-        self.condition = condition
         self.update = update
-        self.stmt = stmt
 
 
 class If(Node):
@@ -389,14 +409,14 @@ class Return(Node):
         self.result = result
 
 
-class While(Node):
-    __slots__ = "condition", "stmt"
+class While(IterationStmt):
+    __slots__ = ()
     attr_names = ()
 
-    def __init__(self, condition: ExprList, stmt: Optional[Node], coord: Coord):
-        super().__init__(coord)
-        self.condition = condition
-        self.stmt = stmt
+    condition: ExprList
+
+    def __init__(self, condition: ExprList, body: Optional[Node], coord: Coord):
+        super().__init__(condition, body, coord)
 
 
 # # # # # # # #
