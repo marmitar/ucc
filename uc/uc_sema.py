@@ -163,8 +163,11 @@ class UnexpectedType(SemanticError):
     expected: uCType
 
     def __init__(self, symbol: Optional[Node] = None, *, coord: Optional[Coord] = None):
+        expected = getattr(self, "expected", "<UNKNOWN>")
+        item = getattr(self, "item", "<UNKNOWN>")
         uc_type = symbol and symbol.uc_type
-        msg = self.error_format.format(item=self.item, expected=self.expected, type=uc_type)
+
+        msg = self.error_format.format(item=item, expected=expected, type=uc_type)
         # uses 'coord' if given, or symbol coordinates
         super().__init__(msg, coord or (symbol and symbol.coord))
 
@@ -564,7 +567,7 @@ class Visitor:
     def __init__(self):
         self.node_visitor = NodeVisitor()
 
-    def visit(self, node: Node) -> None:
+    def visit(self, node: Program) -> None:
         """Print and exit in case of semantic errors."""
         try:
             self.node_visitor.visit(node)
