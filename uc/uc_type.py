@@ -111,9 +111,9 @@ class ArrayType(uCType):
 
     def __eq__(self, other: uCType) -> bool:
         """Array are equal to other arrays with same basic type and dimensions."""
-        if not isinstance(other, ArrayType):
-            return False
-        # undefined type coercions
+        if not isinstance(other, ArrayType) or self is other:
+            return self is other
+        # coercion of undefined types
         if self.elem_type == _UndefinedType:
             self.elem_type = other.elem_type
         elif other.elem_type == _UndefinedType:
@@ -154,7 +154,7 @@ class FunctionType(uCType):
         return tuple(t for _, t in self.params)
 
     def __eq__(self, other: uCType) -> bool:
-        return (
+        return self is other or (
             isinstance(other, FunctionType)
             and self.rettype == other.rettype
             and self.param_types == other.param_types
