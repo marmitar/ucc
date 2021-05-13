@@ -388,15 +388,6 @@ class NodeVisitor:
     def __init__(self):
         # Initialize the symbol table
         self.symtab = SymbolTable()
-        self.typemap = {
-            "int": IntType,
-            "char": CharType,
-            "void": VoidType,
-            "string": ArrayType(CharType),
-            "bool": BoolType,
-            # TODO
-        }
-        # TODO: Complete...
 
     @cache
     def visitor_for(self, node: str) -> Callable[[Node], None]:
@@ -464,23 +455,36 @@ class NodeVisitor:
         with self.symtab.new():
             self.generic_visit(node)
 
+    def _is_basic_type(self, type: uCType) -> bool:
+        """Checker for basic types."""
+        return (
+            # any primary type, except void
+            (isinstance(type, PrimaryType) and type != VoidType)
+            or
+            # or a char array, i.e. a string
+            (isinstance(type, ArrayType) and type.elem_type == CharType)
+        )
+
     def visit_Read(self, node: Read) -> None:
         self.generic_visit(node)
-        node.uc_type = VoidType
 
         for child in node.param.expr:
-            # TODO: verify that all identifiers are variables
-            ...
+            # verify that all identifiers are variables
+            ident = child.lvalue_name()
+            if ident is None:
+                raise NodeIsNotAVariable(child)
+            # check if it is of basic type
+            elif not self._is_basic_type(child.uc_type):
+                raise VariableHasCompoundType(ident)
 
     def visit_Print(self, node: Print) -> None:
         self.generic_visit(node)
-        node.uc_type = VoidType
 
         if node.param is None:
-            return
+            return  # newline
         for child in node.param.expr:
-            # TODO: check if it is of basic type
-            ...
+            if not self._is_basic_type(child.uc_type):
+                raise ExprHasCompoundType(child)
 
     def visit_Return(self, node: Return) -> None:
         self.generic_visit(node)
@@ -587,6 +591,8 @@ class NodeVisitor:
             node.uc_type = definition.type
 
         else:
+            if uctype == VoidType:
+                raise SemanticError("Cannot declare a 'void' variable.", node.coord)
             if node.name in self.symtab.current_scope:
                 raise NameAlreadyDefined(node)
             # initialize the type, # TODO kind, and scope attributes
