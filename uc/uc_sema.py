@@ -365,6 +365,8 @@ class NodeVisitor:
         """
         for _, child in node.children():
             self.visit(child)
+        # default declaration and statement type
+        node.uc_type = VoidType
 
     # # # # # # # # #
     # DECLARATIONS  #
@@ -389,6 +391,7 @@ class NodeVisitor:
             if ltype != rtype:
                 raise InvalidInitializationType(node.name)
             # TODO: arrays
+        self.uc_type = VoidType  # TODO: definition type?
 
     # # # # # # # #
     # STATEMENTS  #
@@ -443,6 +446,7 @@ class NodeVisitor:
         if node.index.uc_type != IntType:
             raise InvalidSubscriptType(node.index)
         # TODO: check size?
+        node.uc_type = uc_type.elem_type
 
     def visit_FuncCall(self, node: FuncCall) -> None:
         self.generic_visit(node)

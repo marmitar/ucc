@@ -78,23 +78,27 @@ VoidType = uCType("void")  # no valid operation
 
 
 class ArrayType(uCType):
-    __slots__ = "type", "size"
+    __slots__ = "elem_type", "size"
 
     def __init__(self, element_type: uCType, size: Optional[int] = None):
         """
-        type: Any of the uCTypes can be used as the array's type. This
-              means that there's support for nested types, like matrices.
+        element_type: Any of the uCTypes can be used as the array's type. This
+            means that there's support for nested types, like matrices.
         size: Integer with the length of the array.
         """
         super().__init__(None, unary_ops={"*", "&"}, rel_ops={"==", "!="})
-        self.type = element_type
+        self.elem_type = element_type
         self.size = size
 
     def __eq__(self, other: uCType) -> bool:
-        return isinstance(other, ArrayType) and self.type == other.type and self.size == other.size
+        return (
+            isinstance(other, ArrayType)
+            and self.elem_type == other.elem_type
+            and self.size == other.size
+        )
 
     def typename(self) -> str:
-        return f"{self.type:t}[{self.size or ''}]"
+        return f"{self.elem_type:t}[{self.size or ''}]"
 
 
 class ParamSpec(NamedTuple):

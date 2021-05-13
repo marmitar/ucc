@@ -407,8 +407,6 @@ class ArrayRef(Node):
     __slots__ = "array", "index"
     attr_names = ()
 
-    uc_type: ArrayType
-
     def __init__(self, array: Node, index: Node):
         super().__init__(array.coord)
         self.array = array
@@ -453,8 +451,6 @@ class ExprList(Node):
 class FuncCall(Node):
     __slots__ = "callable", "params"
     attr_names = ()
-
-    uc_type: FunctionType
 
     def __init__(self, callable: Node, params: Optional[ExprList] = None):
         super().__init__(callable.coord)
