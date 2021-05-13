@@ -28,7 +28,9 @@ from uc.uc_ast import (
     Constant,
     Decl,
     ExprList,
+    For,
     FuncCall,
+    If,
     Node,
     Print,
     Program,
@@ -37,6 +39,7 @@ from uc.uc_ast import (
     Return,
     Type,
     UnaryOp,
+    While,
 )
 from uc.uc_parser import Coord, UCParser
 from uc.uc_type import (
@@ -437,6 +440,26 @@ class NodeVisitor:
         self.generic_visit(node)
         _ = node.result.uc_type if node.result else VoidType
         # TODO: check that its type is identical to the return type of the function definition
+
+    def visit_For(self, node: For) -> None:
+        with self.symtab.new_scope():  # TODO: breakable scope
+            self.generic_visit(node)
+        # check if the conditional expression is of boolean type
+        if node.condition is not None and node.condition.uc_type != BoolType:
+            raise InvalidLoopCondition(node.condition)
+
+    def visit_While(self, node: While) -> None:
+        # TODO: breakable scope
+        self.generic_visit(node)
+        # check if the conditional expression is of boolean type
+        if node.condition.uc_type != BoolType:
+            raise InvalidLoopCondition(node.condition)
+
+    def visit_If(self, node: If) -> None:
+        self.generic_visit(node)
+        # check if the conditional expression is of boolean type
+        if node.condition.uc_type != BoolType:
+            raise InvalidConditionalExpression(node.condition)
 
     # # # # # # # #
     # EXPRESSIONS #
