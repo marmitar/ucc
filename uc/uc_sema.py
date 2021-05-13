@@ -20,6 +20,7 @@ from typing import (
 )
 from uc.uc_ast import (
     ID,
+    ArrayDecl,
     ArrayRef,
     Assert,
     Assignment,
@@ -42,6 +43,7 @@ from uc.uc_ast import (
     Return,
     Type,
     UnaryOp,
+    VarDecl,
     While,
 )
 from uc.uc_parser import Coord, UCParser
@@ -188,6 +190,11 @@ class BreakOutsideLoop(SemanticError):  # msg_code: 8
 class UndefinedError(SemanticError):  # msg_code: 27
     def __init__(self, coord: Optional[Coord]):
         super().__init__("Undefined error", coord)
+
+
+class NegativeArraySize(SemanticError):
+    def __init__(self, size: Constant):
+        super().__init__("Array size can't be negative", size.coord)
 
 
 # # # # # # # #
@@ -430,6 +437,35 @@ class NodeVisitor:
         # check if initilization is valid
         if ltype != rtype:
             raise InvalidInitializationType(node.name)
+
+    def visit_VarDecl(self, node: VarDecl) -> None:
+        self.generic_visit(node)
+        # just pass on the basic type
+        node.uc_type = node.type.uc_type
+
+    def visit_ArrayDecl(self, node: ArrayDecl) -> None:
+        self.generic_visit(node)
+
+        elem_type = node.type.uc_type
+        if isinstance(elem_type, ArrayType) and elem_type.size is None:
+            # only outer array modifier may be unsized
+            raise ArrayDimensionMismatch(node.type)
+
+        if node.size is not None:
+            size = node.size
+            # check if size is int constant
+            if not isinstance(size, Constant):
+                raise ExprIsNotConstant(size)
+            elif size.uc_type != IntType or not isinstance(size.value, int):
+                raise InvalidSubscriptType(size)
+            elif size.value < 0:
+                raise NegativeArraySize(size)
+            # define the type size
+            array_size = size.value
+        else:
+            array_size = None
+
+        node.uc_type = ArrayType(elem_type, array_size)
 
     def visit_InitList(self, node: InitList) -> None:
         self.generic_visit(node)
