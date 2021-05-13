@@ -385,6 +385,8 @@ class NodeVisitor:
     visit_NODE() for each kind of AST node that you want to process.
     """
 
+    __slots__ = ("symtab",)
+
     def __init__(self):
         # Initialize the symbol table
         self.symtab = SymbolTable()
@@ -418,20 +420,17 @@ class NodeVisitor:
             self.generic_visit(node)
 
     def visit_Decl(self, node: Decl) -> None:
-        # Visit the types of the declaration
-        self.visit(node.type)
+        # Visit the declaration type and initialization
+        self.generic_visit(node)
         ltype = node.type.uc_type
         # define the function or variable
         self.visit_ID(node.name, ltype)
-        # If there is an initial value defined, visit it
-        if node.init is not None:
-            self.visit(node.init)
-            rtype = node.init.uc_type
-            # check if initilization is valid
-            if ltype != rtype:
-                raise InvalidInitializationType(node.name)
-            # TODO: arrays
-        self.uc_type = VoidType  # TODO: definition type?
+        if node.init is None:
+            return  # ok, just uninitialized
+        rtype = node.init.uc_type
+        # check if initilization is valid
+        if ltype != rtype:
+            raise InvalidInitializationType(node.name)
 
     # # # # # # # #
     # STATEMENTS  #
@@ -452,6 +451,7 @@ class NodeVisitor:
         node.bind(loop.statement)
 
     def visit_Compound(self, node: Compound) -> None:
+        # open new scope
         with self.symtab.new():
             self.generic_visit(node)
 
