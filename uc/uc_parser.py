@@ -213,14 +213,18 @@ class UCParser:
 
     def p_function_definition(self, p):
         """function_definition : type_specifier declarator declaration_list compound_statement"""
-        decl = self._build_declarations(p[1], [dict(decl=p[2])])
-        p[0] = FuncDef(p[1], decl[0], DeclList(p[3]), p[4])
+        decl = self._build_declarations(p[1], [{"decl": p[2]}])
+        p[0] = FuncDef(p[1], decl[0], p[3], p[4])
 
     def p_declaration_list(self, p):
         """declaration_list :
         | declaration_list declaration
         """
-        p[0] = p[1] + [p[2]] if len(p) > 1 else []
+        if len(p) == 1:
+            p[0] = DeclList()
+        else:
+            p[1].extend(p[2])
+            p[0] = p[1]
 
     def p_declarator(self, p):
         """declarator : identifier
@@ -256,14 +260,15 @@ class UCParser:
 
     def p_parameter_declaration(self, p):
         """parameter_declaration : type_specifier declarator"""
-        decl = self._build_declarations(p[1], [dict(decl=p[2])])
+        decl = self._build_declarations(p[1], [{"decl": p[2]}])
         p[0] = decl[0]
 
     def p_declaration(self, p):
         """declaration  : type_specifier      SEMI
         | type_specifier init_declarator_list SEMI
         """
-        p[0] = self._build_declarations(p[1], getitem(p, 2, []))
+        decls = self._build_declarations(p[1], getitem(p, 2, []))
+        p[0] = DeclList(decls)
 
     def p_init_declarator_list(self, p):
         """init_declarator_list :    init_declarator
@@ -340,17 +345,15 @@ class UCParser:
     def p_iteration_statement_1(self, p):
         """iteration_statement : WHILE LPAREN expression RPAREN statement
         | FOR LPAREN maybe_expression SEMI maybe_expression SEMI maybe_expression RPAREN statement
+        | FOR LPAREN declaration maybe_expression SEMI maybe_expression RPAREN statement
         """
         coord = self._token_coord(p, 1)
         if len(p) == 6:
             p[0] = While(p[3], p[5], coord)
-        else:
+        elif len(p) == 10:
             p[0] = For(p[3], p[5], p[7], p[9], coord)
-
-    def p_iteration_statement_2(self, p):
-        """iteration_statement : FOR LPAREN declaration maybe_expression SEMI maybe_expression RPAREN statement"""
-        coord = self._token_coord(p, 1)
-        p[0] = For(DeclList(p[3], coord), p[4], p[6], p[8], coord)
+        else:
+            p[0] = For(p[3], p[4], p[6], p[8], coord)
 
     def p_jump_statement(self, p):
         """jump_statement : BREAK SEMI
