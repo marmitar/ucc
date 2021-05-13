@@ -390,12 +390,12 @@ class Return(Node):
 
 
 class While(Node):
-    __slots__ = "expression", "stmt"
+    __slots__ = "condition", "stmt"
     attr_names = ()
 
-    def __init__(self, expression: ExprList, stmt: Optional[Node], coord: Coord):
+    def __init__(self, condition: ExprList, stmt: Optional[Node], coord: Coord):
         super().__init__(coord)
-        self.expression = expression
+        self.condition = condition
         self.stmt = stmt
 
 
