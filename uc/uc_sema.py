@@ -403,9 +403,7 @@ class NodeVisitor:
         visitor(node)
 
     def generic_visit(self, node: Node) -> None:
-        """Called if no explicit visitor function exists for a
-        node. Implements preorder visiting of the node.
-        """
+        """Preorder visiting of the node's children."""
         for _, child in node.children():
             self.visit(child)
         # default declaration and statement type
@@ -435,11 +433,12 @@ class NodeVisitor:
 
     def visit_InitList(self, node: InitList) -> None:
         self.generic_visit(node)
-        if len(node) > 0:
-            elem_type = node.init[0].uc_type
         # init lists without elements have no type, but can be coerced
-        else:
-            elem_type = None
+        if len(node) == 0:
+            node.uc_type = ArrayType.empty_list()
+            return
+
+        elem_type = node.init[0].uc_type
 
         for elem in node.init:
             # types must match
