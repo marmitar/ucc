@@ -159,6 +159,10 @@ class Node:
         for child_name, child in self.children():
             child.show(buf, offset + 4, attrnames, nodenames, showcoord, child_name)
 
+    def lvalue_name(self) -> Optional[ID]:
+        """Return node lvalue name, if it is an lvalue."""
+        return None  # default
+
 
 # # # # # # # # #
 # DECLARATIONS  #
@@ -432,6 +436,10 @@ class ArrayRef(Node):
         self.array = array
         self.index = index
 
+    def lvalue_name(self) -> Optional[ID]:
+        # use array name, when referencing
+        return self.array.lvalue_name()
+
 
 class BinaryOp(Node):
     __slots__ = "op", "left", "right"
@@ -530,6 +538,9 @@ class ID(Node):
     def __init__(self, name: str, coord: Coord):
         super().__init__(coord)
         self.name = name
+
+    def lvalue_name(self) -> ID:
+        return self
 
 
 class Type(Node):
