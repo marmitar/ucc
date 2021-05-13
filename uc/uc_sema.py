@@ -20,16 +20,21 @@ from typing import (
 from uc.uc_ast import (
     ID,
     ArrayRef,
+    Assert,
     Assignment,
     BinaryOp,
     Break,
+    Compound,
     Constant,
     Decl,
     ExprList,
     FuncCall,
     Node,
+    Print,
     Program,
+    Read,
     RelationOp,
+    Return,
     Type,
     UnaryOp,
 )
@@ -395,6 +400,43 @@ class NodeVisitor:
 
     # # # # # # # #
     # STATEMENTS  #
+
+    def visit_Assert(self, node: Assert) -> None:
+        self.generic_visit(node)
+        # verify it is of boolean type
+        if node.param.uc_type != BoolType:
+            raise InvalidBooleanExpression(node.param)
+
+    def visit_Break(self, node: Break) -> None:
+        self.generic_visit(node)
+        # TODO: Check the Break statement is inside a loop.
+
+    def visit_Compound(self, node: Compound) -> None:
+        with self.symtab.new_scope():
+            self.generic_visit(node)
+
+    def visit_Read(self, node: Read) -> None:
+        self.generic_visit(node)
+        node.uc_type = VoidType
+
+        for child in node.param.expr:
+            # TODO: verify that all identifiers are variables
+            ...
+
+    def visit_Print(self, node: Print) -> None:
+        self.generic_visit(node)
+        node.uc_type = VoidType
+
+        if node.param is None:
+            return
+        for child in node.param.expr:
+            # TODO: check if it is of basic type
+            ...
+
+    def visit_Return(self, node: Return) -> None:
+        self.generic_visit(node)
+        _ = node.result.uc_type if node.result else VoidType
+        # TODO: check that its type is identical to the return type of the function definition
 
     # # # # # # # #
     # EXPRESSIONS #
