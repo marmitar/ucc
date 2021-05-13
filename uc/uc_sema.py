@@ -177,13 +177,13 @@ class InvalidBooleanExpression(UnexpectedType):  # msg_code: 3
     expected = BoolType
 
 
-class InvalidConditionalExpression(InvalidBooleanExpression):  # msg_code: 15
+class InvalidConditionalExpression(InvalidBooleanExpression):  # msg_code: 19
+    item = "The condition expression"
+
+
+class InvalidLoopCondition(InvalidBooleanExpression):  # msg_code: 15
     error_format = "{item} is {type}, not {expected}"
     item = "conditional expression"
-
-
-class InvalidLoopCondition(InvalidBooleanExpression):  # msg_code: 19
-    item = "The condition expression"
 
 
 class InvalidReturnType(UnexpectedType):  # msg_code: 24
@@ -475,8 +475,8 @@ class NodeVisitor:
 
     def visit_ExprList(self, node: ExprList) -> None:
         self.generic_visit(node)
-        # same type as last expression
-        node.uc_type = node.expr[-1].uc_type
+        # when used as the comma operator
+        node.uc_type = node.as_comma_op().uc_type
 
     def visit_ArrayRef(self, node: ArrayRef) -> None:
         self.generic_visit(node)

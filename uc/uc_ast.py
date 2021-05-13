@@ -440,6 +440,10 @@ class ExprList(Node):
     def append(self, *expr: Node) -> None:
         self.expr += expr
 
+    def as_comma_op(self) -> Node:
+        """To evaluate as the comma operator (e.g. 'while (a++, i < 10)')"""
+        return self.expr[-1]  # always has an element
+
     def show(self, *args, **kwargs) -> None:
         # hide list when containing a single symbol
         if len(self.expr) == 1:
