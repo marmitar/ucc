@@ -212,7 +212,7 @@ class DeclList(Node):
 
 
 class FuncDecl(Node):
-    __slots__ = "params", "type"
+    __slots__ = "param_list", "type"
     attr_names = ()
 
     type: Union[ArrayDecl, FuncDecl, VarDecl]
@@ -220,7 +220,7 @@ class FuncDecl(Node):
     def __init__(self, params: Optional[ParamList]):
         super().__init__()
         self.type = None
-        self.params = params
+        self.param_list = params
 
 
 class FuncDef(Node):
