@@ -32,6 +32,7 @@ from uc.uc_ast import (
     For,
     FuncCall,
     If,
+    IterationStmt,
     Node,
     Print,
     Program,
@@ -76,6 +77,16 @@ class Scope(Dict[str, Symbol]):
     def add(self, symb: Symbol) -> None:
         """Add or change symbol definition in scope."""
         self[symb.name] = symb
+
+
+class IterationScope(Scope):
+    """Scope inside iteration statement."""
+
+    __slots__ = ("statement",)
+
+    def __init__(self, iteration_stmt: IterationStmt):
+        super().__init__()
+        self.statement = iteration_stmt
 
 
 class SymbolTable:
@@ -441,7 +452,12 @@ class NodeVisitor:
 
     def visit_Break(self, node: Break) -> None:
         self.generic_visit(node)
-        # TODO: Check the Break statement is inside a loop.
+        # Check the Break statement is inside a loop.
+        loop = self.symtab.find(lambda scope: isinstance(scope, IterationScope))
+        if not isinstance(loop, IterationScope):
+            raise BreakOutsideLoop(node)
+        # Bind it to the current loop node.
+        node.bind(loop.statement)
 
     def visit_Compound(self, node: Compound) -> None:
         with self.symtab.new():
@@ -470,19 +486,19 @@ class NodeVisitor:
         _ = node.result.uc_type if node.result else VoidType
         # TODO: check that its type is identical to the return type of the function definition
 
-    def visit_For(self, node: For) -> None:
-        with self.symtab.new():  # TODO: breakable scope
+    def visit_IterationStmt(self, node: IterationStmt) -> None:
+        # create new breakable scope
+        with self.symtab.new(IterationScope(node)):
             self.generic_visit(node)
         # check if the conditional expression is of boolean type
         if node.condition is not None and node.condition.uc_type != BoolType:
             raise InvalidLoopCondition(node.condition)
 
+    def visit_For(self, node: For) -> None:
+        self.visit_IterationStmt(node)
+
     def visit_While(self, node: While) -> None:
-        # TODO: breakable scope
-        self.generic_visit(node)
-        # check if the conditional expression is of boolean type
-        if node.condition.uc_type != BoolType:
-            raise InvalidLoopCondition(node.condition)
+        self.visit_IterationStmt(node)
 
     def visit_If(self, node: If) -> None:
         self.generic_visit(node)
