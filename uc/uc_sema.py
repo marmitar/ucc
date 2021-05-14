@@ -552,23 +552,17 @@ class NodeVisitor:
 
         return ArrayType(elem_type, array_size)
 
-    def visit_FuncDecl(self, node: FuncDecl) -> FunctionType:
-        # visit parameters
-        self.generic_visit(node)
-        # get funtion name
-        scope = self.symtab.current_scope
-        assert isinstance(scope, FunctionScope)
-        name = scope.name
-
+    def visit_FuncDecl(self, node: FuncDecl, scope: Optional[Scope] = None) -> FunctionType:
+        # visit parameters in given scope, if any
+        with self.symtab.new(scope):
+            self.generic_visit(node)
         # build the function type
         rettype = node.type.uc_type
         if node.param_list:
             params = [(p.name.name, p.type.uc_type) for p in node.param_list.params]
-            uc_type = FunctionType(name, rettype, params)
+            return FunctionType(rettype, params)
         else:
-            uc_type = FunctionType(name, rettype)
-        # and bind it to the declaration
-        return uc_type
+            return FunctionType(rettype)
 
     def visit_FuncDef(self, node: FuncDef) -> None:
         # new function scope
@@ -778,6 +772,9 @@ class NodeVisitor:
                 raise InvalidVariableType(node, "a variable")
             if node.name in self.symtab.current_scope:
                 raise NameAlreadyDefined(node)
+            # update name for function type
+            if isinstance(uctype, FunctionType):
+                uctype.funcname = node.name
             # TODO kind, and scope attributes
             self.symtab.add(node)
             return uctype
