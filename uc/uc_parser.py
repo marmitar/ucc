@@ -175,7 +175,7 @@ class UCParser:
 
         # If the decl is a basic type, just tack the modifier onto it
         if isinstance(decl, VarDecl):
-            modifier_tail.type = decl
+            modifier_tail.set_type(decl)
             return modifier
         else:
             # Otherwise, the decl is a list of modifiers. Reach
@@ -186,8 +186,8 @@ class UCParser:
             while not isinstance(decl_tail.type, VarDecl):
                 decl_tail = decl_tail.type
 
-            modifier_tail.type = decl_tail.type
-            decl_tail.type = modifier_head
+            modifier_tail.set_type(decl_tail.type)
+            decl_tail.set_type(modifier_head)
             return decl
 
     # # # # # # # # #

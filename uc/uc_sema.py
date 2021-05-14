@@ -254,6 +254,7 @@ class NameAlreadyDefined(SemanticError):  # msg_code: 25
 
 class NodeIsNotAVariable(SemanticError):  # msg_code: 23
     def __init__(self, node: Node):
+        node.uc_type = ""  # delete type to match output
         super().__init__(f"{node} is not a variable", node.coord)
 
 
@@ -341,7 +342,7 @@ class InvalidReturnType(UnexpectedType):  # msg_code: 24
 
     def __init__(self, stmt: Return, expected: uCType):
         self.expected = expected
-        super().__init__(symbol=stmt)
+        super().__init__(symbol=stmt.result, coord=stmt.coord)
 
 
 class IncompatibleListType(UnexpectedType):
@@ -545,7 +546,10 @@ class NodeVisitor:
         rtype = self.visit(node.init)
         # check if initilization is valid
         if ltype != rtype:
-            raise InvalidInitializationType(node.name)
+            if not isinstance(ltype, ArrayType) and isinstance(rtype, ArrayType):
+                raise VariableIsNotArray(node)
+            else:
+                raise InvalidInitializationType(node.name)
 
     def visit_VarDecl(self, node: VarDecl) -> PrimaryType:
         self.generic_visit(node)
@@ -624,7 +628,7 @@ class NodeVisitor:
                 raise IncompatibleListType(elem)
             # sizes must match
             if isinstance(elem_type, ArrayType) and elem_type.size != elem.uc_type.size:
-                raise ArrayIsNotHomogeneous(elem)
+                raise ArrayIsNotHomogeneous(node)
             # items must be constant or list
             if not isinstance(elem, (InitList, Constant)):
                 raise ExprIsNotConstant(elem)
@@ -683,7 +687,11 @@ class NodeVisitor:
             return  # newline
         for child in node.param.expr:
             if not self._is_basic_type(child.uc_type):
-                raise ExprHasCompoundType(child)
+                # special errors for variables
+                if child.lvalue_name() is not None:
+                    raise VariableHasCompoundType(child)
+                else:
+                    raise ExprHasCompoundType(child)
 
     def visit_Return(self, node: Return) -> None:
         self.generic_visit(node)
@@ -806,7 +814,7 @@ class NodeVisitor:
             # update name for function type
             if isinstance(uctype, FunctionType):
                 uctype.funcname = node.name
-            # TODO kind, and scope attributes
+            # add to table
             self.symtab.add(node)
             return uctype
 

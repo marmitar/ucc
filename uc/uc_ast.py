@@ -180,6 +180,10 @@ class ArrayDecl(Node):
         self.type = None
         self.size = size
 
+    def set_type(self, type: Union[ArrayDecl, FuncDecl, VarDecl]) -> None:
+        self.type = type
+        self.coord = type.coord
+
 
 class Decl(Node):
     __slots__ = "name", "type", "init"
@@ -191,6 +195,8 @@ class Decl(Node):
         super().__init__(type.coord)
         self.type = type
         self.init = init
+        if isinstance(init, InitList):
+            init.coord = type.coord
 
 
 class DeclList(Node):
@@ -223,6 +229,10 @@ class FuncDecl(Node):
         super().__init__()
         self.type = None
         self.param_list = params
+
+    def set_type(self, type: Union[ArrayDecl, FuncDecl, VarDecl]) -> None:
+        self.type = type
+        self.coord = type.coord
 
 
 class FuncDef(Node):
@@ -307,7 +317,7 @@ class VarDecl(Node):
     uc_type: PrimaryType
 
     def __init__(self, declname: ID):
-        super().__init__()
+        super().__init__(declname.coord)
         self.declname = declname
         self.type = None
 
