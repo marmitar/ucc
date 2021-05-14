@@ -32,6 +32,7 @@ from uc.uc_ast import (
     ExprList,
     For,
     FuncCall,
+    FuncDecl,
     FuncDef,
     If,
     InitList,
@@ -512,6 +513,24 @@ class NodeVisitor:
             array_size = None
 
         node.uc_type = ArrayType(elem_type, array_size)
+
+    def visit_FuncDecl(self, node: FuncDecl) -> None:
+        # visit parameters
+        self.generic_visit(node)
+        # get funtion name
+        scope = self.symtab.current_scope
+        assert isinstance(scope, FunctionScope)
+        name = scope.name
+
+        # build the function type
+        rettype = node.type.uc_type
+        if node.param_list:
+            params = [(p.name.name, p.type.uc_type) for p in node.param_list.params]
+            uc_type = FunctionType(name, rettype, params)
+        else:
+            uc_type = FunctionType(name, rettype)
+        # and bind it to the declaration
+        node.uc_type = uc_type
 
     def visit_InitList(self, node: InitList) -> None:
         self.generic_visit(node)
