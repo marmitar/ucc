@@ -471,11 +471,19 @@ class ArrayDimensionMismatch(ExprParamMismatch):  # msg: 9
     error_fmt = "Array dimension mismatch"
 
 
+class IndexOutOfBounds(ExprParamMismatch):  # msg: 9
+    error_fmt = "Index is out of bounds for array {name}"
+
+
 class ArraySizeMismatch(ExprParamMismatch):  # msg: 10
+    error_fmt = "Size mismatch on assignment"
+
+
+class ArraySizeMismatchOnInit(ArraySizeMismatch):  # msg: 10
     error_fmt = "Size mismatch on {name} initialization"
 
 
-class ArrayHigherSizeMismatch(ArraySizeMismatch):  # msg: 14
+class ArrayListSizeMismatch(ArraySizeMismatchOnInit):  # msg: 14
     error_fmt = "List & variable have different sizes"
 
 
@@ -731,9 +739,8 @@ class NodeVisitor:
 
     def visit_BinaryOp(self, node: BinaryOp, *, kind: str = "binary_ops") -> uCType:
         # Visit the left and right expression
-        self.generic_visit(node)
-        ltype = node.left.uc_type
-        rtype = node.right.uc_type
+        ltype = self.visit(node.left)
+        rtype = self.visit(node.right)
         # Make sure left and right operands have the same type
         if ltype != rtype:
             raise OperationTypeDoesNotMatch(node)
@@ -749,12 +756,14 @@ class NodeVisitor:
         return BoolType
 
     def visit_Assignment(self, node: Assignment) -> uCType:
-        return self.visit_BinaryOp(node, kind="assign_ops")
-        # TODO: arrays
+        ltype = self.visit_BinaryOp(node, kind="assign_ops")
+        rtype = node.right.uc_type
+
+        if isinstance(ltype, ArrayType) and ltype.size is not None and ltype.size != rtype.size:
+            raise ArraySizeMismatch(node)
 
     def visit_UnaryOp(self, node: UnaryOp) -> uCType:
-        self.generic_visit(node)
-        uctype = node.expr.uc_type
+        uctype = self.visit(node.expr)
         # Make sure the operation is supported
         if node.op not in uctype.unary_ops:
             raise UnsupportedOperation(node)
@@ -767,24 +776,27 @@ class NodeVisitor:
         return node.as_comma_op().uc_type
 
     def visit_ArrayRef(self, node: ArrayRef) -> uCType:
-        self.generic_visit(node)
+        idx_type = self.visit(node.index)
+        # index must be 'int'
+        if idx_type != IntType:
+            raise InvalidSubscriptType(node.index)
         # ltype must be an array type
-        uc_type = node.array.uc_type
+        uc_type = self.visit(node.array)
         if not isinstance(uc_type, ArrayType):
             raise ExprIsNotAnArray(node.array)
-        # index must be 'int'
-        if node.index.uc_type != IntType:
-            raise InvalidSubscriptType(node.index)
-        # TODO: check size?
+        # check out bounds when possible
+        if isinstance(node.index, Constant) and uc_type.out_of_bounds(node.index.value):
+            raise IndexOutOfBounds(node.lvalue_name())
         return uc_type.elem_type
 
     def visit_FuncCall(self, node: FuncCall) -> uCType:
-        self.generic_visit(node)
         # ltype must be a function type
-        ltype = node.callable.uc_type
+        ltype = self.visit(node.callable)
         if not isinstance(ltype, FunctionType):
             raise ExprIsNotAFunction(node.callable)
         # check parameters types and length
+        if node.params:
+            self.visit(node.params)
         for param, value in zip_longest(ltype.params, node.parameters()):
             if param is None or value is None:
                 raise FuncParamsLengthMismatch(node.callable, default=ltype.funcname)
@@ -829,7 +841,7 @@ class NodeVisitor:
     def visit_Constant(self, node: Constant) -> Union[PrimaryType, ArrayType]:
         # Get the matching uCType
         if node.rawtype == "string":
-            return ArrayType(CharType, len(node.value) + 1)  # TODO: size?
+            return ArrayType(CharType, len(node.value) + 1)
         else:
             return self._get_primary_type(node.rawtype, node.coord)
 
