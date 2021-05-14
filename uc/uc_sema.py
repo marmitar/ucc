@@ -717,10 +717,12 @@ class NodeVisitor:
     def visit_IterationStmt(self, node: IterationStmt) -> None:
         # create new breakable scope
         with self.symtab.new(IterationScope(node)):
-            self.generic_visit(node)
-        # check if the conditional expression is of boolean type
-        if node.condition is not None and node.condition.uc_type != BoolType:
-            raise InvalidLoopCondition(node.condition)
+            for _, child in node.children():
+                uctype = self.visit(child)
+                # check if the conditional expression is of boolean type
+                if child is node.condition:
+                    if uctype != BoolType:
+                        raise InvalidLoopCondition(node.condition, coord=node.coord)
 
     def visit_For(self, node: For) -> None:
         self.visit_IterationStmt(node)
@@ -729,10 +731,15 @@ class NodeVisitor:
         self.visit_IterationStmt(node)
 
     def visit_If(self, node: If) -> None:
-        self.generic_visit(node)
         # check if the conditional expression is of boolean type
-        if node.condition.uc_type != BoolType:
+        cond_type = self.visit(node.condition)
+        if cond_type != BoolType:
             raise InvalidConditionalExpression(node.condition)
+        # visit statements
+        if node.true_stmt:
+            self.visit(node.true_stmt)
+        if node.false_stmt:
+            self.visit(node.false_stmt)
 
     # # # # # # # #
     # EXPRESSIONS #
