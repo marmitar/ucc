@@ -14,8 +14,8 @@ class uCType:
     def __init__(
         self,
         name: Optional[str],
-        binary_ops: Set[str] = set(),
         unary_ops: Set[str] = set(),
+        binary_ops: Set[str] = set(),
         rel_ops: Set[str] = set(),
         assign_ops: Set[str] = set(),
     ):
@@ -36,16 +36,16 @@ class uCType:
         """The name of the uCType."""
         return self._typename or "<unnamed>"
 
+    def __repr__(self) -> str:
+        return self.typename()
+
     def __str__(self) -> str:
         """Standard type formatting."""
-        return f"type({self.typename()})"
+        return f"type({self!r})"
 
-    def __format__(self, format_spec: str) -> str:
-        """Special 't' format for types that only show the typename."""
-        if format_spec == "t":
-            return self.typename()
-
-        return super().__format__(format_spec)
+    def __repr__(self) -> str:
+        """Only show typename."""
+        return self.typename()
 
 
 # # # # # # # # #
@@ -122,11 +122,11 @@ class ArrayType(uCType):
         return self.elem_type == other.elem_type
 
     def typename(self) -> str:
-        return f"{self.elem_type:t}[{self.size or ''}]"
+        return f"{self.elem_type!r}[{self.size or ''}]"
 
     @staticmethod
     def empty_list() -> ArrayType:
-        """Special type for empty init. lists: '{}'."""
+        """Special type for empty initialization lists: '{}'."""
         return ArrayType(_UndefinedType, 0)
 
 
@@ -162,16 +162,9 @@ class FunctionType(uCType):
 
     def typename(self, *, show_names: bool = False) -> str:
         if show_names:
-            params = ", ".join(f"{n}: {t:t}" for n, t in self.params)
-            return f"{self.rettype:t} {self.funcname}({params})"
+            params = ", ".join(f"{n}: {t!r}" for n, t in self.params)
+            return f"{self.rettype!r} {self.funcname}({params})"
         else:
             # no space between parameters
-            params = ",".join(f"{t:t}" for t in self.param_types)
-            return f"{self.rettype:t}({params})"
-
-    def __format__(self, format_spec: str) -> str:
-        """Special 'tn' format that show parameter and function names."""
-        if format_spec == "tn":
-            return self.typename(show_names=True)
-
-        return super().__format__(format_spec)
+            params = ",".join(f"{t!r}" for t in self.param_types)
+            return f"{self.rettype!r}({params})"
