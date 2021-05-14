@@ -591,16 +591,15 @@ class NodeVisitor:
         return ArrayType(elem_type, array_size)
 
     def visit_FuncDecl(self, node: FuncDecl, scope: Optional[Scope] = None) -> FunctionType:
+        rettype = self.visit(node.type)
         # visit parameters in given scope, if any
         with self.symtab.new(scope):
-            self.generic_visit(node)
+            self.visit(node.param_list)
+        # get function name
+        name = node.declname().name
         # build the function type
-        rettype = node.type.uc_type
-        if node.param_list:
-            params = [(p.name.name, p.type.uc_type) for p in node.param_list.params]
-            return FunctionType(rettype, params)
-        else:
-            return FunctionType(rettype)
+        params = [(p.name.name, p.type.uc_type) for p in node.param_list.params]
+        return FunctionType(name, rettype, params)
 
     def visit_FuncDef(self, node: FuncDef) -> None:
         # visit return type
@@ -833,9 +832,6 @@ class NodeVisitor:
                 raise InvalidVariableType(node, "a variable")
             if node.name in self.symtab.current_scope:
                 raise NameAlreadyDefined(node)
-            # update name for function type
-            if isinstance(uctype, FunctionType):
-                uctype.funcname = node.name
             # add to table
             self.symtab.add(node)
             return uctype
