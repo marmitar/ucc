@@ -532,6 +532,21 @@ class NodeVisitor:
         # and bind it to the declaration
         node.uc_type = uc_type
 
+    def visit_FuncDef(self, node: FuncDef) -> None:
+        # new function scope
+        scope = FunctionScope(node)
+        # declare parameters inside the function
+        with self.symtab.new(scope):
+            self.visit(node.declaration.type)
+        # but declare the function in global scope
+        self.visit(node.return_type)
+        # do not revisit parameters
+        self.visit_Decl(node.declaration, visit_type=False)
+        # declare the function body in the new scope as well
+        with self.symtab.new(scope):
+            self.visit(node.decl_list)
+            self.visit(node.implementation)
+
     def visit_InitList(self, node: InitList) -> None:
         self.generic_visit(node)
         # init lists without elements have no type, but can be coerced
