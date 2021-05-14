@@ -3,7 +3,7 @@ import inspect
 import sys
 from collections.abc import Sequence
 from typing import List, Literal, Optional, Protocol, TextIO, Tuple, Union, overload
-from uc.uc_type import ArrayType, FunctionType, uCType
+from uc.uc_type import ArrayType, FunctionType, PrimaryType, uCType
 
 
 class Coord(Protocol):
@@ -173,6 +173,7 @@ class ArrayDecl(Node):
     attr_names = ()
 
     type: Union[ArrayDecl, FuncDecl, VarDecl]
+    uc_type: ArrayType
 
     def __init__(self, size: Optional[Node]):
         super().__init__()
@@ -216,6 +217,7 @@ class FuncDecl(Node):
     attr_names = ()
 
     type: Union[ArrayDecl, FuncDecl, VarDecl]
+    uc_type: FunctionType
 
     def __init__(self, params: Optional[ParamList]):
         super().__init__()
@@ -257,6 +259,8 @@ class GlobalDecl(DeclList):
 class InitList(Node):
     __slots__ = ("init",)
     attr_names = ()
+
+    uc_type: ArrayType
 
     def __init__(self, head: Optional[Node] = None):
         super().__init__()
@@ -300,6 +304,7 @@ class VarDecl(Node):
     special_attr = ("declname",)
 
     type: Type
+    uc_type: PrimaryType
 
     def __init__(self, declname: ID):
         super().__init__()
@@ -565,6 +570,8 @@ class ID(Node):
 class Type(Node):
     __slots__ = ("name",)
     attr_names = ("name",)
+
+    uc_type: PrimaryType
 
     def __init__(self, name: str, coord: Coord):
         super().__init__(coord)
