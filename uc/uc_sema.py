@@ -1,10 +1,10 @@
 from __future__ import annotations
+import itertools
 import pathlib
 import sys
 from argparse import ArgumentParser
 from contextlib import contextmanager
 from functools import cache
-from itertools import zip_longest
 from typing import (
     Callable,
     Dict,
@@ -60,6 +60,16 @@ from uc.uc_type import (
     uCType,
 )
 
+T, U = TypeVar("T"), TypeVar("U")
+
+# type hint for 'zip_longest' in this file
+def zip_longest(i0: Iterable[T], i1: Iterable[U]) -> Iterator[Tuple[Optional[T], Optional[U]]]:
+    return itertools.zip_longest(i0, i1)
+
+
+# # # # # # # # # # #
+# SCOPE AND SYMBOLS #
+
 
 class Symbol(NamedTuple):
     """Symbol information."""
@@ -83,6 +93,10 @@ class Scope(Dict[str, Symbol]):
     def add(self, symb: Symbol) -> None:
         """Add or change symbol definition in scope."""
         self[symb.name] = symb
+
+    def __str__(self) -> str:
+        """Show 'Scope {NAME: SYMBOL, ...}'."""
+        return f"{self.__class__.__name__} {super().__str__()}"
 
 
 class IterationScope(Scope):
@@ -425,13 +439,6 @@ class FuncParamsLengthMismatch(ExprParamMismatch):  # msg: 17
 # # # # # # # #
 # AST VISITOR #
 
-T, U = TypeVar("T"), TypeVar("U")
-
-# type hint for 'zip_longest' as used here
-@overload
-def zip_longest(i0: Iterable[T], i1: Iterable[U]) -> Iterator[Tuple[Optional[T], Optional[U]]]:
-    ...
-
 
 class NodeVisitor:
     """A base NodeVisitor class for visiting uc_ast nodes. This class
@@ -654,7 +661,7 @@ class NodeVisitor:
     # # # # # # # #
     # EXPRESSIONS #
 
-    def visit_BinaryOp(self, node: BinaryOp, kind: str = "binary_ops") -> None:
+    def visit_BinaryOp(self, node: BinaryOp, *, kind: str = "binary_ops") -> None:
         # Visit the left and right expression
         self.generic_visit(node)
         ltype = node.left.uc_type
