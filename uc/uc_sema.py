@@ -142,12 +142,38 @@ class FunctionScope(Scope):
         return self.definition.declaration.name
 
     @property
+    def type(self) -> FunctionType:
+        return self.ident.uc_type
+
+    @property
     def name(self) -> str:
         return self.ident.name
 
     @property
     def return_type(self) -> uCType:
         return self.definition.return_type.uc_type
+
+    def already_defined(self, outer: Scope) -> bool:
+        """Check if function was already defined in a given scope."""
+        sym = outer.get(self.name)
+        return (
+            # function can be defined if its a new name
+            sym is not None
+            and
+            # or if old name was just a declaration with same uCType
+            (isinstance(sym, FuncDefSymbol) or sym.type != self.type)
+        )
+
+    def definition_scope(self, outer: Scope) -> Scope:
+        """Special scope for function definition."""
+
+        class DeclScope(Scope):
+            def add(this, sym: Symbol) -> None:
+                assert sym.definition is self.ident
+                # add function to outer scope
+                outer.add(FuncDefSymbol(self.ident, self.definition))
+
+        return DeclScope()
 
 
 class SymbolTable:
@@ -565,17 +591,22 @@ class NodeVisitor:
             return FunctionType(rettype)
 
     def visit_FuncDef(self, node: FuncDef) -> None:
-        # new function scope
-        scope = FunctionScope(node)
-        # declare parameters inside the function
-        with self.symtab.new(scope):
-            ltype = self.visit(node.declaration.type)
-        # but declare the function in global scope
+        # visit return type
         self.visit(node.return_type)
-        # do not revisit parameters
-        self.visit_Decl(node.declaration, ltype=ltype)
+        global_scope = self.symtab.current_scope
+        function_scope = FunctionScope(node)
+        # declare function in special scope
+        ltype = self.visit_FuncDecl(node.declaration.type, function_scope)
+        function_scope.ident.uc_type = ltype
+        # check if function was already defined
+        if function_scope.already_defined(global_scope):
+            raise NameAlreadyDefined(node.declaration.name)
+        # declare function using special scope
+        def_scope = function_scope.definition_scope(global_scope)
+        with self.symtab.new(def_scope):
+            self.visit(node.declaration)
         # declare the function body in the new scope as well
-        with self.symtab.new(scope):
+        with self.symtab.new(function_scope):
             self.visit(node.decl_list)
             self.visit(node.implementation)
 
