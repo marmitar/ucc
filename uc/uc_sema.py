@@ -467,14 +467,16 @@ class NodeVisitor:
             # Visit all of the global declarations
             self.generic_visit(node)
 
-    def visit_Decl(self, node: Decl) -> None:
+    def visit_Decl(self, node: Decl, *, visit_type: bool = True) -> None:
         # Visit the declaration type and initialization
-        self.generic_visit(node)
+        if visit_type:
+            self.visit(node.type)
         ltype = node.type.uc_type
         # define the function or variable
         self.visit_ID(node.name, ltype)
         if node.init is None:
             return  # ok, just uninitialized
+        self.visit(node.init)
         rtype = node.init.uc_type
         # check if initilization is valid
         if ltype != rtype:
