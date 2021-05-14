@@ -227,6 +227,11 @@ class BreakOutsideLoop(SemanticError):  # msg_code: 8
         super().__init__("Break statement must be inside a loop", stmt.coord)
 
 
+class ReturnOutsideFunction(SemanticError):
+    def __init__(self, stmt: Return):
+        super().__init__("Return statement must be inside a function", stmt.coord)
+
+
 class UndefinedError(SemanticError):  # msg_code: 27
     def __init__(self, coord: Optional[Coord]):
         super().__init__("Undefined error", coord)
@@ -251,7 +256,7 @@ class UnexpectedType(SemanticError):
     def __init__(self, symbol: Optional[Node] = None, *, coord: Optional[Coord] = None):
         expected = getattr(self, "expected", "<UNKNOWN>")
         item = getattr(self, "item", "<UNKNOWN>")
-        uc_type = symbol and symbol.uc_type
+        uc_type = getattr(symbol, "uc_type", VoidType)
 
         msg = self.error_format.format(item=item, expected=expected, type=uc_type)
         # uses 'coord' if given, or symbol coordinates
@@ -288,6 +293,10 @@ class InvalidLoopCondition(InvalidBooleanExpression):  # msg_code: 15
 
 class InvalidReturnType(UnexpectedType):  # msg_code: 24
     error_format = "Return of {type} is incompatible with {expected} function definition"
+
+    def __init__(self, stmt: Return, expected: uCType):
+        self.expected = expected
+        super().__init__(symbol=stmt)
 
 
 class IncompatibleListType(UnexpectedType):
@@ -635,8 +644,16 @@ class NodeVisitor:
 
     def visit_Return(self, node: Return) -> None:
         self.generic_visit(node)
-        _ = node.result.uc_type if node.result else VoidType
-        # TODO: check that its type is identical to the return type of the function definition
+        ret_type = node.result.uc_type if node.result else VoidType
+        # get function definition
+        scope = self.symtab.find(lambda scope: isinstance(scope, FunctionScope))
+        if not isinstance(scope, FunctionScope):
+            raise ReturnOutsideFunction(node)
+        # check that its type is identical to the return type of the function definition
+        if ret_type != scope.return_type:
+            raise InvalidReturnType(node, scope.return_type)
+        # bind to function
+        node.bind(scope.definition)
 
     def visit_IterationStmt(self, node: IterationStmt) -> None:
         # create new breakable scope

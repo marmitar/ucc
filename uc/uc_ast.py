@@ -224,8 +224,9 @@ class FuncDecl(Node):
 
 
 class FuncDef(Node):
-    __slots__ = "return_type", "declaration", "decl_list", "implementation"
+    __slots__ = "return_type", "declaration", "decl_list", "implementation", "return_list"
     attr_names = ()
+    special_attr = ("return_list",)
 
     def __init__(
         self,
@@ -239,6 +240,10 @@ class FuncDef(Node):
         self.declaration = declaration
         self.decl_list = decl_list
         self.implementation = implementation
+        self.return_list: Tuple[Return, ...] = ()
+
+    def add_return(self, node: Return) -> None:
+        self.return_list += (node,)
 
 
 class GlobalDecl(DeclList):
@@ -412,12 +417,19 @@ class Read(Node):
 
 
 class Return(Node):
-    __slots__ = ("result",)
+    __slots__ = "result", "function"
     attr_names = ()
+    special_attr = ("function",)
+
+    function: FuncDef
 
     def __init__(self, result: Optional[ExprList], coord: Coord):
         super().__init__(coord)
         self.result = result
+
+    def bind(self, function: FuncDef) -> None:
+        function.add_return(self)
+        self.function = function
 
 
 class While(IterationStmt):
