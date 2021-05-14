@@ -259,7 +259,7 @@ class FuncDef(Node):
         decl_list: DeclList,
         implementation: Compound,
     ):
-        super().__init__()
+        super().__init__(declaration.coord)
         self.return_type = return_type
         self.declaration = declaration
         self.decl_list = decl_list
@@ -372,6 +372,12 @@ class Compound(Node):
         super().__init__(coord)
         self.declarations = declarations
         self.statements = tuple(statements)
+
+    def last_statement(self) -> Optional[Node]:
+        return self.statements[-1] if self.statements else None
+
+    def append(self, statement: Node) -> None:
+        self.statements += (statement,)
 
 
 class EmptyStatement(Node):
