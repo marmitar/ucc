@@ -184,6 +184,12 @@ class ArrayDecl(Node):
         self.type = type
         self.coord = type.coord
 
+    def declname(self) -> ID:
+        modtype = self
+        while not isinstance(modtype, VarDecl):
+            modtype = modtype.type
+        return modtype.declname
+
 
 class Decl(Node):
     __slots__ = "name", "type", "init"
@@ -225,7 +231,7 @@ class FuncDecl(Node):
     type: Union[ArrayDecl, FuncDecl, VarDecl]
     uc_type: FunctionType
 
-    def __init__(self, params: Optional[ParamList]):
+    def __init__(self, params: ParamList):
         super().__init__()
         self.type = None
         self.param_list = params
@@ -233,6 +239,12 @@ class FuncDecl(Node):
     def set_type(self, type: Union[ArrayDecl, FuncDecl, VarDecl]) -> None:
         self.type = type
         self.coord = type.coord
+
+    def declname(self) -> ID:
+        modtype = self
+        while not isinstance(modtype, VarDecl):
+            modtype = modtype.type
+        return modtype.declname
 
 
 class FuncDef(Node):
@@ -291,9 +303,11 @@ class ParamList(Node):
     __slots__ = ("params",)
     attr_names = ()
 
-    def __init__(self, head: Decl):
-        super().__init__(head.coord)
-        self.params: Tuple[Decl, ...] = (head,)
+    def __init__(self, head: Optional[Decl] = None):
+        super().__init__()
+        self.params: Tuple[Decl, ...] = ()
+        if head is not None:
+            self.append(head)
 
     def append(self, node: Decl) -> None:
         self.params += (node,)

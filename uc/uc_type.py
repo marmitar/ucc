@@ -145,32 +145,22 @@ class ParamSpec(NamedTuple):
 
 
 class FunctionType(uCType):
-    __slots__ = "_funcname", "rettype", "params"
+    __slots__ = "funcname", "rettype", "params"
 
-    def __init__(self, return_type: uCType, params: Sequence[Tuple[str, uCType]] = ()):
+    def __init__(self, name: str, return_type: uCType, params: Sequence[Tuple[str, uCType]] = ()):
         """
         name: Function definition name.
         return_type: Any uCType can be used here.
         params: Sequence of 'name, type' for each of the function parameters.
         """
         super().__init__(None)  # only valid operation is call
-        self._funcname: Optional[str] = None
+        self.funcname = name
         self.rettype = return_type
         self.params = tuple(ParamSpec(n, t) for n, t in params)
 
     @property
     def param_types(self) -> Tuple[uCType, ...]:
         return tuple(t for _, t in self.params)
-
-    @property
-    def funcname(self) -> str:
-        return self._funcname or "<function>"
-
-    @funcname.setter
-    def funcname(self, name: str) -> None:
-        # update name if missing
-        if not self._funcname:
-            self._funcname = name
 
     def __eq__(self, other: uCType) -> bool:
         return self is other or (

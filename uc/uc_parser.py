@@ -245,8 +245,10 @@ class UCParser:
             p[0] = self._type_modify_decl(p[1], mod)
         # function declaration
         else:
-            mod = FuncDecl(p[3] if len(p) == 5 else None)
-            p[0] = self._type_modify_decl(p[1], mod)
+            params = p[3] if len(p) == 5 else ParamList()
+            params.coord = self._token_coord(p, 2)
+            # use locate parameters at parenthesis
+            p[0] = self._type_modify_decl(p[1], FuncDecl(params))
 
     def p_parameter_list(self, p):
         """parameter_list :    parameter_declaration
