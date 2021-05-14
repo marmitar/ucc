@@ -613,6 +613,29 @@ class NodeVisitor:
         params = [(p.name.name, p.type.uc_type) for p in node.param_list.params]
         return FunctionType(name, rettype, params)
 
+    def _needs_implicit_return(self, stmt: Optional[Node]) -> bool:
+        """Check if a given statement needs implicit return."""
+        # compound depends on its last statement
+        if isinstance(stmt, Compound):
+            last = stmt.last_statement()
+            return self._needs_implicit_return(last)
+        # conditional depends on both branchs
+        elif isinstance(stmt, If):
+            # fmt: off
+            return self._needs_implicit_return(stmt.true_stmt) \
+                or self._needs_implicit_return(stmt.false_stmt)
+            # fmt: on
+        # 'for' is ok if it has no condition, no break and has a return
+        elif isinstance(stmt, For):
+            # fmt: off
+            return stmt.condition is None \
+                and len(stmt.break_locations) == 0 \
+                and self._needs_implicit_return(stmt.body)
+            # fmt: on
+        # otherwise, only an explicit return don't require implicit
+        else:
+            return not isinstance(stmt, Return)
+
     def visit_FuncDef(self, node: FuncDef) -> None:
         # visit return type
         self.visit(node.return_type)
@@ -632,6 +655,13 @@ class NodeVisitor:
         with self.symtab.new(function_scope):
             self.visit(node.decl_list)
         self.visit_Compound(node.implementation, function_scope)
+        # check if implicit return is needed
+        if self._needs_implicit_return(node.implementation):
+            stmt = Return(None, node.implementation.coord)
+            node.implementation.append(stmt)
+            # visit it inside function scope
+            with self.symtab.new(function_scope):
+                self.visit(stmt)
 
     def visit_InitList(self, node: InitList) -> ArrayType:
         self.generic_visit(node)
