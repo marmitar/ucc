@@ -17,7 +17,6 @@ from typing import (
     Tuple,
     TypeVar,
     Union,
-    overload,
 )
 from uc.uc_ast import (
     ID,
@@ -72,10 +71,15 @@ def zip_longest(i0: Iterable[T], i1: Iterable[U]) -> Iterator[Tuple[Optional[T],
 # SCOPE AND SYMBOLS #
 
 
-class Symbol(NamedTuple):
+class Symbol:
     """Symbol information."""
 
+    __slots__ = ("definition",)
+
     definition: ID
+
+    def __init__(self, definition: ID):
+        self.definition = definition
 
     @property
     def name(self) -> str:
@@ -83,6 +87,20 @@ class Symbol(NamedTuple):
 
     @property
     def type(self) -> uCType:
+        return self.definition.uc_type
+
+
+class FuncDefSymbol(Symbol):
+    """Symbol for Defined Functions."""
+
+    __slots__ = ("body",)
+
+    def __init__(self, definition: ID, body: FuncDef):
+        super().__init__(definition)
+        self.body = body
+
+    @property
+    def type(self) -> FunctionType:
         return self.definition.uc_type
 
 
@@ -161,7 +179,7 @@ class SymbolTable:
         """The innermost scope for current 'Node'."""
         return self.stack[-1]
 
-    def add(self, definition: ID) -> bool:
+    def add(self, definition: ID) -> None:
         """Add or change symbol definition in current scope."""
         self.current_scope.add(Symbol(definition))
 
