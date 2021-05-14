@@ -554,20 +554,31 @@ class NodeVisitor:
         rtype = self.visit(node.init)
         # check if initilization is valid
         if ltype != rtype:
-            if not isinstance(ltype, ArrayType) and isinstance(rtype, ArrayType):
+            if isinstance(ltype, ArrayType):
+                if isinstance(node.init, InitList):
+                    raise ArrayListSizeMismatch(node)
+                else:
+                    raise ArraySizeMismatchOnInit(node.name)
+            if isinstance(rtype, ArrayType):
                 raise VariableIsNotArray(node)
             else:
                 raise InvalidInitializationType(node.name)
+        # update unsized arrays
+        if isinstance(ltype, ArrayType):
+            if ltype.size is None:
+                ltype.size = rtype.size
+            elif ltype.size != rtype.size:
+                if isinstance(node.init, InitList):
+                    raise ArrayListSizeMismatch(node)
+                else:
+                    raise ArraySizeMismatchOnInit(node.name)
 
     def visit_VarDecl(self, node: VarDecl) -> PrimaryType:
-        self.generic_visit(node)
         # just pass on the basic type
-        return node.type.uc_type
+        return self.visit_Type(node.type)
 
     def visit_ArrayDecl(self, node: ArrayDecl) -> ArrayType:
-        self.generic_visit(node)
-
-        elem_type = node.type.uc_type
+        elem_type = self.visit(node.type)
         if isinstance(elem_type, ArrayType) and elem_type.size is None:
             # only outer array modifier may be unsized
             raise ArrayDimensionMismatch(node.type)
@@ -576,10 +587,11 @@ class NodeVisitor:
 
         if node.size is not None:
             size = node.size
+            size_type = self.visit(size)
             # check if size is int constant
-            if not isinstance(size, Constant):
+            if not isinstance(node.size, Constant):
                 raise ExprIsNotConstant(size)
-            elif size.uc_type != IntType or not isinstance(size.value, int):
+            elif size_type != IntType or not isinstance(size.value, int):
                 raise InvalidSubscriptType(size)
             elif size.value < 0:
                 raise NegativeArraySize(size)
@@ -606,7 +618,7 @@ class NodeVisitor:
         self.visit(node.return_type)
         global_scope = self.symtab.current_scope
         function_scope = FunctionScope(node)
-        # declare function in special scope
+        # declare parameters in function scope
         ltype = self.visit_FuncDecl(node.declaration.type, function_scope)
         function_scope.ident.uc_type = ltype
         # check if function was already defined

@@ -109,6 +109,14 @@ class ArrayType(uCType):
         self.elem_type = element_type
         self.size = size
 
+    @staticmethod
+    def cmp_size(this: uCType, other: uCType) -> bool:
+        """Compare array types matching sizes."""
+        if isinstance(this, ArrayType) and isinstance(other, ArrayType):
+            return this == other and this.size == other.size
+        else:
+            return this == other
+
     def __eq__(self, other: uCType) -> bool:
         """Array are equal to other arrays with same basic type and dimensions."""
         if not isinstance(other, ArrayType) or self is other:
@@ -118,8 +126,8 @@ class ArrayType(uCType):
             self.elem_type = other.elem_type
         elif other.elem_type == _UndefinedType:
             other.elem_type = self.elem_type
-        # type must match after coerced
-        return self.elem_type == other.elem_type
+        # inner types must have same size
+        return ArrayType.cmp_size(self.elem_type, other.elem_type)
 
     def typename(self) -> str:
         return f"{self.elem_type!r}[{self.size or ''}]"
