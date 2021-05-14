@@ -136,7 +136,7 @@ class ParamSpec(NamedTuple):
 
 
 class FunctionType(uCType):
-    __slots__ = "function_name", "rettype", "params"
+    __slots__ = "funcname", "rettype", "params"
 
     def __init__(self, name: str, return_type: uCType, params: Sequence[Tuple[str, uCType]] = ()):
         """
@@ -144,7 +144,7 @@ class FunctionType(uCType):
         return_type: Any uCType can be used here.
         params: Sequence of 'name, type' for each of the function parameters.
         """
-        super().__init__()  # only valid operation is call
+        super().__init__(None)  # only valid operation is call
         self.funcname = name
         self.rettype = return_type
         self.params = tuple(ParamSpec(n, t) for n, t in params)
