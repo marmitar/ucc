@@ -32,6 +32,7 @@ from uc.uc_ast import (
     ExprList,
     For,
     FuncCall,
+    FuncDef,
     If,
     InitList,
     IterationStmt,
@@ -91,6 +92,27 @@ class IterationScope(Scope):
     def __init__(self, iteration_stmt: IterationStmt):
         super().__init__()
         self.statement = iteration_stmt
+
+
+class FunctionScope(Scope):
+    """Scope inside function body."""
+
+    __slots__ = ("definition",)
+
+    def __init__(self, definition: FuncDef):
+        self.definition = definition
+
+    @property
+    def ident(self) -> ID:
+        return self.definition.declaration.name
+
+    @property
+    def name(self) -> str:
+        return self.ident.name
+
+    @property
+    def return_type(self) -> uCType:
+        return self.definition.return_type.uc_type
 
 
 class SymbolTable:
