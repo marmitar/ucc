@@ -11,6 +11,7 @@ from typing import (
     Iterable,
     Iterator,
     List,
+    Literal,
     NamedTuple,
     Optional,
     Tuple,
@@ -462,21 +463,23 @@ class NodeVisitor:
         self.symtab = SymbolTable()
 
     @cache
-    def visitor_for(self, node: str) -> Callable[[Node], None]:
+    def visitor_for(self, node: str) -> Callable[[Node], Optional[uCType]]:
         """Find visitor method for a node class."""
         return getattr(self, f"visit_{node}", self.generic_visit)
 
-    def visit(self, node: Node) -> None:
-        """Visit a node."""
+    def visit(self, node: Node) -> uCType:
+        """Visit a node, set and return its type."""
         visitor = self.visitor_for(node.classname)
-        visitor(node)
+        uc_type = visitor(node)
+        # default declaration and statement type
+        node.uc_type = uc_type or VoidType
+        return node.uc_type
 
-    def generic_visit(self, node: Node) -> None:
+    def generic_visit(self, node: Node) -> Literal[VoidType]:
         """Preorder visiting of the node's children."""
         for _, child in node.children():
             self.visit(child)
-        # default declaration and statement type
-        node.uc_type = VoidType
+        return VoidType
 
     # # # # # # # # #
     # DECLARATIONS  #
@@ -487,27 +490,25 @@ class NodeVisitor:
             # Visit all of the global declarations
             self.generic_visit(node)
 
-    def visit_Decl(self, node: Decl, *, visit_type: bool = True) -> None:
+    def visit_Decl(self, node: Decl, *, ltype: Optional[uCType] = None) -> None:
         # Visit the declaration type and initialization
-        if visit_type:
-            self.visit(node.type)
-        ltype = node.type.uc_type
+        if ltype is None:
+            ltype = self.visit(node.type)
         # define the function or variable
         self.visit_ID(node.name, ltype)
         if node.init is None:
             return  # ok, just uninitialized
-        self.visit(node.init)
-        rtype = node.init.uc_type
+        rtype = self.visit(node.init)
         # check if initilization is valid
         if ltype != rtype:
             raise InvalidInitializationType(node.name)
 
-    def visit_VarDecl(self, node: VarDecl) -> None:
+    def visit_VarDecl(self, node: VarDecl) -> PrimaryType:
         self.generic_visit(node)
         # just pass on the basic type
-        node.uc_type = node.type.uc_type
+        return node.type.uc_type
 
-    def visit_ArrayDecl(self, node: ArrayDecl) -> None:
+    def visit_ArrayDecl(self, node: ArrayDecl) -> ArrayType:
         self.generic_visit(node)
 
         elem_type = node.type.uc_type
@@ -531,9 +532,9 @@ class NodeVisitor:
         else:
             array_size = None
 
-        node.uc_type = ArrayType(elem_type, array_size)
+        return ArrayType(elem_type, array_size)
 
-    def visit_FuncDecl(self, node: FuncDecl) -> None:
+    def visit_FuncDecl(self, node: FuncDecl) -> FunctionType:
         # visit parameters
         self.generic_visit(node)
         # get funtion name
@@ -549,29 +550,28 @@ class NodeVisitor:
         else:
             uc_type = FunctionType(name, rettype)
         # and bind it to the declaration
-        node.uc_type = uc_type
+        return uc_type
 
     def visit_FuncDef(self, node: FuncDef) -> None:
         # new function scope
         scope = FunctionScope(node)
         # declare parameters inside the function
         with self.symtab.new(scope):
-            self.visit(node.declaration.type)
+            ltype = self.visit(node.declaration.type)
         # but declare the function in global scope
         self.visit(node.return_type)
         # do not revisit parameters
-        self.visit_Decl(node.declaration, visit_type=False)
+        self.visit_Decl(node.declaration, ltype=ltype)
         # declare the function body in the new scope as well
         with self.symtab.new(scope):
             self.visit(node.decl_list)
             self.visit(node.implementation)
 
-    def visit_InitList(self, node: InitList) -> None:
+    def visit_InitList(self, node: InitList) -> ArrayType:
         self.generic_visit(node)
         # init lists without elements have no type, but can be coerced
         if len(node) == 0:
-            node.uc_type = ArrayType.empty_list()
-            return
+            return ArrayType.empty_list()
 
         elem_type = node.init[0].uc_type
 
@@ -586,7 +586,7 @@ class NodeVisitor:
             if not isinstance(elem, (InitList, Constant)):
                 raise ExprIsNotConstant(elem)
 
-        node.uc_type = ArrayType(elem_type, len(node))
+        return ArrayType(elem_type, len(node))
 
     # # # # # # # #
     # STATEMENTS  #
@@ -678,7 +678,7 @@ class NodeVisitor:
     # # # # # # # #
     # EXPRESSIONS #
 
-    def visit_BinaryOp(self, node: BinaryOp, *, kind: str = "binary_ops") -> None:
+    def visit_BinaryOp(self, node: BinaryOp, *, kind: str = "binary_ops") -> uCType:
         # Visit the left and right expression
         self.generic_visit(node)
         ltype = node.left.uc_type
@@ -690,32 +690,32 @@ class NodeVisitor:
         if node.op not in getattr(ltype, kind, {}):
             raise UnsupportedOperation(node)
         # Assign the result type
-        node.uc_type = ltype
+        return ltype
 
-    def visit_RelationOp(self, node: RelationOp) -> None:
+    def visit_RelationOp(self, node: RelationOp) -> Literal[BoolType]:
         self.visit_BinaryOp(node, kind="rel_ops")
         # comparison results in boolean
-        node.uc_type = BoolType
+        return BoolType
 
-    def visit_Assignment(self, node: Assignment) -> None:
-        self.visit_BinaryOp(node, kind="assign_ops")
+    def visit_Assignment(self, node: Assignment) -> uCType:
+        return self.visit_BinaryOp(node, kind="assign_ops")
         # TODO: arrays
 
-    def visit_UnaryOp(self, node: UnaryOp) -> None:
+    def visit_UnaryOp(self, node: UnaryOp) -> uCType:
         self.generic_visit(node)
         uctype = node.expr.uc_type
         # Make sure the operation is supported
         if node.op not in uctype.unary_ops:
             raise UnsupportedOperation(node)
         # Assign the result type
-        node.uc_type = uctype
+        return uctype
 
-    def visit_ExprList(self, node: ExprList) -> None:
+    def visit_ExprList(self, node: ExprList) -> uCType:
         self.generic_visit(node)
         # when used as the comma operator
-        node.uc_type = node.as_comma_op().uc_type
+        return node.as_comma_op().uc_type
 
-    def visit_ArrayRef(self, node: ArrayRef) -> None:
+    def visit_ArrayRef(self, node: ArrayRef) -> uCType:
         self.generic_visit(node)
         # ltype must be an array type
         uc_type = node.array.uc_type
@@ -725,9 +725,9 @@ class NodeVisitor:
         if node.index.uc_type != IntType:
             raise InvalidSubscriptType(node.index)
         # TODO: check size?
-        node.uc_type = uc_type.elem_type
+        return uc_type.elem_type
 
-    def visit_FuncCall(self, node: FuncCall) -> None:
+    def visit_FuncCall(self, node: FuncCall) -> uCType:
         self.generic_visit(node)
         # ltype must be a function type
         ltype = node.callable.uc_type
@@ -740,28 +740,29 @@ class NodeVisitor:
             if value.uc_type != param.type:
                 raise InvalidParameterType(param.name, value)
 
-        node.uc_type = ltype.rettype
+        return ltype.rettype
 
     # # # # # # # # #
     # BASIC SYMBOLS #
 
-    def visit_ID(self, node: ID, uctype: Optional[uCType] = None) -> None:
+    def visit_ID(self, node: ID, uctype: Optional[uCType] = None) -> uCType:
         if uctype is None:
             # Look for its declaration in the symbol table
             definition = self.symtab.lookup(node.name)
             if definition is None:
                 raise UndefinedIdentifier(node)
             # bind identifier to its associated symbol type
-            node.uc_type = definition.type
+            return definition.type
 
         else:  # initialize the type
             node.uc_type = uctype
             if uctype == VoidType:
-                raise InvalidVariableType("a variable", node)
+                raise InvalidVariableType(node, "a variable")
             if node.name in self.symtab.current_scope:
                 raise NameAlreadyDefined(node)
             # TODO kind, and scope attributes
             self.symtab.add(node)
+            return uctype
 
     def _get_primary_type(self, typename: str, coord: Optional[Coord]) -> uCType:
         """Get primary type from type name."""
@@ -771,16 +772,16 @@ class NodeVisitor:
             raise UnknownType(typename, coord)
         return uc_type
 
-    def visit_Constant(self, node: Constant) -> None:
+    def visit_Constant(self, node: Constant) -> Union[PrimaryType, ArrayType]:
         # Get the matching uCType
         if node.rawtype == "string":
-            node.uc_type = ArrayType(CharType, len(node.value) + 1)  # TODO: size?
+            return ArrayType(CharType, len(node.value) + 1)  # TODO: size?
         else:
-            node.uc_type = self._get_primary_type(node.rawtype, node.coord)
+            return self._get_primary_type(node.rawtype, node.coord)
 
-    def visit_Type(self, node: Type) -> None:
+    def visit_Type(self, node: Type) -> PrimaryType:
         # Get the matching basic uCType
-        node.uc_type = self._get_primary_type(node.name, node.coord)
+        return self._get_primary_type(node.name, node.coord)
 
 
 class Visitor:
