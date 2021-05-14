@@ -257,7 +257,7 @@ class FuncDef(Node):
         return_type: Type,
         declaration: Decl,
         decl_list: DeclList,
-        implementation: Optional[Node],
+        implementation: Compound,
     ):
         super().__init__()
         self.return_type = return_type

@@ -631,7 +631,7 @@ class NodeVisitor:
         # declare the function body in the new scope as well
         with self.symtab.new(function_scope):
             self.visit(node.decl_list)
-            self.visit(node.implementation)
+        self.visit_Compound(node.implementation, function_scope)
 
     def visit_InitList(self, node: InitList) -> ArrayType:
         self.generic_visit(node)
@@ -671,9 +671,9 @@ class NodeVisitor:
         # Bind it to the current loop node.
         node.bind(loop.statement)
 
-    def visit_Compound(self, node: Compound) -> None:
+    def visit_Compound(self, node: Compound, scope: Optional[Scope] = None) -> None:
         # open new scope
-        with self.symtab.new():
+        with self.symtab.new(scope):
             self.generic_visit(node)
 
     def _is_basic_type(self, type: uCType) -> bool:
@@ -730,9 +730,13 @@ class NodeVisitor:
 
     def visit_IterationStmt(self, node: IterationStmt) -> None:
         # create new breakable scope
-        with self.symtab.new(IterationScope(node)):
+        with self.symtab.new(IterationScope(node)) as scope:
             for _, child in node.children():
-                uctype = self.visit(child)
+                # reuse iteration scope
+                if isinstance(child, Compound):
+                    uctype = self.visit_Compound(child, scope)
+                else:
+                    uctype = self.visit(child)
                 # check if the conditional expression is of boolean type
                 if child is node.condition:
                     if uctype != BoolType:
