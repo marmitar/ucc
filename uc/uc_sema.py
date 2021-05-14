@@ -101,6 +101,7 @@ class FunctionScope(Scope):
     __slots__ = ("definition",)
 
     def __init__(self, definition: FuncDef):
+        super().__init__()
         self.definition = definition
 
     @property
@@ -131,10 +132,12 @@ class SymbolTable:
         Insert new scope in the lookup stack and automatically
         removes it when closed.
         """
-        new_scope = scope or Scope()
-        self.stack.append(new_scope)
+        if scope is None:
+            scope = Scope()
+
+        self.stack.append(scope)
         try:
-            yield new_scope
+            yield scope
         finally:
             self.stack.pop()
 
