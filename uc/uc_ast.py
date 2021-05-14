@@ -369,6 +369,8 @@ class IterationStmt(Node):
     attr_names = ()
     special_attr = ("break_locations",)
 
+    child_order: Tuple[str, ...]
+
     def __init__(self, condition: Optional[ExprList], body: Optional[Node], coord: Coord):
         super().__init__(coord)
         self.condition = condition
@@ -378,10 +380,21 @@ class IterationStmt(Node):
     def add_break(self, node: Break) -> None:
         self.break_locations += (node,)
 
+    def children(self) -> Tuple[Tuple[str, Node], ...]:
+        child_list = []
+        # follow child order
+        for attr in self.child_order:
+            child = getattr(self, attr, None)
+            if child is not None:
+                child_list.append((attr, child))
+        return tuple(child_list)
+
 
 class For(IterationStmt):
     __slots__ = "declaration", "update"
     attr_names = ()
+
+    child_order = "declaration", "condition", "update", "body"
 
     def __init__(
         self,
@@ -394,6 +407,18 @@ class For(IterationStmt):
         super().__init__(condition, body, coord)
         self.declaration = declaration
         self.update = update
+
+
+class While(IterationStmt):
+    __slots__ = ()
+    attr_names = ()
+
+    child_order = "condition", "body"
+
+    condition: ExprList
+
+    def __init__(self, condition: ExprList, body: Optional[Node], coord: Coord):
+        super().__init__(condition, body, coord)
 
 
 class If(Node):
@@ -445,16 +470,6 @@ class Return(Node):
     def bind(self, function: FuncDef) -> None:
         function.add_return(self)
         self.function = function
-
-
-class While(IterationStmt):
-    __slots__ = ()
-    attr_names = ()
-
-    condition: ExprList
-
-    def __init__(self, condition: ExprList, body: Optional[Node], coord: Coord):
-        super().__init__(condition, body, coord)
 
 
 # # # # # # # #
