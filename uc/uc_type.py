@@ -1,6 +1,6 @@
 from __future__ import annotations
 from enum import Enum, unique
-from typing import NamedTuple, Optional, Sequence, Set, Tuple
+from typing import NamedTuple, Optional, Sequence, Set, Tuple, Union
 
 
 class uCType:
@@ -128,6 +128,15 @@ class ArrayType(uCType):
     def empty_list() -> ArrayType:
         """Special type for empty initialization lists: '{}'."""
         return ArrayType(_UndefinedType, 0)
+
+    def out_of_bounds(self, value: Union[int, str]) -> bool:
+        """Check if value is inside of bound for array type."""
+        try:
+            value = int(value)
+        except ValueError:
+            return True
+        # must be nonnegative and less than size, if known
+        return value < 0 or (self.size is not None and value >= self.size)
 
 
 class ParamSpec(NamedTuple):
