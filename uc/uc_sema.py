@@ -647,13 +647,12 @@ class NodeVisitor:
     # STATEMENTS  #
 
     def visit_Assert(self, node: Assert) -> None:
-        self.generic_visit(node)
+        uc_type = self.visit(node.param)
         # verify it is of boolean type
-        if node.param.uc_type != BoolType:
+        if uc_type != BoolType:
             raise InvalidBooleanExpression(node.param)
 
     def visit_Break(self, node: Break) -> None:
-        self.generic_visit(node)
         # Check the Break statement is inside a loop.
         loop = self.symtab.find(lambda scope: isinstance(scope, IterationScope))
         if not isinstance(loop, IterationScope):
@@ -677,23 +676,25 @@ class NodeVisitor:
         )
 
     def visit_Read(self, node: Read) -> None:
-        self.generic_visit(node)
-
+        node.param.uc_type = VoidType
+        # visit each name
         for child in node.param.expr:
+            uc_type = self.visit(child)
             # verify that all identifiers are variables
-            ident = child.lvalue_name()
-            if ident is None:
+            if child.lvalue_name() is None:
                 raise NodeIsNotAVariable(child)
             # check if it is of basic type
             elif not self._is_basic_type(child.uc_type):
-                raise VariableHasCompoundType(ident)
+                raise VariableHasCompoundType(child.lvalue_name())
 
     def visit_Print(self, node: Print) -> None:
-        self.generic_visit(node)
+        if not node.param:
+            return  # Ok, just a newline
 
-        if node.param is None:
-            return  # newline
+        node.param.uc_type = VoidType
+        # visit each expression and check if it is of basic type
         for child in node.param.expr:
+            uc_type = self.visit(child)
             if not self._is_basic_type(child.uc_type):
                 # special errors for variables
                 if child.lvalue_name() is not None:
@@ -702,8 +703,10 @@ class NodeVisitor:
                     raise ExprHasCompoundType(child)
 
     def visit_Return(self, node: Return) -> None:
-        self.generic_visit(node)
-        ret_type = node.result.uc_type if node.result else VoidType
+        if node.result:
+            ret_type = self.visit(node.result)
+        else:
+            ret_type = VoidType
         # get function definition
         scope = self.symtab.find(lambda scope: isinstance(scope, FunctionScope))
         if not isinstance(scope, FunctionScope):
