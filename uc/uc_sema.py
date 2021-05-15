@@ -4,7 +4,7 @@ import pathlib
 import sys
 from argparse import ArgumentParser
 from contextlib import contextmanager
-from functools import cache
+from functools import lru_cache
 from typing import (
     Callable,
     Dict,
@@ -564,7 +564,7 @@ class NodeVisitor:
         # Initialize the symbol table
         self.symtab = SymbolTable()
 
-    @cache
+    @lru_cache(maxsize=None)
     def visitor_for(self, node: str) -> Callable[[Node], Optional[uCType]]:
         """Find visitor method for a node class."""
         return getattr(self, f"visit_{node}", self.generic_visit)
