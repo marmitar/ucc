@@ -841,10 +841,11 @@ class NodeVisitor:
     # # # # # # # #
     # EXPRESSIONS #
 
-    def visit_BinaryOp(self, node: BinaryOp, *, kind: str = "binary_ops") -> uCType:
+    def _visit_binary(self, node: BinaryOp, kind: str, left: Node, right: Node) -> None:
+        """Visit binarya op. in specified order."""
         # Visit the left and right expression
-        ltype = self.visit(node.left)
-        rtype = self.visit(node.right)
+        ltype = self.visit(left)
+        rtype = self.visit(right)
         # Make sure left and right operands have the same type
         if ltype != rtype:
             raise OperationTypeDoesNotMatch(node)
@@ -854,14 +855,17 @@ class NodeVisitor:
         # Assign the result type
         return ltype
 
+    def visit_BinaryOp(self, node: BinaryOp) -> uCType:
+        return self._visit_binary(node, "binary_ops", node.left, node.right)
+
     def visit_RelationOp(self, node: RelationOp) -> Literal[BoolType]:
-        self.visit_BinaryOp(node, kind="rel_ops")
+        self._visit_binary(node, "rel_ops", node.left, node.right)
         # comparison results in boolean
         return BoolType
 
     def visit_Assignment(self, node: Assignment) -> uCType:
-        ltype = self.visit_BinaryOp(node, kind="assign_ops")
-        rtype = node.right.uc_type
+        rtype = self._visit_binary(node, "assign_ops", node.right, node.left)
+        ltype = node.left.uc_type
 
         if isinstance(ltype, ArrayType) and ltype.size is not None and ltype.size != rtype.size:
             raise ArraySizeMismatch(node)
