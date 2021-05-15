@@ -61,6 +61,7 @@ class Node:
 
     def __init__(self, coord: Optional[Coord] = None):
         self.coord = coord
+        self.uc_type = None
 
     def __repr__(self) -> str:
         """Generates a python representation of the current node"""
@@ -218,6 +219,16 @@ class DeclList(Node):
             self.coord = decl.coord
         self.decls += tuple(decl.decls)
 
+    def append(self, decl: Decl) -> None:
+        # does not update 'coord'
+        self.decls += (decl,)
+
+    def remove(self, decl: Decl) -> None:
+        for i, d in enumerate(self.decls):
+            if d is decl:
+                self.decls = self.decls[:i] + self.decls[i + 1 :]
+                return  # avoid index problem
+
     def show(self, *args, **kwargs):
         # only show when not empty
         if len(self.decls) > 0:
@@ -248,9 +259,16 @@ class FuncDecl(Node):
 
 
 class FuncDef(Node):
-    __slots__ = "return_type", "declaration", "decl_list", "implementation", "return_list"
+    __slots__ = (
+        "return_type",
+        "declaration",
+        "decl_list",
+        "implementation",
+        "return_list",
+        "symbols",
+    )
     attr_names = ()
-    special_attr = ("return_list",)
+    special_attr = "return_list", "symbols"
 
     def __init__(
         self,
@@ -265,6 +283,7 @@ class FuncDef(Node):
         self.decl_list = decl_list
         self.implementation = implementation
         self.return_list: Tuple[Return, ...] = ()
+        self.symbols: List[ID] = []
 
     def add_return(self, node: Return) -> None:
         self.return_list += (node,)
@@ -314,12 +333,14 @@ class ParamList(Node):
 
 
 class Program(Node):
-    __slots__ = ("gdecls",)
+    __slots__ = "gdecls", "symbols"
     attr_names = ()
+    special_attr = ("symbols",)
 
-    def __init__(self, gdecls: List[Node]):
+    def __init__(self, gdecls: List[Union[GlobalDecl, FuncDef]]):
         super().__init__()
         self.gdecls = tuple(gdecls)
+        self.symbols: List[ID] = []
 
 
 class VarDecl(Node):
