@@ -12,7 +12,6 @@ from typing import (
     Iterator,
     List,
     Literal,
-    NamedTuple,
     Optional,
     Tuple,
     TypeVar,
