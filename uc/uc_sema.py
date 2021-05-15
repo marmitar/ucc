@@ -89,6 +89,12 @@ class Symbol:
     def type(self) -> uCType:
         return self.definition.uc_type
 
+    def __str__(self) -> str:
+        return repr(self)
+
+    def __repr__(self) -> str:
+        return f"{self.name}: {self.type}"
+
 
 class FuncDefSymbol(Symbol):
     """Symbol for Defined Functions."""
@@ -104,18 +110,52 @@ class FuncDefSymbol(Symbol):
         return self.definition.uc_type
 
 
-class Scope(Dict[str, Symbol]):
+class Scope:
     """Scope with symbol mappings."""
 
-    __slots__ = ()
+    __slots__ = "table", "block"
+
+    def __init__(self, block: Union[Program, FuncDef]):
+        self.table: Dict[str, Symbol] = {}
+        self.block = block
 
     def add(self, symb: Symbol) -> None:
         """Add or change symbol definition in scope."""
-        self[symb.name] = symb
+        self.pop(symb.name)
+        # inser new symbol
+        self.table[symb.name] = symb
+        self.block.symbols.append(symb)
+
+    def get(self, name: str) -> Optional[Symbol]:
+        return self.table.get(name, None)
+
+    def pop(self, name: str) -> Optional[Symbol]:
+        symbol = self.table.pop(name, None)
+        if symbol is None:
+            return
+        # remove symbol if found
+        for i, s in enumerate(self.block.symbols):
+            if s in symbol:
+                return self.block.symbols.pop(i)
+
+    def __contains__(self, name: str) -> bool:
+        return name in self.table
 
     def __str__(self) -> str:
         """Show 'Scope {NAME: SYMBOL, ...}'."""
         return f"{self.__class__.__name__} {super().__str__()}"
+
+
+class EmptyScope(Scope):
+    """Scope that doesn't define variables."""
+
+    __slots__ = ()
+
+    def __init__(self):
+        super().__init__(None)
+
+    def add(self, symb: Symbol) -> None:
+        self.table[symb.name] = symb
 
 
 class IterationScope(Scope):
@@ -123,23 +163,22 @@ class IterationScope(Scope):
 
     __slots__ = ("statement",)
 
-    def __init__(self, iteration_stmt: IterationStmt):
-        super().__init__()
+    def __init__(self, iteration_stmt: IterationStmt, block: Union[Program, FuncDef]):
+        super().__init__(block)
         self.statement = iteration_stmt
 
 
 class FunctionScope(Scope):
     """Scope inside function body."""
 
-    __slots__ = ("definition",)
+    block: FuncDef
 
     def __init__(self, definition: FuncDef):
-        super().__init__()
-        self.definition = definition
+        super().__init__(definition)
 
     @property
     def ident(self) -> ID:
-        return self.definition.declaration.name
+        return self.block.declaration.name
 
     @property
     def type(self) -> FunctionType:
@@ -151,7 +190,7 @@ class FunctionScope(Scope):
 
     @property
     def return_type(self) -> uCType:
-        return self.definition.return_type.uc_type
+        return self.block.return_type.uc_type
 
     def already_defined(self, outer: Scope) -> bool:
         """Check if function was already defined in a given scope."""
@@ -171,9 +210,9 @@ class FunctionScope(Scope):
             def add(this, sym: Symbol) -> None:
                 assert sym.definition is self.ident
                 # add function to outer scope
-                outer.add(FuncDefSymbol(self.ident, self.definition))
+                outer.add(FuncDefSymbol(self.ident, self.block))
 
-        return DeclScope()
+        return DeclScope(None)
 
 
 class SymbolTable:
@@ -184,21 +223,31 @@ class SymbolTable:
     def __init__(self):
         # lookup stack of scope
         self.stack: List[Scope] = []
+        self.block: Union[Program, FuncDef, None] = None
 
     @contextmanager
-    def new(self, scope: Optional[Scope] = None) -> Iterator[Scope]:
+    def new(
+        self, scope: Optional[Scope] = None, *, block: Union[Program, FuncDef, None] = None
+    ) -> Iterator[Scope]:
         """
         Insert new scope in the lookup stack and automatically
         removes it when closed.
         """
+        #
+        # update block
+        old_block = self.block
+        if block is not None:
+            self.block = block
+        # open new scope
         if scope is None:
-            scope = Scope()
-
+            scope = Scope(self.block)
         self.stack.append(scope)
         try:
             yield scope
         finally:
+            # close scope and recover block
             self.stack.pop()
+            self.block = old_block
 
     @property
     def current_scope(self) -> Scope:
@@ -219,7 +268,7 @@ class SymbolTable:
         """Find symbol type from inner to outermost scope."""
         scope = self.find(lambda scope: name in scope)
         if scope is not None:
-            return scope[name]
+            return scope.get(name)
 
 
 # # # # # # # #
@@ -539,7 +588,7 @@ class NodeVisitor:
 
     def visit_Program(self, node: Program) -> None:
         # global scope
-        with self.symtab.new():
+        with self.symtab.new(block=node):
             # Visit all of the global declarations
             self.generic_visit(node)
 
@@ -605,7 +654,7 @@ class NodeVisitor:
     def visit_FuncDecl(self, node: FuncDecl, scope: Optional[Scope] = None) -> FunctionType:
         rettype = self.visit(node.type)
         # visit parameters in given scope, if any
-        with self.symtab.new(scope):
+        with self.symtab.new(scope or EmptyScope()):
             self.visit(node.param_list)
         # get function name
         name = node.declname().name
@@ -756,11 +805,11 @@ class NodeVisitor:
         if ret_type != scope.return_type:
             raise InvalidReturnType(node, scope.return_type)
         # bind to function
-        node.bind(scope.definition)
+        node.bind(scope.block)
 
     def visit_IterationStmt(self, node: IterationStmt) -> None:
         # create new breakable scope
-        with self.symtab.new(IterationScope(node)) as scope:
+        with self.symtab.new(IterationScope(node, self.symtab.block)) as scope:
             for _, child in node.children():
                 # reuse iteration scope
                 if isinstance(child, Compound):
