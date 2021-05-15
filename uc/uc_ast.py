@@ -67,13 +67,12 @@ class Node:
         """Generates a python representation of the current node"""
         return represent_node(self, 0)
 
-    @classmethod
     @property
-    def classname(cls) -> str:
+    def classname(self) -> str:
         """Name for the specialized Node class"""
-        if cls is Node:
+        if self.__class__ is Node:
             raise NotImplementedError("'Node' is an abstract base class")
-        return cls.__name__
+        return self.__class__.__name__
 
     @classmethod
     def _get_tuple_attrs(cls, attr_name: str) -> Tuple[str, ...]:
