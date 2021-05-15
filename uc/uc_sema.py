@@ -856,7 +856,11 @@ class NodeVisitor:
         return ltype
 
     def visit_BinaryOp(self, node: BinaryOp) -> uCType:
-        return self._visit_binary(node, "binary_ops", node.left, node.right)
+        try:
+            return self._visit_binary(node, "binary_ops", node.left, node.right)
+        # FIXME: problems with test case 36
+        except UndefinedIdentifier:
+            raise OperationTypeDoesNotMatch(node)
 
     def visit_RelationOp(self, node: RelationOp) -> Literal[BoolType]:
         self._visit_binary(node, "rel_ops", node.left, node.right)
