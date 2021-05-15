@@ -11,7 +11,7 @@ You should do the following tasks:
 - [X] Paste your implementation of the lexer in `uc/uc_lexer.py`
 - [X] Paste your implementation of the parser in `uc/uc_parser.py`
 - [X] Paste your implementation of the ast in `uc/uc_ast.py` and update it where it is necessary
-- [ ] Complete the implementation of the semantic analysis in `uc/uc_sema.py`
+- [X] Complete the implementation of the semantic analysis in `uc/uc_sema.py`
 - [X] Complete the implementation of the the type classes in `uc/uc_type.py`
 
 ## Requirements
