@@ -36,9 +36,6 @@ class uCType:
         """The name of the uCType."""
         return self._typename or "<unnamed>"
 
-    def __repr__(self) -> str:
-        return self.typename()
-
     def __str__(self) -> str:
         """Standard type formatting."""
         return f"type({self!r})"
@@ -122,9 +119,9 @@ class ArrayType(uCType):
         if not isinstance(other, ArrayType) or self is other:
             return self is other
         # coercion of undefined types
-        if self.elem_type == _UndefinedType:
+        if self.elem_type is _UndefinedType:
             self.elem_type = other.elem_type
-        elif other.elem_type == _UndefinedType:
+        elif other.elem_type is _UndefinedType:
             other.elem_type = self.elem_type
         # inner types must have same size
         return ArrayType.cmp_size(self.elem_type, other.elem_type)
