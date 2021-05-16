@@ -448,47 +448,34 @@ class InvalidVariableType(UnexpectedType):
 class InvalidOperation(SemanticError):
     """Abstract Exception for invalid operations."""
 
-    kind: str
-    problem: str
-    type: Optional[uCType]
-
-    def __init__(self, expr: Union[BinaryOp, UnaryOp], msg: Optional[str] = None):
-        if msg is None:
-            # default message, if not given
-            msg = f"{self.kind} operator {expr.op} {self.problem}"
-
-            if getattr(self, "type", None) is not None:
-                msg += f" by {self.type}"
-
-        super().__init__(msg, expr.coord)
-
-
-class OperationTypeDoesNotMatch(InvalidOperation):  # msg_code: 4, 6
-    problem = "does not have matching LHS/RHS types"
-
-    def __init__(self, expr: BinaryOp):
-        if isinstance(expr, Assignment):
-            # special message on assignments
-            ltype, rtype = expr.left.uc_type, expr.right.uc_type
-            super().__init__(expr, f"Cannot assign {rtype} to {ltype}")
-        else:
-            self.kind = "Binary"
-            super().__init__(expr)
-
-
-class UnsupportedOperation(InvalidOperation):  # msg_code: 5, 7, 26
-    problem = "is not supported"
+    error_fotmat: str
 
     def __init__(self, expr: Union[BinaryOp, UnaryOp]):
         if isinstance(expr, UnaryOp):
-            self.kind = "Unary"
-            # don't show type
-        elif isinstance(expr, Assignment):
-            self.kind = "Assignment"
-            self.type = expr.left.uc_type
+            kind = "Unary"
+            type = (expr.expr.uc_type,)
         else:
-            self.kind = "Binary"
-            self.type = expr.left.uc_type
+            kind = "Assignment" if isinstance(expr, Assignment) else "Binary"
+            type = (expr.left.uc_type, expr.right.uc_type)
+
+        msg = self.error_fotmat.format(kind=kind, op=expr.op, type=type)
+        super().__init__(msg, expr.coord)
+
+
+class UnsupportedOperation(InvalidOperation):  # msg_code: 26
+    error_fotmat = "{kind} operator {op} is not supported"
+
+
+class UnsupportedBinaryOperation(UnsupportedOperation):  # msg_code: 5, 7
+    error_fotmat = UnsupportedOperation.error_fotmat + " by {type[0]}"
+
+
+class OperationTypeDoesNotMatch(InvalidOperation):  # msg_code: 4, 6
+    def __init__(self, expr: BinaryOp):
+        if isinstance(expr, Assignment):
+            self.error_fotmat = "Cannot assign {type[1]} to {type[0]}"
+        else:
+            self.error_fotmat = "{kind} operator {op} does not have matching LHS/RHS types"
 
         super().__init__(expr)
 
@@ -850,7 +837,7 @@ class NodeVisitor:
             raise OperationTypeDoesNotMatch(node)
         # Make sure the operation is supported
         if node.op not in getattr(ltype, kind, {}):
-            raise UnsupportedOperation(node)
+            raise UnsupportedBinaryOperation(node)
         # Assign the result type
         return ltype
 
