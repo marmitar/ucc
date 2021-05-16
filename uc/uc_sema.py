@@ -506,11 +506,11 @@ class ArrayDimensionMismatch(ExprParamMismatch):  # msg: 9
     error_fmt = "Array dimension mismatch"
 
 
-class IndexOutOfBounds(ExprParamMismatch):  # msg: 9
+class IndexOutOfBounds(ExprParamMismatch):
     error_fmt = "Index is out of bounds for array {name}"
 
 
-class ArraySizeMismatch(ExprParamMismatch):  # msg: 10
+class ArraySizeMismatch(ExprParamMismatch):
     error_fmt = "Size mismatch on assignment"
 
 
@@ -760,7 +760,7 @@ class NodeVisitor:
             if child.lvalue_name() is None:
                 raise NodeIsNotAVariable(child)
             # check if it is of basic type
-            elif not self._is_basic_type(child.uc_type):
+            elif not self._is_basic_type(uc_type):
                 raise VariableHasCompoundType(child.lvalue_name())
 
     def visit_Print(self, node: Print) -> None:
@@ -771,7 +771,7 @@ class NodeVisitor:
         # visit each expression and check if it is of basic type
         for child in node.param.expr:
             uc_type = self.visit(child)
-            if not self._is_basic_type(child.uc_type):
+            if not self._is_basic_type(uc_type):
                 # special errors for variables
                 if child.lvalue_name() is not None:
                     raise VariableHasCompoundType(child)

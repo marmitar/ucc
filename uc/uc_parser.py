@@ -24,7 +24,6 @@ from uc.uc_ast import (
     Constant,
     Decl,
     DeclList,
-    EmptyStatement,
     ExprList,
     For,
     FuncCall,
