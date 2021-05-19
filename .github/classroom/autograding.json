@@ -203,7 +203,7 @@
       {
         "name": "Test 21",
         "setup": "",
-        "run": "pytest --tb=short -q tests/test_sema.py::test_sema -k t21",
+        "run": "pytest --tb=short -q tests/test_sema.py::test_sema_error -k t21",
         "input": "",
         "output": "",
         "comparison": "included",
@@ -233,7 +233,7 @@
       {
         "name": "Test 24",
         "setup": "",
-        "run": "pytest --tb=short -q tests/test_sema.py::test_sema_error -k t24",
+        "run": "pytest --tb=short -q tests/test_sema.py::test_sema -k t24",
         "input": "",
         "output": "",
         "comparison": "included",
