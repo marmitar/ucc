@@ -1,17 +1,41 @@
-int main() {
-    int i, n, t1 = 0, t2 = 1, nextTerm;
+/* Bubble sort code */
 
-    int i = 0;
-    print("Enter the number of terms: ");
-    read(n);
-    print("Fibonacci Series: ");
+int main()
+{
+  int array[100], n, c, d, swap;
 
-    for (i = 1; i <= n; i=i+1) {
-        print(t1, " ");
-        nextTerm = t1 + t2;
-        t1 = t2;
-        t2 = nextTerm;
+  print("Enter number of elements");
+  print();
+  n = 50;
+
+  print("Enter ", n, " integers");
+  print();
+
+  for (c=0; c<n; c=c+1)
+    array[c] = (c*7)%13;
+
+  for (c=0; c<n; c=c+1)
+     print(array[c], " ");
+  print();
+
+  for (c=0; c<n-1; c=c+1)
+  {
+    for (d=0; d<n-c-1; d=d+1)
+    {
+      if (array[d] > array[d+1]) /* For decreasing order use < */
+      {
+        swap       = array[d];
+        array[d]   = array[d+1];
+        array[d+1] = swap;
+      }
     }
+  }
 
-    return 0;
+  print("Sorted list in ascending order:");
+  print();
+
+  for (c=0; c<n; c=c+1)
+     print(array[c], " ");
+
+  return 0;
 }

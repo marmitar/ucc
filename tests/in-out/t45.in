@@ -1,8 +1,0 @@
-void a() {
-   return;
-}
-
-int main() {
-    print(a());
-    return 0;
-}

@@ -4,6 +4,6 @@ setup(
     name="uc",
     version="0.1",
     python_requires=">=3.5",
-    install_requires=["ply", "pytest"],
+    install_requires=["ply", "pytest", "graphviz"],
     packages=find_packages(),
 )

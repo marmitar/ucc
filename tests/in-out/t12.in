@@ -1,14 +1,11 @@
-int add(int x, int y) {
-    return x + y;
-}
-
-int subtract(int x, int y) {
-    return x - y;
-}
-
-int main() {
-   int  foo = 1, bar = 1;
-   print(foo, " + ", bar, " = ", add(foo, bar), "\n");
-   print(foo, " - ", bar, " = ", subtract(foo, bar), "\n");
-   return 0;
+// multiply accumulate
+int main () {
+    int i, j;
+    i = 1;
+    j = 2;
+    for (int k=1; k<10; k=k+1)
+        i = i + j * k;
+    assert i == 91;
+    print(i);
+    return 0;
 }

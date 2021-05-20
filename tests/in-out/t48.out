@@ -1,1 +1,0 @@
-SemanticError: Return of type(char) is incompatible with type(int) function definition @ 3:5

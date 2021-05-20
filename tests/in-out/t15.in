@@ -1,7 +1,18 @@
-int v[] = {1, 2, 3, 4};
+// print function
+int f(int m, int n) {
+    if (! (n >= 2)) {
+        n = n - 2;
+        return n;
+    }
+    else {
+        m = m - 1;
+        return m;
+    }
+}
+
 int main() {
-    char x = '3';
-    for (int i = 1; i <= 4; i=i+1)
-        v[i] = x;
+    int m = -9;
+    int n = -4;
+    print(f(m, n));
     return 0;
 }

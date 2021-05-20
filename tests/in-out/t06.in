@@ -1,7 +1,8 @@
+// Check palindrome number
 int main() {
     int n, r, sum = 0, temp;
     print("enter the number = ");
-    read(n);
+    n = 21012;
     temp = n;
     while(n > 0) {
         r = n % 10;

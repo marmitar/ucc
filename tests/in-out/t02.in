@@ -1,5 +1,14 @@
-int main()
-{
-  char arr[2] = "str";
-  return 0;
+// number squared
+int n = 8;
+
+int doubleMe (int x) {
+    return x * x;
+}
+
+void main () {
+    int v = n;
+    v = doubleMe (v);
+    assert v == n * n;
+    print(v);
+    return;
 }

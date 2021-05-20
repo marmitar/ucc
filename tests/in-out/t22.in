@@ -1,13 +1,13 @@
-int n = 3;
-
-int doubleMe (int x) {
-    return x * x;
-}
-
-void main ()
-{
-    int v = n;
-    v = doubleMe(v, 2);
-    assert v + n * n;
-    return;
+int main() {
+    int i = 3, n = 6;
+    for (int k = 1; k < n; k = k + 1) {
+        if (i >= n) {
+            break;
+        }
+        else {
+            i = i + 1;
+        }
+    }
+    assert i == n;
+    return 0;
 }

@@ -1,5 +1,0 @@
-int main() {
-    int y=3;
-    assert y;
-    return 0;
-}
