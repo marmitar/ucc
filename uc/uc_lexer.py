@@ -65,6 +65,7 @@ class UCLexer:
         "BREAK",
         "CHAR",
         "ELSE",
+        "FALSE",
         "FLOAT",
         "FOR",
         "IF",
@@ -72,6 +73,7 @@ class UCLexer:
         "PRINT",
         "READ",
         "RETURN",
+        "TRUE",
         "VOID",
         "WHILE",
     )
