@@ -609,6 +609,17 @@ class UnaryOp(Node):
         self.expr = expr
 
 
+class AddressOp(UnaryOp):
+    __slots__ = ()
+    attr_names = ()
+
+    uc_type: PointerType
+
+    def __init__(self, op: Literal["&", "*"], expr: Node, coord: Coord):
+        super().__init__(op, expr)
+        self.coord = coord
+
+
 # # # # # # # # #
 # BASIC SYMBOLS #
 

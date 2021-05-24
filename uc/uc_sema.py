@@ -19,6 +19,7 @@ from typing import (
 )
 from uc.uc_ast import (
     ID,
+    AddressOp,
     ArrayDecl,
     ArrayRef,
     Assert,
@@ -872,6 +873,17 @@ class NodeVisitor:
             raise UnsupportedOperation(node)
         # Assign the result type
         return uctype
+
+    def visit_AddressOp(self, node: AddressOp) -> uCType:
+        uctype = self.visit_UnaryOp(node)
+        # change to pointer type
+        if node.op == "&":
+            return PointerType(uctype)
+        # check valid dereference
+        elif not isinstance(uctype, PointerType):
+            raise UnsupportedOperation(node)
+        else:
+            return uctype.inner
 
     def visit_ExprList(self, node: ExprList) -> uCType:
         self.generic_visit(node)
