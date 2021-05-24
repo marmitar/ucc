@@ -14,6 +14,7 @@ from typing import (
 from ply.yacc import yacc
 from uc.uc_ast import (
     ID,
+    AddressOp,
     ArrayDecl,
     ArrayRef,
     Assert,
@@ -470,7 +471,10 @@ class UCParser:
         """unary_expression : postfix_expression
         | unary_operator unary_expression
         """
-        if len(p) > 2:
+        if len(p) > 2 and p[1] in {"&", "*"}:
+            coord = self._token_coord(p, 1)
+            p[0] = AddressOp(p[1], p[2], coord)
+        elif len(p) > 2:
             p[0] = UnaryOp(p[1], p[2])
         else:
             p[0] = p[1]
