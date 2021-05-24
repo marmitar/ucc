@@ -37,6 +37,7 @@ from uc.uc_ast import (
     InitList,
     IterationStmt,
     Node,
+    PointerDecl,
     Print,
     Program,
     Read,
@@ -54,6 +55,7 @@ from uc.uc_type import (
     CharType,
     FunctionType,
     IntType,
+    PointerType,
     PrimaryType,
     VoidType,
     uCType,
@@ -636,6 +638,11 @@ class NodeVisitor:
             array_size = None
 
         return ArrayType(elem_type, array_size)
+
+    def visit_PointerDecl(self, node: PointerDecl) -> PointerType:
+        inner_type = self.visit(node.type)
+        # just wrap it in a pointer
+        return PointerType(inner_type)
 
     def visit_FuncDecl(self, node: FuncDecl, scope: Optional[Scope] = None) -> FunctionType:
         rettype = self.visit(node.type)
