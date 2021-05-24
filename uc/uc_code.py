@@ -1,20 +1,22 @@
 import argparse
 import pathlib
 import sys
-from uc.uc_ast import FuncDef
-from uc.uc_block import CFG, BasicBlock, ConditionBlock, format_instruction
+from typing import TextIO
+from uc.uc_ast import BinaryOp, Constant, FuncDef, Print, Program, VarDecl
+from uc.uc_block import CFG, BasicBlock, ConditionBlock, EmitBlocks, format_instruction
 from uc.uc_interpreter import Interpreter
 from uc.uc_parser import UCParser
 from uc.uc_sema import NodeVisitor, Visitor
 
 
-class CodeGenerator(NodeVisitor):
+class CodeGenerator(NodeVisitor[None]):
     """
     Node visitor class that creates 3-address encoded instruction sequences
     with Basic Blocks & Control Flow Graph.
     """
 
-    def __init__(self, viewcfg):
+    def __init__(self, viewcfg: bool):
+        super().__init__(None)
         self.viewcfg = viewcfg
         self.current_block = None
 
@@ -32,13 +34,13 @@ class CodeGenerator(NodeVisitor):
 
         # TODO: Complete if needed.
 
-    def show(self, buf=sys.stdout):
-        _str = ""
-        for _code in self.code:
-            _str += format_instruction(_code) + "\n"
-        buf.write(_str)
+    def show(self, buf: TextIO = sys.stdout) -> None:
+        text = ""
+        for code in self.code:
+            text += format_instruction(code) + "\n"
+        buf.write(text)
 
-    def new_temp(self):
+    def new_temp(self) -> str:
         """
         Create a new temporary variable of a given scope (function name).
         """
@@ -48,7 +50,7 @@ class CodeGenerator(NodeVisitor):
         self.versions[self.fname] += 1
         return name
 
-    def new_text(self, typename):
+    def new_text(self, typename: str) -> str:
         """
         Create a new literal constant on global section (text).
         """
@@ -63,7 +65,7 @@ class CodeGenerator(NodeVisitor):
     # A few sample methods follow. Do not hesitate to complete or change
     # them if needed.
 
-    def visit_Constant(self, node):
+    def visit_Constant(self, node: Constant) -> None:
         if node.type.name == "string":
             _target = self.new_text("str")
             inst = ("global_string", _target, node.value)
@@ -77,7 +79,7 @@ class CodeGenerator(NodeVisitor):
         # Save the name of the temporary variable where the value was placed
         node.gen_location = _target
 
-    def visit_BinaryOp(self, node):
+    def visit_BinaryOp(self, node: BinaryOp) -> None:
         # Visit the left and right expressions
         self.visit(node.left)
         self.visit(node.right)
@@ -90,14 +92,14 @@ class CodeGenerator(NodeVisitor):
         target = self.new_temp()
 
         # Create the opcode and append to list
-        opcode = binary_ops[node.op] + "_" + node.left.type.name
+        opcode = ""  # TODO: binary_ops[node.op] + "_" + node.left.type.name
         inst = (opcode, node.left.gen_location, node.right.gen_location, target)
         self.current_block.append(inst)
 
         # Store location of the result on the node
         node.gen_location = target
 
-    def visit_Print(self, node):
+    def visit_Print(self, node: Print) -> None:
         # Visit the expression
         self.visit(node.expr)
 
@@ -109,7 +111,7 @@ class CodeGenerator(NodeVisitor):
 
         # TODO: Handle the cases when node.expr is None or ExprList
 
-    def visit_VarDecl(self, node):
+    def visit_VarDecl(self, node: VarDecl) -> None:
         # Allocate on stack memory
         _varname = "%" + node.declname.name
         inst = ("alloc_" + node.type.name, _varname)
@@ -126,7 +128,7 @@ class CodeGenerator(NodeVisitor):
             )
             self.current_block.append(inst)
 
-    def visit_Program(self, node):
+    def visit_Program(self, node: Program) -> None:
         # Visit all of the global declarations
         for _decl in node.gdecls:
             self.visit(_decl)
@@ -170,21 +172,16 @@ if __name__ == "__main__":
         help="Print uCIR generated from input_file.",
         action="store_true",
     )
-    parser.add_argument(
-        "--cfg", help="Show the cfg of the input_file.", action="store_true"
-    )
-    parser.add_argument(
-        "--debug", help="Run interpreter in debug mode.", action="store_true"
-    )
+    parser.add_argument("--cfg", help="Show the cfg of the input_file.", action="store_true")
+    parser.add_argument("--debug", help="Run interpreter in debug mode.", action="store_true")
     args = parser.parse_args()
 
-    print_ir = args.ir
-    create_cfg = args.cfg
-    interpreter_debug = args.debug
+    print_ir: bool = args.ir
+    create_cfg: bool = args.cfg
+    interpreter_debug: bool = args.debug
 
     # get input path
-    input_file = args.input_file
-    input_path = pathlib.Path(input_file)
+    input_path = pathlib.Path(args.input_file)
 
     # check if file exists
     if not input_path.exists():
