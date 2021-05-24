@@ -61,9 +61,11 @@ class UCLexer:
     # Reserved keywords
     keywords = (
         "ASSERT",
+        "BOOL",
         "BREAK",
         "CHAR",
         "ELSE",
+        "FLOAT",
         "FOR",
         "IF",
         "INT",

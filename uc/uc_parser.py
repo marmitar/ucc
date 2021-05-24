@@ -509,6 +509,8 @@ class UCParser:
         """type_specifier : VOID
         | CHAR
         | INT
+        | BOOL
+        | FLOAT
         """
         coord = self._token_coord(p, 1)
         p[0] = Type(p[1], coord)
