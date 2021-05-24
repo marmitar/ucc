@@ -1,6 +1,6 @@
 from __future__ import annotations
 from enum import Enum, unique
-from typing import NamedTuple, Optional, Sequence, Set, Tuple, Union
+from typing import NamedTuple, Optional, Sequence, Union
 
 
 class uCType:
@@ -14,10 +14,10 @@ class uCType:
     def __init__(
         self,
         name: Optional[str],
-        unary_ops: Set[str] = set(),
-        binary_ops: Set[str] = set(),
-        rel_ops: Set[str] = set(),
-        assign_ops: Set[str] = set(),
+        unary_ops: set[str] = set(),
+        binary_ops: set[str] = set(),
+        rel_ops: set[str] = set(),
+        assign_ops: set[str] = set(),
     ):
         """
         You must implement yourself and figure out what to store.
@@ -51,7 +51,7 @@ class uCType:
 
 @unique
 class PrimaryType(uCType, Enum):
-    def __init__(self, *op_sets: Set[str]):
+    def __init__(self, *op_sets: set[str]):
         # use enum name
         super().__init__(self.name, *op_sets)
 
@@ -162,7 +162,7 @@ class ParamSpec(NamedTuple):
 class FunctionType(uCType):
     __slots__ = "funcname", "rettype", "params"
 
-    def __init__(self, name: str, return_type: uCType, params: Sequence[Tuple[str, uCType]] = ()):
+    def __init__(self, name: str, return_type: uCType, params: Sequence[tuple[str, uCType]] = ()):
         """
         name: Function definition name.
         return_type: Any uCType can be used here.
@@ -174,7 +174,7 @@ class FunctionType(uCType):
         self.params = tuple(ParamSpec(n, t) for n, t in params)
 
     @property
-    def param_types(self) -> Tuple[uCType, ...]:
+    def param_types(self) -> tuple[uCType, ...]:
         return tuple(t for _, t in self.params)
 
     def __eq__(self, other: uCType) -> bool:

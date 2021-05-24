@@ -1,8 +1,9 @@
+from __future__ import annotations
 import argparse
 import pathlib
 import re
 import sys
-from typing import Callable, Tuple
+from typing import Callable
 import ply.lex as lex
 
 
@@ -55,7 +56,7 @@ class UCLexer:
         self.error_func(msg, location[0], location[1])
         self.lexer.skip(1)
 
-    def _make_tok_location(self, token) -> Tuple[int, int]:
+    def _make_tok_location(self, token) -> tuple[int, int]:
         return (token.lineno, self.find_tok_column(token))
 
     # Reserved keywords

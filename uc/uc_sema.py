@@ -7,14 +7,11 @@ from contextlib import contextmanager
 from functools import lru_cache
 from typing import (
     Callable,
-    Dict,
     Generic,
     Iterable,
     Iterator,
-    List,
     Literal,
     Optional,
-    Tuple,
     TypeVar,
     Union,
 )
@@ -66,7 +63,7 @@ from uc.uc_type import (
 T, U = TypeVar("T"), TypeVar("U")
 
 # type hint for 'zip_longest' in this file
-def zip_longest(i0: Iterable[T], i1: Iterable[U]) -> Iterator[Tuple[Optional[T], Optional[U]]]:
+def zip_longest(i0: Iterable[T], i1: Iterable[U]) -> Iterator[tuple[Optional[T], Optional[U]]]:
     return itertools.zip_longest(i0, i1)
 
 
@@ -119,7 +116,7 @@ class Scope:
     __slots__ = "table", "block"
 
     def __init__(self, block: Union[Program, FuncDef]):
-        self.table: Dict[str, Symbol] = {}
+        self.table: dict[str, Symbol] = {}
         self.block = block
 
     def add(self, symb: Symbol) -> None:
@@ -225,7 +222,7 @@ class SymbolTable:
 
     def __init__(self):
         # lookup stack of scope
-        self.stack: List[Scope] = []
+        self.stack: list[Scope] = []
         self.block: Union[Program, FuncDef, None] = None
 
     @contextmanager
@@ -550,7 +547,7 @@ class NodeVisitor(Generic[R]):
     """
 
     def __init__(self, default: R) -> None:
-        self._cache: Dict[str, Callable[[Node], Optional[R]]] = {}
+        self._cache: dict[str, Callable[[Node], Optional[R]]] = {}
         self._default = default
 
     def visitor_for(self, classname: str) -> Callable[[Node], Optional[R]]:

@@ -2,7 +2,7 @@ from __future__ import annotations
 import inspect
 import sys
 from collections.abc import Sequence
-from typing import List, Literal, Optional, Protocol, TextIO, Tuple, Union, overload
+from typing import Literal, Optional, Protocol, TextIO, Tuple, Union, overload
 from uc.uc_type import ArrayType, FunctionType, PointerType, PrimaryType, uCType
 
 
@@ -173,10 +173,10 @@ class Program(Node):
     attr_names = ()
     special_attr = ("symbols",)
 
-    def __init__(self, gdecls: List[Union[GlobalDecl, FuncDef]]):
+    def __init__(self, gdecls: list[Union[GlobalDecl, FuncDef]]):
         super().__init__()
         self.gdecls = tuple(gdecls)
-        self.symbols: List[ID] = []
+        self.symbols: list[ID] = []
 
 
 class DeclList(Node):
@@ -241,7 +241,7 @@ class FuncDef(Node):
         self.decl_list = decl_list
         self.implementation = implementation
         self.return_list: Tuple[Return, ...] = ()
-        self.symbols: List[ID] = []
+        self.symbols: list[ID] = []
 
     def add_return(self, node: Return) -> None:
         self.return_list += (node,)
@@ -397,7 +397,7 @@ class Compound(Node):
     __slots__ = "declarations", "statements"
     attr_names = ()
 
-    def __init__(self, declarations: DeclList, statements: List[Node], coord: Coord):
+    def __init__(self, declarations: DeclList, statements: list[Node], coord: Coord):
         super().__init__(coord)
         self.declarations = declarations
         self.statements = tuple(statements)
