@@ -8,7 +8,7 @@ Further instructions can be seen in this
 
 You should do the following tasks:
 
-- [ ] Paste your implementation of the lexer in `uc/uc_lexer.py`
+- [X] Paste your implementation of the lexer in `uc/uc_lexer.py`
 - [ ] Paste your implementation of the parser in `uc/uc_parser.py`
 - [ ] Paste your implementation of the ast in `uc/uc_ast.py`
 - [ ] Paste your implementation of the semantic analysis in `uc/uc_sema.py`

@@ -1,6 +1,8 @@
 import argparse
 import pathlib
+import re
 import sys
+from typing import Callable, Tuple
 import ply.lex as lex
 
 
@@ -10,7 +12,7 @@ class UCLexer:
     tokens.
     """
 
-    def __init__(self, error_func):
+    def __init__(self, error_func: Callable[[str, int, int], None]):
         """Create a new Lexer.
         An error function. Will be called with an error
         message, line and column as arguments, in case of
@@ -22,38 +24,39 @@ class UCLexer:
         # Keeps track of the last token returned from self.token()
         self.last_token = None
 
-    def build(self, **kwargs):
+    def build(self, **kwargs) -> None:
         """Builds the lexer from the specification. Must be
         called after the lexer object is created.
 
         This method exists separately, because the PLY
         manual warns against calling lex.lex inside __init__
         """
-        self.lexer = lex.lex(object=self, **kwargs)
+        flags = re.DOTALL | re.MULTILINE | re.VERBOSE
+        self.lexer = lex.lex(object=self, reflags=flags, **kwargs)
 
-    def reset_lineno(self):
+    def reset_lineno(self) -> None:
         """Resets the internal line number counter of the lexer."""
         self.lexer.lineno = 1
 
-    def input(self, text):
+    def input(self, text: str) -> None:
         self.lexer.input(text)
 
     def token(self):
         self.last_token = self.lexer.token()
         return self.last_token
 
-    def find_tok_column(self, token):
+    def find_tok_column(self, token) -> int:
         """Find the column of the token in its line."""
         last_cr = self.lexer.lexdata.rfind("\n", 0, token.lexpos)
         return token.lexpos - last_cr
 
     # Internal auxiliary methods
-    def _error(self, msg, token):
+    def _error(self, msg: str, token) -> None:
         location = self._make_tok_location(token)
         self.error_func(msg, location[0], location[1])
         self.lexer.skip(1)
 
-    def _make_tok_location(self, token):
+    def _make_tok_location(self, token) -> Tuple[int, int]:
         return (token.lineno, self.find_tok_column(token))
 
     # Reserved keywords
@@ -62,7 +65,6 @@ class UCLexer:
         "BREAK",
         "CHAR",
         "ELSE",
-        "FLOAT",
         "FOR",
         "IF",
         "INT",
@@ -85,7 +87,35 @@ class UCLexer:
         "ID",
         # constants
         "INT_CONST",
-        "FLOAT_CONST",
+        "STRING_LITERAL",
+        "CHAR_CONST",
+        # delimiters
+        "LPAREN",
+        "RPAREN",
+        "LBRACE",
+        "RBRACE",
+        "LBRACKET",
+        "RBRACKET",
+        # comparators
+        "EQ",
+        "NE",
+        "LT",
+        "GT",
+        "LE",
+        "GE",
+        # operators
+        "EQUALS",
+        "PLUS",
+        "MOD",
+        "MINUS",
+        "TIMES",
+        "DIVIDE",
+        "AND",
+        "OR",
+        "NOT",
+        # punctuation
+        "SEMI",
+        "COMMA",
     )
 
     #
@@ -93,26 +123,77 @@ class UCLexer:
     #
     t_ignore = " \t"
 
-    # Newlines
-    def t_NEWLINE(self, t):
-        # include a regex here for newline
-        t.lexer.lineno += t.value.count("\n")
+    # delimiters
+    t_LPAREN = r"\("
+    t_RPAREN = r"\)"
+    t_LBRACE = r"\{"
+    t_RBRACE = r"\}"
+    t_LBRACKET = r"\["
+    t_RBRACKET = r"\]"
+
+    # comparators
+    t_EQ = r"=="
+    t_NE = r"!="
+    t_LT = r"<"
+    t_GT = r">"
+    t_LE = r"<="
+    t_GE = r">="
+
+    # operators
+    t_EQUALS = r"="
+    t_PLUS = r"\+"
+    t_MOD = r"%"
+    t_MINUS = r"-"
+    t_TIMES = r"\*"
+    t_DIVIDE = r"/"
+    t_AND = r"&&"
+    t_OR = r"\|\|"
+    t_NOT = r"!"
+
+    # punctuation
+    t_SEMI = r";"
+    t_COMMA = r","
+
+    # constants
+    t_INT_CONST = r"\d(\d|_\d)*"
+    t_CHAR_CONST = r"\'(\\.|.)+?\'"
+
+    def t_STRING_LITERAL(self, t):
+        r"\"(\\.|.)*?\""
+        t.value = t.value[1:-1]
+        return t
 
     def t_ID(self, t):
-        # include a regex here for ID
+        r"[^\d\W]\w*"
         t.type = self.keyword_map.get(t.value, "ID")
         return t
 
-    def t_comment(self, t):
-        # include a regex here for comment
+    # newlines
+    def t_NEWLINE(self, t):
+        r"\n+"
         t.lexer.lineno += t.value.count("\n")
+
+    def t_comment(self, t):
+        r"(/\*.*?\*/)|(//.*?$)"
+        t.lexer.lineno += t.value.count("\n")
+
+    # errors
+    def t_unterminated_string(self, t):
+        r"\"(\\.|.)*"
+        # must come after 't_STRING_LITERAL'
+        self._error("Unterminated string", t)
+
+    def t_unterminated_comment(self, t):
+        r"/\*.*"
+        # must come after 't_comment'
+        self._error("Unterminated comment", t)
 
     def t_error(self, t):
         msg = "Illegal character %s" % repr(t.value[0])
         self._error(msg, t)
 
     # Scanner (used only for test)
-    def scan(self, data):
+    def scan(self, data: str) -> str:
         self.lexer.input(data)
         output = ""
         while True:
@@ -140,7 +221,7 @@ if __name__ == "__main__":
         print("Input", input_path, "not found", file=sys.stderr)
         sys.exit(1)
 
-    def print_error(msg, x, y):
+    def print_error(msg: str, x: int, y: int):
         # use stdout to match with the output in the .out test files
         print("Lexical error: %s at %d:%d" % (msg, x, y), file=sys.stdout)
 
