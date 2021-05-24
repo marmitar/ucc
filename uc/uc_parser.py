@@ -499,6 +499,7 @@ class UCParser:
     def p_constant(self, p):
         """constant : integer_constant
         | character_constant
+        | boolean_constant
         """
         p[0] = p[1]
 
@@ -531,6 +532,13 @@ class UCParser:
         """character_constant : CHAR_CONST"""
         coord = self._token_coord(p, 1)
         p[0] = Constant("char", p[1], coord)
+
+    def p_boolean_constant(self, p):
+        """boolean_constant : TRUE
+        | FALSE
+        """
+        coord = self._token_coord(p, 1)
+        p[0] = Constant("bool", p[1] == "true", coord)
 
     def p_identifier(self, p):
         """identifier : ID"""
