@@ -8,6 +8,7 @@ from functools import lru_cache
 from typing import (
     Callable,
     Dict,
+    Generic,
     Iterable,
     Iterator,
     List,
@@ -540,37 +541,59 @@ class FuncParamsLengthMismatch(ExprParamMismatch):  # msg: 17
 # # # # # # # #
 # AST VISITOR #
 
+R = TypeVar("R")
 
-class NodeVisitor:
-    """A base NodeVisitor class for visiting uc_ast nodes. This class
-    uses the visitor pattern. You need to define methods of the form
-    visit_NODE() for each kind of AST node that you want to process.
+
+class NodeVisitor(Generic[R]):
+    """A base NodeVisitor class for visiting uc_ast nodes.
+    Subclass it and define your own visit_NODE methods.
+    """
+
+    def __init__(self, default: R) -> None:
+        self._cache: Dict[str, Callable[[Node], Optional[R]]] = {}
+        self._default = default
+
+    def visitor_for(self, classname: str) -> Callable[[Node], Optional[R]]:
+        """Find visitor method for a node class."""
+        visitor = self._cache.get(classname)
+        if visitor is not None:
+            return visitor
+        visitor = getattr(self, f"visit_{classname}", self.generic_visit)
+        self._cache[classname] = visitor
+        return visitor
+
+    def visit(self, node: Node) -> R:
+        """Visit a node, set and return its type."""
+        visitor = self.visitor_for(node.classname)
+        value = visitor(node)
+        return value or self._default
+
+    def generic_visit(self, node: Node) -> R:
+        """Preorder visiting of the node's children."""
+        for _, child in node.children():
+            self.visit(child)
+        return self._default
+
+
+class SemanticVisitor(NodeVisitor[uCType]):
+    """
+    Program visitor class. This class uses the visitor pattern. You
+    need to define methods of the form visit_NODE() for each kind of
+    AST node that you want to process.
     """
 
     __slots__ = ("symtab",)
 
     def __init__(self):
+        super().__init__(VoidType)
         # Initialize the symbol table
         self.symtab = SymbolTable()
 
-    @lru_cache(maxsize=None)
-    def visitor_for(self, node: str) -> Callable[[Node], Optional[uCType]]:
-        """Find visitor method for a node class."""
-        return getattr(self, f"visit_{node}", self.generic_visit)
-
     def visit(self, node: Node) -> uCType:
-        """Visit a node, set and return its type."""
-        visitor = self.visitor_for(node.classname)
-        uc_type = visitor(node)
-        # default declaration and statement type
-        node.uc_type = uc_type or VoidType
-        return node.uc_type
-
-    def generic_visit(self, node: Node) -> Literal[VoidType]:
-        """Preorder visiting of the node's children."""
-        for _, child in node.children():
-            self.visit(child)
-        return VoidType
+        uctype = super().visit(node)
+        # update node type
+        node.uc_type = uctype
+        return uctype
 
     # # # # # # # # #
     # DECLARATIONS  #
@@ -964,7 +987,7 @@ class Visitor:
     """
 
     def __init__(self):
-        self.node_visitor = NodeVisitor()
+        self.node_visitor = SemanticVisitor()
 
     def visit(self, node: Program) -> None:
         """Print and exit in case of semantic errors."""
