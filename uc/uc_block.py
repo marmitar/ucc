@@ -1,7 +1,7 @@
 from graphviz import Digraph
 
 
-def format_instruction(t):
+def format_instruction(t) -> str:
     operand = t[0].split("_")
     op = operand[0]
     ty = operand[1] if len(operand) > 1 else None
@@ -13,11 +13,7 @@ def format_instruction(t):
                 ty += f"[{_qual}]"
     if len(t) > 1:
         if op == "define":
-            return (
-                f"\n{op} {ty} {t[1]} ("
-                + ", ".join(list(" ".join(el) for el in t[2]))
-                + ")"
-            )
+            return f"\n{op} {ty} {t[1]} (" + ", ".join(list(" ".join(el) for el in t[2])) + ")"
         else:
             _str = "" if op == "global" else "  "
             if op == "jump":
@@ -51,13 +47,13 @@ def format_instruction(t):
 
 
 class Block:
-    def __init__(self, label):
+    def __init__(self, label: str):
         self.label = label  # Label that identifies the block
         self.instructions = []  # Instructions in the block
         self.predecessors = []  # List of predecessors
         self.next_block = None  # Link to the next block
 
-    def append(self, instr):
+    def append(self, instr) -> None:
         self.instructions.append(instr)
 
     def __iter__(self):
@@ -70,7 +66,7 @@ class BasicBlock(Block):
     flows to the next block.
     """
 
-    def __init__(self, label):
+    def __init__(self, label: str):
         super(BasicBlock, self).__init__(label)
         self.branch = None  # Not necessary the same as next_block in the linked list
 
@@ -81,20 +77,20 @@ class ConditionBlock(Block):
     There are two branches to handle each possibility.
     """
 
-    def __init__(self, label):
+    def __init__(self, label: str):
         super(ConditionBlock, self).__init__(label)
         self.taken = None
         self.fall_through = None
 
 
-class BlockVisitor(object):
+class BlockVisitor:
     """
     Class for visiting blocks.  Define a subclass and define
     methods such as visit_BasicBlock or visit_ConditionalBlock to
     implement custom processing (similar to ASTs).
     """
 
-    def visit(self, block):
+    def visit(self, block) -> None:
         while isinstance(block, Block):
             name = "visit_%s" % type(block).__name__
             if hasattr(self, name):
@@ -106,21 +102,21 @@ class EmitBlocks(BlockVisitor):
     def __init__(self):
         self.code = []
 
-    def visit_BasicBlock(self, block):
+    def visit_BasicBlock(self, block) -> None:
         for inst in block.instructions:
             self.code.append(inst)
 
-    def visit_ConditionBlock(self, block):
+    def visit_ConditionBlock(self, block) -> None:
         for inst in block.instructions:
             self.code.append(inst)
 
 
 class CFG:
-    def __init__(self, fname):
+    def __init__(self, fname: str):
         self.fname = fname
         self.g = Digraph("g", filename=fname + ".gv", node_attr={"shape": "record"})
 
-    def visit_BasicBlock(self, block):
+    def visit_BasicBlock(self, block) -> None:
         # Get the label as node name
         _name = block.label
         if _name:
@@ -137,7 +133,7 @@ class CFG:
             self.g.node(self.fname, label=None, _attributes={"shape": "ellipse"})
             self.g.edge(self.fname, block.next_block.label)
 
-    def visit_ConditionBlock(self, block):
+    def visit_ConditionBlock(self, block) -> None:
         # Get the label as node name
         _name = block.label
         # get the formatted instructions as node label
@@ -149,7 +145,7 @@ class CFG:
         self.g.edge(_name + ":f0", block.taken.label)
         self.g.edge(_name + ":f1", block.fall_through.label)
 
-    def view(self, block):
+    def view(self, block) -> None:
         while isinstance(block, Block):
             name = "visit_%s" % type(block).__name__
             if hasattr(self, name):
@@ -157,4 +153,4 @@ class CFG:
             block = block.next_block
         # You can use the next stmt to see the dot file
         # print(self.g.source)
-        self.g.view()
+        self.g.view(quiet=True, quiet_view=True)
