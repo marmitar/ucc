@@ -32,6 +32,7 @@ from uc.uc_ast import (
     GlobalDecl,
     If,
     InitList,
+    Modifier,
     Node,
     ParamList,
     Print,
@@ -75,6 +76,7 @@ U = TypeVar("U")
 # fmt: off
 @overload
 def getitem(seq: Sequence[T], index: int) -> Optional[T]: ...
+@overload
 def getitem(seq: Sequence[T], index: int, default: U) -> Union[T, U]: ...
 # fmt: on
 def getitem(seq: Sequence[T], index: int, default: U = None) -> Union[T, U]:
@@ -85,7 +87,6 @@ def getitem(seq: Sequence[T], index: int, default: U = None) -> Union[T, U]:
         return default
 
 
-Modifier = Union[ArrayDecl, FuncDecl]
 Declaration = Union[VarDecl, Modifier]
 
 

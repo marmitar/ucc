@@ -642,11 +642,9 @@ class NodeVisitor:
         # visit parameters in given scope, if any
         with self.symtab.new(scope or EmptyScope()):
             self.visit(node.param_list)
-        # get function name
-        name = node.declname().name
         # build the function type
         params = [(p.name.name, p.type.uc_type) for p in node.param_list.params]
-        return FunctionType(name, rettype, params)
+        return FunctionType(node.declname.name, rettype, params)
 
     def _needs_implicit_return(self, stmt: Optional[Node]) -> bool:
         """Check if a given statement needs implicit return."""

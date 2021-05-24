@@ -168,41 +168,15 @@ class Node:
 # DECLARATIONS  #
 
 
-class ArrayDecl(Node):
-    __slots__ = "type", "size"
+class Program(Node):
+    __slots__ = "gdecls", "symbols"
     attr_names = ()
+    special_attr = ("symbols",)
 
-    type: Union[ArrayDecl, FuncDecl, VarDecl]
-    uc_type: ArrayType
-
-    def __init__(self, size: Optional[Node]):
+    def __init__(self, gdecls: List[Union[GlobalDecl, FuncDef]]):
         super().__init__()
-        self.type = None
-        self.size = size
-
-    def set_type(self, type: Union[ArrayDecl, FuncDecl, VarDecl]) -> None:
-        self.type = type
-        self.coord = type.coord
-
-    def declname(self) -> ID:
-        modtype = self
-        while not isinstance(modtype, VarDecl):
-            modtype = modtype.type
-        return modtype.declname
-
-
-class Decl(Node):
-    __slots__ = "name", "type", "init"
-    attr_names = ("name",)
-
-    name: ID
-
-    def __init__(self, type: Union[ArrayDecl, FuncDecl, VarDecl], init: Optional[Node]):
-        super().__init__(type.coord)
-        self.type = type
-        self.init = init
-        if isinstance(init, InitList):
-            init.coord = type.coord
+        self.gdecls = tuple(gdecls)
+        self.symbols: List[ID] = []
 
 
 class DeclList(Node):
@@ -234,27 +208,12 @@ class DeclList(Node):
             super().show(*args, **kwargs)
 
 
-class FuncDecl(Node):
-    __slots__ = "param_list", "type"
+class GlobalDecl(DeclList):
+    __slots__ = ()
     attr_names = ()
 
-    type: Union[ArrayDecl, FuncDecl, VarDecl]
-    uc_type: FunctionType
-
-    def __init__(self, params: ParamList):
-        super().__init__()
-        self.type = None
-        self.param_list = params
-
-    def set_type(self, type: Union[ArrayDecl, FuncDecl, VarDecl]) -> None:
-        self.type = type
-        self.coord = type.coord
-
-    def declname(self) -> ID:
-        modtype = self
-        while not isinstance(modtype, VarDecl):
-            modtype = modtype.type
-        return modtype.declname
+    def __init__(self, decl: DeclList):
+        super().__init__(decl.decls)
 
 
 class FuncDef(Node):
@@ -288,12 +247,18 @@ class FuncDef(Node):
         self.return_list += (node,)
 
 
-class GlobalDecl(DeclList):
-    __slots__ = ()
+class ParamList(Node):
+    __slots__ = ("params",)
     attr_names = ()
 
-    def __init__(self, decl: DeclList):
-        super().__init__(decl.decls)
+    def __init__(self, head: Optional[Decl] = None):
+        super().__init__()
+        self.params: Tuple[Decl, ...] = ()
+        if head is not None:
+            self.append(head)
+
+    def append(self, node: Decl) -> None:
+        self.params += (node,)
 
 
 class InitList(Node):
@@ -317,29 +282,66 @@ class InitList(Node):
         return len(self.init)
 
 
-class ParamList(Node):
-    __slots__ = ("params",)
+class Decl(Node):
+    __slots__ = "name", "type", "init"
+    attr_names = ("name",)
+
+    name: ID
+
+    def __init__(self, type: Union[ArrayDecl, FuncDecl, VarDecl], init: Optional[Node]):
+        super().__init__(type.coord)
+        self.type = type
+        self.init = init
+        if isinstance(init, InitList):
+            init.coord = type.coord
+
+
+class Modifier(Node):
+    __slots__ = ("type", "_declname")
+    attr_names = ()
+    special_attr = ("_declname",)
+
+    type: Union[Modifier, VarDecl]
+
+    def __init__(self):
+        super().__init__()
+        self.type = None
+        self._declname: Optional[ID] = None
+
+    def set_type(self, type: Union[Modifier, VarDecl]) -> None:
+        self.type = type
+        self.coord = type.coord
+
+    @property
+    def declname(self) -> ID:
+        if self._declname is None:
+            modtype = self
+            while not isinstance(modtype, VarDecl):
+                modtype = modtype.type
+            self._declname = modtype.declname
+        return self._declname
+
+
+class ArrayDecl(Modifier):
+    __slots__ = ("size",)
     attr_names = ()
 
-    def __init__(self, head: Optional[Decl] = None):
+    uc_type: ArrayType
+
+    def __init__(self, size: Optional[Node]):
         super().__init__()
-        self.params: Tuple[Decl, ...] = ()
-        if head is not None:
-            self.append(head)
-
-    def append(self, node: Decl) -> None:
-        self.params += (node,)
+        self.size = size
 
 
-class Program(Node):
-    __slots__ = "gdecls", "symbols"
+class FuncDecl(Modifier):
+    __slots__ = ("param_list",)
     attr_names = ()
-    special_attr = ("symbols",)
 
-    def __init__(self, gdecls: List[Union[GlobalDecl, FuncDef]]):
+    uc_type: FunctionType
+
+    def __init__(self, params: ParamList):
         super().__init__()
-        self.gdecls = tuple(gdecls)
-        self.symbols: List[ID] = []
+        self.param_list = params
 
 
 class VarDecl(Node):
