@@ -456,7 +456,7 @@ class UCParser:
         ("left", "AND"),
         ("left", "EQ", "NE"),
         ("left", "LE", "LT", "GE", "GT"),
-        ("left", "PLUS", "MINUS"),
+        ("left", "PLUS", "MINUS", "TIMES"),
         ("left", "TIMES", "DIVIDE", "MOD"),
         ("right", "NOT"),
     )
@@ -522,6 +522,7 @@ class UCParser:
         """unary_operator : PLUS
         | MINUS
         | NOT
+        | TIMES
         """
         p[0] = p[1]
 
