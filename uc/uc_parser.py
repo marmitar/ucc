@@ -1,16 +1,8 @@
+from __future__ import annotations
 import argparse
 import pathlib
 import sys
-from typing import (
-    List,
-    NoReturn,
-    Optional,
-    Sequence,
-    TypedDict,
-    TypeVar,
-    Union,
-    overload,
-)
+from typing import NoReturn, Optional, Sequence, TypedDict, TypeVar, Union, overload
 from ply.yacc import yacc
 from uc.uc_ast import (
     ID,
@@ -133,7 +125,7 @@ class UCParser:
         column = p.lexpos(token_idx) - (last_cr)
         return Coord(p.lineno(token_idx), column)
 
-    def _build_declarations(self, spec: Optional[Type], decls: List[DeclSpec]) -> List[Decl]:
+    def _build_declarations(self, spec: Optional[Type], decls: list[DeclSpec]) -> list[Decl]:
         """Builds a list of declarations all sharing the given specifiers."""
         declarations = []
 
