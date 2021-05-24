@@ -461,7 +461,7 @@ class UCParser:
         ("left", "AND"),
         ("left", "EQ", "NE"),
         ("left", "LE", "LT", "GE", "GT"),
-        ("left", "PLUS", "MINUS", "TIMES"),
+        ("left", "PLUS", "MINUS", "TIMES", "ADDRESS"),
         ("left", "TIMES", "DIVIDE", "MOD"),
         ("right", "NOT"),
     )
@@ -528,6 +528,7 @@ class UCParser:
         | MINUS
         | NOT
         | TIMES
+        | ADDRESS
         """
         p[0] = p[1]
 

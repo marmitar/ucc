@@ -60,27 +60,27 @@ class PrimaryType(uCType, Enum):
         return getattr(cls, typename, None)
 
     int = (
-        {"-", "+"},
+        {"-", "+", "&"},
         {"+", "-", "*", "/", "%"},
         {"==", "!=", "<", ">", "<=", ">="},
         {"="},
     )
     float = (
-        {"-", "+"},
+        {"-", "+", "&"},
         {"+", "-", "*", "/"},
         {"==", "!=", "<", ">", "<=", ">="},
         {"="},
     )
     char = (
+        {"&"},
         {},
-        {},
-        {"==", "!=", "&&", "||"},
+        {"==", "!=", "<", ">", "<=", ">="},
         {"="},
     )
     bool = (
-        {"!"},
-        {},
-        {"==", "!=", "&&", "||"},
+        {"!", "&"},
+        {"&&", "||"},
+        {"==", "!="},
         {"="},
     )
     void = ()  # no valid operation
@@ -108,7 +108,7 @@ class ArrayType(uCType):
             means that there's support for nested types, like matrices.
         size: Integer with the length of the array.
         """
-        super().__init__(None, unary_ops={"*", "&"}, rel_ops={"==", "!="})
+        super().__init__(None, unary_ops={"&"}, rel_ops={"==", "!="})
         self.elem_type = element_type
         self.size = size
 
@@ -168,7 +168,7 @@ class FunctionType(uCType):
         return_type: Any uCType can be used here.
         params: Sequence of 'name, type' for each of the function parameters.
         """
-        super().__init__(None)  # only valid operation is call
+        super().__init__(None, unary_ops={"&"})  # only call and get reference
         self.funcname = name
         self.rettype = return_type
         self.params = tuple(ParamSpec(n, t) for n, t in params)
@@ -203,7 +203,7 @@ class PointerType(uCType):
 
     def __init__(self, inner: uCType):
         relation = {"==", "!=", "<", ">", "<=", ">="}
-        super().__init__(None, unary_ops={"*"}, rel_ops=relation, assign_ops={"="})
+        super().__init__(None, unary_ops={"*", "&"}, rel_ops=relation, assign_ops={"="})
         self.inner = inner
 
     def __eq__(self, other: uCType) -> bool:
