@@ -35,6 +35,7 @@ from uc.uc_ast import (
     Modifier,
     Node,
     ParamList,
+    PointerDecl,
     Print,
     Program,
     Read,
@@ -231,6 +232,7 @@ class UCParser:
         | LPAREN declarator RPAREN
         | declarator LBRACKET                     RBRACKET
         | declarator LBRACKET constant_expression RBRACKET
+        | TIMES declarator
         | declarator LPAREN                RPAREN
         | declarator LPAREN parameter_list RPAREN
         """
@@ -243,6 +245,9 @@ class UCParser:
         elif p[2] == "[":
             mod = ArrayDecl(p[3] if len(p) == 5 else None)
             p[0] = self._type_modify_decl(p[1], mod)
+        # pointer declaration
+        elif p[1] == "*":
+            p[0] = self._type_modify_decl(p[2], PointerDecl())
         # function declaration
         else:
             params = p[3] if len(p) == 5 else ParamList()
