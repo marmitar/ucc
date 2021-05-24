@@ -20,7 +20,7 @@ Feel free to add modifications to files from previous projects such as `uc_type.
 
 ## Requirements
 
-Use Python 3.5 or a newer version.    
+Use Python 3.5 or a newer version.
 Required pip packages:
 - ply, pytest, setuptools, graphviz
 
@@ -81,6 +81,19 @@ for the rest of the code. Run both from the root of the repo:
     isort .
     black .
 ```
+
+### Using Pre-Commit Hooks
+
+Linting can be done automatically before every commit using
+[git hooks](https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks).
+Required pip packages:
+- pre-commit
+
+Liniting hooks can be enabled with:
+```sh
+    pre-commit install --install-hooks
+```
+
 ## Grading
 
 Your assignment will be evaluated in terms of:
@@ -111,7 +124,7 @@ An internal grading script will be run instead to prevent cheating.
 
 ## Questions
 
-If you have any doubts or run into problems, please contact the TAs.    
+If you have any doubts or run into problems, please contact the TAs.
 Happy coding! :smile: :keyboard:
 
 ## Contribute
