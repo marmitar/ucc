@@ -614,9 +614,11 @@ class Constant(Node):
     @overload
     def __init__(self, type: Literal["bool"], value: bool, coord: Coord): ...
     @overload
+    def __init__(self, type: Literal["float"], value: float, coord: Coord): ...
+    @overload
     def __init__(self, type: Literal["char", "string"], value: str, coord: Coord): ...
     # fmt: on
-    def __init__(self, type: str, value: Union[int, bool, str], coord: Coord):
+    def __init__(self, type: str, value: Union[int, bool, float, str], coord: Coord):
         super().__init__(coord)
         self.rawtype = type
         self.value = value

@@ -500,6 +500,7 @@ class UCParser:
         """constant : integer_constant
         | character_constant
         | boolean_constant
+        | float_constant
         """
         p[0] = p[1]
 
@@ -539,6 +540,11 @@ class UCParser:
         """
         coord = self._token_coord(p, 1)
         p[0] = Constant("bool", p[1] == "true", coord)
+
+    def p_float_constant(self, p):
+        """float_constant : FLOAT_CONST"""
+        coord = self._token_coord(p, 1)
+        p[0] = Constant("float", float(p[1]), coord)
 
     def p_identifier(self, p):
         """identifier : ID"""
