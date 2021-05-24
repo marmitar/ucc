@@ -3,7 +3,7 @@ import inspect
 import sys
 from collections.abc import Sequence
 from typing import List, Literal, Optional, Protocol, TextIO, Tuple, Union, overload
-from uc.uc_type import ArrayType, FunctionType, PrimaryType, uCType
+from uc.uc_type import ArrayType, FunctionType, PointerType, PrimaryType, uCType
 
 
 class Coord(Protocol):
@@ -342,6 +342,13 @@ class FuncDecl(Modifier):
     def __init__(self, params: ParamList):
         super().__init__()
         self.param_list = params
+
+
+class PointerDecl(Modifier):
+    __slots__ = ()
+    attr_names = ()
+
+    uc_type: PointerType
 
 
 class VarDecl(Node):
