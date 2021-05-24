@@ -92,8 +92,8 @@ BoolType = PrimaryType.bool
 VoidType = PrimaryType.void
 
 
-# # # # # # # # # #
-# Compound Types  #
+# # # # # # # #
+# Array Type  #
 
 # special type for empty lists that can be coerced to any type
 _UndefinedType = uCType("<undefined>")
@@ -150,6 +150,10 @@ class ArrayType(uCType):
         return value < 0 or (self.size is not None and value >= self.size)
 
 
+# # # # # # # # #
+# Function Type #
+
+
 class ParamSpec(NamedTuple):
     name: str
     type: uCType
@@ -188,3 +192,22 @@ class FunctionType(uCType):
             # no space between parameters
             params = ",".join(f"{t!r}" for t in self.param_types)
             return f"{self.rettype!r}({params})"
+
+
+# # # # # # # # #
+# Pointer Type  #
+
+
+class PointerType(uCType):
+    __slots__ = ("inner",)
+
+    def __init__(self, inner: uCType):
+        relation = {"==", "!=", "<", ">", "<=", ">="}
+        super().__init__(None, unary_ops={"*"}, rel_ops=relation, assign_ops={"="})
+        self.inner = inner
+
+    def __eq__(self, other: uCType) -> bool:
+        return isinstance(other, PointerType) and self.inner == other.inner
+
+    def typename(self) -> str:
+        return f"ptr<{self.inner!r}>"
