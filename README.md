@@ -12,7 +12,7 @@ You should do the following tasks:
 - [X] Paste your implementation of the parser in `uc/uc_parser.py`
 - [X] Paste your implementation of the ast in `uc/uc_ast.py`
 - [X] Paste your implementation of the semantic analysis in `uc/uc_sema.py`
-- [ ] Paste your implementation of the type system in `uc/uc_type.py`
+- [X] Paste your implementation of the type system in `uc/uc_type.py`
 - [ ] Complete the implementation of the code generation in `uc/uc_code.py`
 - [ ] Complete the implementation of basic blocks in `uc/uc_block.py`
 
