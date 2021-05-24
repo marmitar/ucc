@@ -92,6 +92,7 @@ class UCLexer:
         "INT_CONST",
         "STRING_LITERAL",
         "CHAR_CONST",
+        "FLOAT_CONST",
         # delimiters
         "LPAREN",
         "RPAREN",
@@ -160,6 +161,20 @@ class UCLexer:
     # constants
     t_INT_CONST = r"\d(\d|_\d)*"
     t_CHAR_CONST = r"\'(\\.|.)+?\'"
+    t_FLOAT_CONST = r"""
+        (
+            (
+                (   # numbers like 123.
+                    \d(\d|_\d)*\.(\d(\d|_\d)*)?
+                )|( # and .456
+                    (\d(\d|_\d)*)?\.\d(\d|_\d)*
+                )   # can be 1.23e-2
+                ((E|e)(\+|-)?\d(\d|_\d)*)?
+            ) | (   # fractional isn't required with exponents
+                \d(\d|_\d)(E|e)(\+|-)?\d(\d|_\d)
+            )
+        )
+    """
 
     def t_STRING_LITERAL(self, t):
         r"\"(\\.|.|\n)*?\""
