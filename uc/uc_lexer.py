@@ -117,6 +117,7 @@ class UCLexer:
         "AND",
         "OR",
         "NOT",
+        "ADDRESS",
         # punctuation
         "SEMI",
         "COMMA",
@@ -153,6 +154,7 @@ class UCLexer:
     t_AND = r"&&"
     t_OR = r"\|\|"
     t_NOT = r"!"
+    t_ADDRESS = r"&"
 
     # punctuation
     t_SEMI = r";"
