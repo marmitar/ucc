@@ -1,9 +1,17 @@
 import argparse
 import pathlib
 import sys
-from typing import TextIO
+from typing import Optional, TextIO
 from uc.uc_ast import BinaryOp, Constant, FuncDef, Print, Program, VarDecl
-from uc.uc_block import CFG, BasicBlock, ConditionBlock, EmitBlocks, format_instruction
+from uc.uc_block import (
+    CFG,
+    BasicBlock,
+    Block,
+    ConditionBlock,
+    EmitBlocks,
+    Instr,
+    format_instruction,
+)
 from uc.uc_interpreter import Interpreter
 from uc.uc_parser import UCParser
 from uc.uc_sema import NodeVisitor, Visitor
@@ -18,7 +26,7 @@ class CodeGenerator(NodeVisitor[None]):
     def __init__(self, viewcfg: bool):
         super().__init__(None)
         self.viewcfg = viewcfg
-        self.current_block = None
+        self.current_block: Optional[Block] = None
 
         # version dictionary for temporaries. We use the name as a Key
         self.fname = "_glob_"
@@ -28,9 +36,9 @@ class CodeGenerator(NodeVisitor[None]):
         # At the end of visit_program, we call each function definition to emit
         # the instructions inside basic blocks. The global instructions that
         # are stored in self.text are appended at beginning of the code
-        self.code = []
+        self.code: list[Instr] = []
 
-        self.text = []  # Used for global declarations & constants (list, strings)
+        self.text: list[str] = []  # Used for global declarations & constants (list, strings)
 
         # TODO: Complete if needed.
 
