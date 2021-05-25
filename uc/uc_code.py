@@ -1,7 +1,7 @@
 import argparse
 import pathlib
 import sys
-from typing import Optional, TextIO
+from typing import DefaultDict, Optional, TextIO
 from uc.uc_ast import BinaryOp, Constant, FuncDef, Print, Program, VarDecl
 from uc.uc_block import (
     CFG,
@@ -53,18 +53,21 @@ class CodeGenerator(NodeVisitor[None]):
         Create a new temporary variable of a given scope (function name).
         """
         if self.fname not in self.versions:
-            self.versions[self.fname] = 1
-        name = "%" + "%d" % (self.versions[self.fname])
+            version = self.versions[self.fname] = 1
+        else:
+            version = self.versions[self.fname]
         self.versions[self.fname] += 1
-        return name
+
+        return f"%{version}"
 
     def new_text(self, typename: str) -> str:
         """
         Create a new literal constant on global section (text).
         """
-        name = "@." + typename + "." + "%d" % (self.versions["_glob_"])
+        version = self.versions["_glob_"]
         self.versions["_glob_"] += 1
-        return name
+
+        return f"@.{typename}{version}"
 
     # You must implement visit_Nodename methods for all of the other
     # AST nodes.  In your code, you will need to make instructions
@@ -74,18 +77,18 @@ class CodeGenerator(NodeVisitor[None]):
     # them if needed.
 
     def visit_Constant(self, node: Constant) -> None:
-        if node.type.name == "string":
-            _target = self.new_text("str")
-            inst = ("global_string", _target, node.value)
+        if node.rawtype == "string":
+            target = self.new_text("str")
+            inst = ("global_string", target, node.value)
             self.text.append(inst)
         else:
             # Create a new temporary variable name
-            _target = self.new_temp()
+            target = self.new_temp()
             # Make the SSA opcode and append to list of generated instructions
-            inst = ("literal_" + node.type.name, node.value, _target)
+            inst = (f"literal_{node.uc_type!r}", node.value, target)
             self.current_block.append(inst)
         # Save the name of the temporary variable where the value was placed
-        node.gen_location = _target
+        node.gen_location = target
 
     def visit_BinaryOp(self, node: BinaryOp) -> None:
         # Visit the left and right expressions
@@ -109,37 +112,37 @@ class CodeGenerator(NodeVisitor[None]):
 
     def visit_Print(self, node: Print) -> None:
         # Visit the expression
-        self.visit(node.expr)
+        self.visit(node.param)
 
         # TODO: Load the location containing the expression
 
         # Create the opcode and append to list
-        inst = ("print_" + node.expr.type.name, node.expr.gen_location)
+        inst = (f"print_{node.param.uc_type!r}", node.param.gen_location)
         self.current_block.append(inst)
 
         # TODO: Handle the cases when node.expr is None or ExprList
 
     def visit_VarDecl(self, node: VarDecl) -> None:
         # Allocate on stack memory
-        _varname = "%" + node.declname.name
-        inst = ("alloc_" + node.type.name, _varname)
+        varname = f"%{node.declname.name}"
+        inst = (f"alloc_{node.type.name}", varname)
         self.current_block.append(inst)
 
         # Store optional init val
-        _init = node.decl.init
-        if _init is not None:
-            self.visit(_init)
+        init = node.decl.init
+        if init is not None:
+            self.visit(init)
             inst = (
-                "store_" + node.type.name,
-                _init.gen_location,
+                f"store_{node.type.name}",
+                init.gen_location,
                 node.declname.gen_location,
             )
             self.current_block.append(inst)
 
     def visit_Program(self, node: Program) -> None:
         # Visit all of the global declarations
-        for _decl in node.gdecls:
-            self.visit(_decl)
+        for decl in node.gdecls:
+            self.visit(decl)
         # At the end of codegen, first init the self.code with
         # the list of global instructions allocated in self.text
         self.code = self.text.copy()
@@ -147,20 +150,20 @@ class CodeGenerator(NodeVisitor[None]):
         node.text = self.text.copy()
         # After, visit all the function definitions and emit the
         # code stored inside basic blocks.
-        for _decl in node.gdecls:
-            if isinstance(_decl, FuncDef):
+        for decl in node.gdecls:
+            if isinstance(decl, FuncDef):
                 # _decl.cfg contains the Control Flow Graph for the function
                 # cfg points to start basic block
                 bb = EmitBlocks()
-                bb.visit(_decl.cfg)
+                bb.visit(decl.cfg)
                 for _code in bb.code:
                     self.code.append(_code)
 
         if self.viewcfg:  # evaluate to True if -cfg flag is present in command line
-            for _decl in node.gdecls:
-                if isinstance(_decl, FuncDef):
-                    dot = CFG(_decl.decl.name.name)
-                    dot.view(_decl.cfg)  # _decl.cfg contains the CFG for the function
+            for decl in node.gdecls:
+                if isinstance(decl, FuncDef):
+                    dot = CFG(decl.decl.name.name)
+                    dot.view(decl.cfg)  # _decl.cfg contains the CFG for the function
 
     # TODO: Complete.
 
