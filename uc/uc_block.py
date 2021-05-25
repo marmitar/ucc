@@ -10,14 +10,14 @@ def format_instruction(t: Instr) -> str:
     op = operand[0]
     ty = operand[1] if len(operand) > 1 else None
     if len(operand) >= 3:
-        for _qual in operand[2:]:
-            if _qual == "*":
+        for qual in operand[2:]:
+            if qual == "*":
                 ty += "*"
             else:
-                ty += f"[{_qual}]"
+                ty += f"[{qual}]"
     if len(t) > 1:
         if op == "define":
-            return f"\n{op} {ty} {t[1]} (" + ", ".join(list(" ".join(el) for el in t[2])) + ")"
+            return f"\n{op} {ty} {t[1]} (" + ", ".join(" ".join(el) for el in t[2]) + ")"
         else:
             _str = "" if op == "global" else "  "
             if op == "jump":
@@ -76,9 +76,8 @@ class BasicBlock(Block):
 
     def __init__(self, label: str):
         super(self).__init__(label)
-        self.branch: Optional[
-            Block
-        ] = None  # Not necessary the same as next_block in the linked list
+        # Not necessary the same as next_block in the linked list
+        self.branch: Optional[Block] = None
 
 
 class ConditionBlock(Block):
@@ -109,6 +108,7 @@ class BlockVisitor:
 
 class EmitBlocks(BlockVisitor):
     def __init__(self):
+        super().__init__()
         self.code: list[Instr] = []
 
     def visit_BasicBlock(self, block: BasicBlock) -> None:
@@ -122,6 +122,7 @@ class EmitBlocks(BlockVisitor):
 
 class CFG(BlockVisitor):
     def __init__(self, fname: str):
+        super().__init__()
         self.fname = fname
         self.g = Digraph("g", filename=fname + ".gv", node_attr={"shape": "record"})
 
