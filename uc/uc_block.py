@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import Any, Iterator, NamedTuple, Optional, Sequence, Tuple, Union
+from dataclasses import dataclass
+from typing import DefaultDict, Iterator, NamedTuple, Optional, Sequence, Tuple, Union
 from graphviz import Digraph
 
 Instr = Tuple[str, ...]
@@ -50,6 +51,77 @@ def format_instruction(t: Instr) -> str:
         return f"{op}"
 
 
+# # # # # # # # # #
+# Variable Types  #
+
+
+@dataclass(frozen=True)
+class Variable:
+    name: Union[str, int]
+
+    def __str__(self) -> str:
+        return f"%{self.name}"
+
+    def __repr__(self) -> str:
+        return str(self.name)
+
+
+class NamedVariable(Variable):
+    """Variable referenced by name."""
+
+    __slots__ = ()
+
+    name: str
+
+    def __init__(self, name: str):
+        super().__init__(name)
+
+
+class TempVariable(Variable):
+    """Variable referenced by a temporary number."""
+
+    __slots__ = ()
+
+    name: int
+
+    def __init__(self, version: int):
+        super().__init__(version)
+
+
+class TextVariable(NamedVariable):
+    """Variable that lives on the 'text' section."""
+
+    __slots__ = ("version",)
+
+    def __init__(self, typename: str, version: int):
+        super().__init__(typename)
+        self.version = version
+
+    def __str__(self) -> str:
+        return f"@.const_{self.name}.{self.version}"
+
+    def __repr__(self) -> str:
+        return f"{self.name}.{self.version}"
+
+
+class GlobalVariable(NamedVariable):
+    """Variable that lives on the 'data' section."""
+
+    __slots__ = ()
+
+    def __str__(self) -> str:
+        return f"@{self.name}"
+
+
+class LabelName(NamedVariable):
+    """Special variable for block labels."""
+
+    __slots__ = ()
+
+    def __str__(self) -> str:
+        return f"label {self.name}"
+
+
 # # # # # # # # # # #
 # INSTRUCTION TYPES #
 
@@ -70,20 +142,17 @@ class Instruction:
         else:
             return self.opname
 
-    def __getitem__(self, key: Union[int, str]) -> Any:
-        if isinstance(key, str):
-            return getattr(self, key)
-        if key > 0:
-            return getattr(self, self.arguments[key - 1])
-        else:
-            return self.operation
+    def get(self, attr: str) -> Optional[str]:
+        value = getattr(self, attr, None)
+        if value is not None:
+            return str(value)
 
     def format_args(self) -> Iterator[str]:
         if self.indent:
             yield " "
 
         if self.target is not None:
-            yield str(self[self.target_attr])
+            yield self.get(self.target_attr)
             yield "="
 
         yield self.opname
@@ -92,10 +161,11 @@ class Instruction:
             yield self.type
 
         for attr in self.arguments:
-            if attr != self.target_attr:
-                value = self[attr]
-                if value is not None:
-                    yield str(value)
+            if attr == self.target_attr:
+                continue
+            value = self.get(attr)
+            if value is not None:
+                yield value
 
     def format(self) -> str:
         return " ".join(self.format_args())
@@ -116,7 +186,7 @@ class TargetInstruction(TypedInstruction):
 
     target_attr = "target"
 
-    def __init__(self, type: str, target: str):
+    def __init__(self, type: str, target: Variable):
         super().__init__(type)
         self.target = target
 
@@ -134,7 +204,7 @@ class AllocInstr(TypedInstruction):
     arguments = ("varname",)
     target_attr = "varname"
 
-    def __init__(self, type: str, varname: str):
+    def __init__(self, type: str, varname: Variable):
         super().__init__(type)
         self.varname = varname
 
@@ -148,7 +218,7 @@ class GlobalInstr(AllocInstr):
     arguments = "varname", "value"
     indent = False
 
-    def __init__(self, type: str, varname: str, value: Optional[Any] = None):
+    def __init__(self, type: str, varname: Variable, value: Optional[str] = None):
         super().__init__(type, varname)
         # format string as expected
         if self.type.startswith("string") and value is not None:
@@ -165,7 +235,7 @@ class LoadInstr(TargetInstruction):
     opname = "load"
     arguments = "varname", "target"
 
-    def __init__(self, type: str, varname: str, target: str):
+    def __init__(self, type: str, varname: Variable, target: Variable):
         super().__init__(type, target)
         self.varname = varname
 
@@ -179,7 +249,7 @@ class StoreInstr(TargetInstruction):
     arguments = "source", "target"
     target_attr = None
 
-    def __init__(self, type: str, varname: str, target: str):
+    def __init__(self, type: str, varname: Variable, target: Variable):
         super().__init__(type, target)
         self.varname = varname
 
@@ -192,7 +262,7 @@ class LiteralInstr(TargetInstruction):
     opname = "literal"
     arguments = "value", "target"
 
-    def __init__(self, type: str, value: str, target: str):
+    def __init__(self, type: str, value: str, target: Variable):
         super().__init__(type, target)
         self.value = value
 
@@ -205,7 +275,7 @@ class ElemInstr(TargetInstruction):
     opname = "elem"
     arguments = "source", "index", "target"
 
-    def __init__(self, type: str, source: str, index: str, target: str):
+    def __init__(self, type: str, source: Variable, index: Variable, target: Variable):
         super().__init__(type, target)
         self.source = source
         self.index = index
@@ -219,7 +289,7 @@ class GetInstr(TargetInstruction):
     opname = "get"
     arguments = "source", "target"
 
-    def __init__(self, type: str, source: str, target: str):
+    def __init__(self, type: str, source: Variable, target: Variable):
         super().__init__(type, target)
         self.source = source
 
@@ -233,7 +303,7 @@ class BinaryOpInstruction(TargetInstruction):
 
     arguments = "left", "right", "target"
 
-    def __init__(self, type: str, left: str, right: str, target: str):
+    def __init__(self, type: str, left: Variable, right: Variable, target: Variable):
         super().__init__(type, target)
         self.left = left
         self.right = right
@@ -279,7 +349,7 @@ class UnaryOpInstruction(TargetInstruction):
 
     arguments = "expr", "target"
 
-    def __init__(self, type: str, expr: str, target: str):
+    def __init__(self, type: str, expr: Variable, target: Variable):
         super().__init__(type, target)
         self.expr = expr
 
@@ -366,16 +436,6 @@ class LabelInstr(Instruction):
         return f"{self.label}:"
 
 
-class LabelRef(NamedTuple):
-    label: str
-
-    def __str__(self) -> str:
-        return f"label {self.label}"
-
-    def __repr__(self) -> str:
-        return self.label
-
-
 class JumpInstr(Instruction):
     """Jump to a target label"""
 
@@ -384,9 +444,9 @@ class JumpInstr(Instruction):
     opname = "jump"
     arguments = ("target",)
 
-    def __init__(self, target: str):
+    def __init__(self, target: LabelName):
         super().__init__()
-        self.target = LabelRef(target)
+        self.target = target
 
 
 class CBranchInstr(Instruction):
@@ -397,11 +457,11 @@ class CBranchInstr(Instruction):
     opname = "cbranch"
     arguments = "expr_test", "true_target", "false_target"
 
-    def __init__(self, expr_test: str, true_target: str, false_target: str):
+    def __init__(self, expr_test: Variable, true_target: LabelName, false_target: LabelName):
         super().__init__()
         self.expr_test = expr_test
-        self.true_target = LabelRef(true_target)
-        self.false_target = LabelRef(false_target)
+        self.true_target = true_target
+        self.false_target = false_target
 
 
 # # # # # # # # # # # # #
@@ -412,7 +472,7 @@ class DefineParam(NamedTuple):
     """Parameters for the 'define' instruction"""
 
     type: str
-    name: str
+    name: Variable
 
     def __str__(self) -> str:
         return f"{self.type} {self.name}"
@@ -433,7 +493,7 @@ class DefineInstr(TypedInstruction):
     arguments = "source", "args"
     indent = False
 
-    def __init__(self, type: str, source: str, args: Sequence[tuple[str, str]] = ()):
+    def __init__(self, type: str, source: str, args: Sequence[tuple[str, Variable]] = ()):
         super().__init__(type)
         self.source = source
         self.args = tuple(DefineParam(type, name) for type, name in args)
@@ -450,7 +510,7 @@ class CallInstr(TypedInstruction):
     opname = "call"
     arguments = "source", "target"
 
-    def __init__(self, type: str, source: str, target: Optional[str] = None):
+    def __init__(self, type: str, source: Variable, target: Optional[Variable] = None):
         super().__init__(type)
         self.source = source
         self.target = target
@@ -471,7 +531,7 @@ class ReturnInstr(TypedInstruction):
     opname = "return"
     arguments = ("target",)
 
-    def __init__(self, type: str, target: Optional[str] = None):
+    def __init__(self, type: str, target: Optional[Variable] = None):
         super().__init__(type)
         self.target = target
 
@@ -484,7 +544,7 @@ class ParamInstr(TypedInstruction):
     opname = "param"
     arguments = ("source",)
 
-    def __init__(self, type: str, source: str):
+    def __init__(self, type: str, source: Variable):
         super().__init__(type)
         self.source = source
 
