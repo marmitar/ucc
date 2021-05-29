@@ -29,7 +29,7 @@ class uCType:
         self.assign_ops = frozenset(assign_ops)
 
     def __eq__(self, other: uCType) -> bool:
-        """Primary types are only equal to themselves."""
+        # primary types are only equal to themselves
         return self is other
 
     def typename(self) -> str:
