@@ -76,68 +76,8 @@ class CodeGenerator(NodeVisitor[None]):
     # A few sample methods follow. Do not hesitate to complete or change
     # them if needed.
 
-    def visit_Constant(self, node: Constant) -> None:
-        if node.rawtype == "string":
-            target = self.new_text("str")
-            inst = ("global_string", target, node.value)
-            self.text.append(inst)
-        else:
-            # Create a new temporary variable name
-            target = self.new_temp()
-            # Make the SSA opcode and append to list of generated instructions
-            inst = (f"literal_{node.uc_type!r}", node.value, target)
-            self.current_block.append(inst)
-        # Save the name of the temporary variable where the value was placed
-        node.gen_location = target
-
-    def visit_BinaryOp(self, node: BinaryOp) -> None:
-        # Visit the left and right expressions
-        self.visit(node.left)
-        self.visit(node.right)
-
-        # TODO:
-        # - Load the location containing the left expression
-        # - Load the location containing the right expression
-
-        # Make a new temporary for storing the result
-        target = self.new_temp()
-
-        # Create the opcode and append to list
-        opcode = ""  # TODO: binary_ops[node.op] + "_" + node.left.type.name
-        inst = (opcode, node.left.gen_location, node.right.gen_location, target)
-        self.current_block.append(inst)
-
-        # Store location of the result on the node
-        node.gen_location = target
-
-    def visit_Print(self, node: Print) -> None:
-        # Visit the expression
-        self.visit(node.param)
-
-        # TODO: Load the location containing the expression
-
-        # Create the opcode and append to list
-        inst = (f"print_{node.param.uc_type!r}", node.param.gen_location)
-        self.current_block.append(inst)
-
-        # TODO: Handle the cases when node.expr is None or ExprList
-
-    def visit_VarDecl(self, node: VarDecl) -> None:
-        # Allocate on stack memory
-        varname = f"%{node.declname.name}"
-        inst = (f"alloc_{node.type.name}", varname)
-        self.current_block.append(inst)
-
-        # Store optional init val
-        init = node.decl.init
-        if init is not None:
-            self.visit(init)
-            inst = (
-                f"store_{node.type.name}",
-                init.gen_location,
-                node.declname.gen_location,
-            )
-            self.current_block.append(inst)
+    # # # # # # # # #
+    # DECLARATIONS  #
 
     def visit_Program(self, node: Program) -> None:
         # Visit all of the global declarations
@@ -164,6 +104,78 @@ class CodeGenerator(NodeVisitor[None]):
                 if isinstance(decl, FuncDef):
                     dot = CFG(decl.decl.name.name)
                     dot.view(decl.cfg)  # _decl.cfg contains the CFG for the function
+
+    def visit_VarDecl(self, node: VarDecl) -> None:
+        # Allocate on stack memory
+        varname = f"%{node.declname.name}"
+        inst = (f"alloc_{node.type.name}", varname)
+        self.current_block.append(inst)
+
+        # Store optional init val
+        init = node.decl.init
+        if init is not None:
+            self.visit(init)
+            inst = (
+                f"store_{node.type.name}",
+                init.gen_location,
+                node.declname.gen_location,
+            )
+            self.current_block.append(inst)
+
+    # # # # # # # #
+    # STATEMENTS  #
+
+    def visit_Print(self, node: Print) -> None:
+        # Visit the expression
+        self.visit(node.param)
+
+        # TODO: Load the location containing the expression
+
+        # Create the opcode and append to list
+        inst = (f"print_{node.param.uc_type!r}", node.param.gen_location)
+        self.current_block.append(inst)
+
+        # TODO: Handle the cases when node.expr is None or ExprList
+
+    # # # # # # # #
+    # EXPRESSIONS #
+
+    def visit_BinaryOp(self, node: BinaryOp) -> None:
+        # Visit the left and right expressions
+        self.visit(node.left)
+        self.visit(node.right)
+
+        # TODO:
+        # - Load the location containing the left expression
+        # - Load the location containing the right expression
+
+        # Make a new temporary for storing the result
+        target = self.new_temp()
+
+        # Create the opcode and append to list
+        opcode = ""  # TODO: binary_ops[node.op] + "_" + node.left.type.name
+        inst = (opcode, node.left.gen_location, node.right.gen_location, target)
+        self.current_block.append(inst)
+
+        # Store location of the result on the node
+        node.gen_location = target
+
+    # # # # # # # # #
+    # BASIC SYMBOLS #
+
+    def visit_Constant(self, node: Constant) -> None:
+        if node.rawtype == "string":
+            target = self.new_text("str")
+            inst = ("global_string", target, node.value)
+            self.text.append(inst)
+        else:
+            # Create a new temporary variable name
+            target = self.new_temp()
+            # Make the SSA opcode and append to list of generated instructions
+            inst = (f"literal_{node.uc_type!r}", node.value, target)
+            self.current_block.append(inst)
+        # Save the name of the temporary variable where the value was placed
+        node.gen_location = target
 
     # TODO: Complete.
 
