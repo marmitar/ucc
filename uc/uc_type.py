@@ -9,20 +9,15 @@ class uCType:
     Types are declared as singleton instances of this type.
     """
 
-    __slots__ = "_typename", "binary_ops", "unary_ops", "rel_ops", "assign_ops"
+    __slots__ = "binary_ops", "unary_ops", "rel_ops", "assign_ops"
 
     def __init__(
         self,
-        name: Optional[str],
         unary_ops: set[str] = set(),
         binary_ops: set[str] = set(),
         rel_ops: set[str] = set(),
         assign_ops: set[str] = set(),
     ):
-        """
-        You must implement yourself and figure out what to store.
-        """
-        self._typename = name
         self.unary_ops = frozenset(unary_ops)
         self.binary_ops = frozenset(binary_ops)
         self.rel_ops = frozenset(rel_ops)
@@ -34,11 +29,11 @@ class uCType:
 
     def typename(self) -> str:
         """The name of the uCType."""
-        return self._typename or "<unnamed>"
+        raise NotImplementedError()
 
     def __str__(self) -> str:
         """Standard type formatting."""
-        return f"type({self!r})"
+        return f"type({self.typename()})"
 
     def __repr__(self) -> str:
         """Only show typename."""
@@ -52,12 +47,14 @@ class uCType:
 @unique
 class PrimaryType(uCType, Enum):
     def __init__(self, *op_sets: set[str]):
-        # use enum name
-        super().__init__(self.name, *op_sets)
+        super().__init__(*op_sets)
 
     @classmethod
     def get(cls, typename: str) -> Optional[PrimaryType]:
         return getattr(cls, typename, None)
+
+    def typename(self) -> str:
+        return self.name
 
     int = (
         {"-", "+", "&"},
