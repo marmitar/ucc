@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from itertools import chain
 from typing import DefaultDict, Iterable, Iterator, NamedTuple, Optional, Tuple, Union
 from graphviz import Digraph
-from uc.uc_type import uCType
+from uc.uc_type import FunctionType, uCType
 
 Instr = Tuple[str, ...]
 
@@ -611,6 +611,19 @@ class GlobalBlock(CountedBlock):
         self.text: list[GlobalInstr] = []
         # cache of defined constants, to avoid repeated values
         self.consts: dict[tuple[str, str], TextVariable] = {}
+        # list o function blocks
+        self.functions: list[FunctionBlock] = []
+
+    def new_function(self, uctype: FunctionType) -> FunctionBlock:
+        """Create a new function block."""
+        # types and variable names
+        rettype = uctype.rettype.typename()
+        varname = GlobalVariable(uctype.funcname)
+        params = (ty.typename() for ty in uctype.param_types)
+        # create function block
+        block = FunctionBlock(self, rettype, varname, params)
+        self.functions.append(block)
+        return block
 
     def new_global(self, name: str, ty: uCType, init: Optional[str] = None) -> GlobalVariable:
         """Create a new global variable on the 'data' section."""
@@ -636,6 +649,35 @@ class GlobalBlock(CountedBlock):
     def _instructions(self) -> Iterator[GlobalInstr]:
         # show text variables, then data
         return chain(self.text, self.data)
+
+    def subblocks(self) -> Iterator[FunctionBlock]:
+        return iter(self.functions)
+
+
+class FunctionBlock(CountedBlock):
+    """Special block for function definition."""
+
+    def __init__(
+        self,
+        parent: GlobalBlock,
+        rettype: str,
+        funcname: NamedVariable,
+        param_types: Iterable[str] = (),
+    ):
+        super().__init__()
+        self.parent = parent
+
+        params = ((ty, self.new_temp()) for ty in param_types)
+        self.define = DefineInstr(rettype, funcname, params)
+
+    def new_temp(self) -> TempVariable:
+        return TempVariable(self._new_version("temp"))
+
+    def named_var(self, name: str) -> NamedVariable:
+        return NamedVariable(name)
+
+    def _instructions(self) -> Iterator[DefineInstr]:
+        yield self.define
 
 
 class BasicBlock(Block):
