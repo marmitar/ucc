@@ -547,22 +547,17 @@ class NodeVisitor(Generic[R]):
     """
 
     def __init__(self, default: R) -> None:
-        self._cache: dict[str, Callable[[Node], Optional[R]]] = {}
         self._default = default
+        # cache visitor methods
+        self.visitor_for = lru_cache(maxsize=None)(self.visitor_for)
 
     def visitor_for(self, classname: str) -> Callable[[Node], Optional[R]]:
         """Find visitor method for a node class."""
-        visitor = self._cache.get(classname)
-        if visitor is not None:
-            return visitor
-        visitor = getattr(self, f"visit_{classname}", self.generic_visit)
-        self._cache[classname] = visitor
-        return visitor
+        return getattr(self, f"visit_{classname}", self.generic_visit)
 
     def visit(self, node: Node) -> R:
         """Visit a node, set and return its type."""
-        visitor = self.visitor_for(node.classname)
-        value = visitor(node)
+        value = self.visitor_for(node.classname)(node)
         return value or self._default
 
     def generic_visit(self, node: Node) -> R:
