@@ -941,6 +941,7 @@ class SemanticVisitor(NodeVisitor[uCType]):
             if definition is None:
                 raise UndefinedIdentifier(node)
             # bind identifier to its associated symbol type
+            node.def_site(definition)
             return definition.type
 
         else:  # initialize the type

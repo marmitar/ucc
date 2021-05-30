@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import DefaultDict, Iterator, NamedTuple, Optional, Sequence, Tuple, Union
+from typing import DefaultDict, Iterable, Iterator, NamedTuple, Optional, Tuple, Union
 from graphviz import Digraph
 
 Instr = Tuple[str, ...]
@@ -493,7 +493,9 @@ class DefineInstr(TypedInstruction):
     arguments = "source", "args"
     indent = False
 
-    def __init__(self, type: str, source: str, args: Sequence[tuple[str, Variable]] = ()):
+    def __init__(
+        self, type: str, source: NamedVariable, args: Iterable[tuple[str, Variable]] = ()
+    ):
         super().__init__(type)
         self.source = source
         self.args = tuple(DefineParam(type, name) for type, name in args)
