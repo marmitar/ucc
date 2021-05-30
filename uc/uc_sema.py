@@ -23,17 +23,21 @@ from uc.uc_ast import (
     Assert,
     Assignment,
     BinaryOp,
+    BoolConstant,
     Break,
+    CharConstant,
     Compound,
     Constant,
     Decl,
     ExprList,
+    FloatConstant,
     For,
     FuncCall,
     FuncDecl,
     FuncDef,
     If,
     InitList,
+    IntConstant,
     IterationStmt,
     Node,
     PointerDecl,
@@ -42,6 +46,7 @@ from uc.uc_ast import (
     Read,
     RelationOp,
     Return,
+    StringConstant,
     Type,
     UnaryOp,
     VarDecl,
@@ -52,6 +57,7 @@ from uc.uc_type import (
     ArrayType,
     BoolType,
     CharType,
+    FloatType,
     FunctionType,
     IntType,
     PointerType,
@@ -954,24 +960,28 @@ class SemanticVisitor(NodeVisitor[uCType]):
             self.symtab.add(node)
             return uctype
 
-    def _get_primary_type(self, typename: str, coord: Optional[Coord]) -> uCType:
-        """Get primary type from type name."""
-        uc_type = PrimaryType.get(typename)
-        # check if type exists
-        if uc_type is None:
-            raise UnknownType(typename, coord)
-        return uc_type
+    def visit_StringConstant(self, node: StringConstant) -> ArrayType:
+        return ArrayType(CharType, len(node.value) + 1)
 
-    def visit_Constant(self, node: Constant) -> Union[PrimaryType, ArrayType]:
-        # Get the matching uCType
-        if node.rawtype == "string":
-            return ArrayType(CharType, len(node.value) + 1)
-        else:
-            return self._get_primary_type(node.rawtype, node.coord)
+    def visit_IntConstant(self, _: IntConstant) -> Literal[IntType]:
+        return IntType
+
+    def visit_FloatConstant(self, _: FloatConstant) -> Literal[FloatType]:
+        return FloatType
+
+    def visit_BoolConstant(self, _: BoolConstant) -> Literal[BoolType]:
+        return BoolType
+
+    def visit_CharConstant(self, _: CharConstant) -> Literal[CharType]:
+        return CharType
 
     def visit_Type(self, node: Type) -> PrimaryType:
         # Get the matching basic uCType
-        return self._get_primary_type(node.name, node.coord)
+        uc_type = PrimaryType.get(node.name)
+        # check if type exists
+        if uc_type is None:
+            raise UnknownType(node.name, node.coord)
+        return uc_type
 
 
 class Visitor:
