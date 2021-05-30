@@ -3,6 +3,7 @@ import inspect
 import sys
 from collections.abc import Sequence
 from typing import Literal, Optional, Protocol, TextIO, Tuple, Union, overload
+from uc.uc_block import NamedVariable
 from uc.uc_type import ArrayType, FunctionType, PointerType, PrimaryType, uCType
 
 
@@ -645,8 +646,11 @@ class Constant(Node):
 
 
 class ID(Node):
-    __slots__ = ("name",)
+    __slots__ = "name", "_definition"
     attr_names = ("name",)
+    special_attr = ("_definition",)
+
+    _definition: Union[ID, NamedVariable]
 
     def __init__(self, name: str, coord: Coord):
         super().__init__(coord)
@@ -654,6 +658,22 @@ class ID(Node):
 
     def lvalue_name(self) -> ID:
         return self
+
+    def def_site(self, definition: ID) -> None:
+        """Set definition for identifier."""
+        self._definition = definition
+
+    @property
+    def varname(self) -> NamedVariable:
+        """Variable name for identifier."""
+        ident = self
+        while isinstance(ident._definition, ID):
+            ident = ident._definition
+        return ident._definition
+
+    @varname.setter
+    def varname(self, name: NamedVariable) -> None:
+        self._definition = name
 
 
 class Type(Node):
