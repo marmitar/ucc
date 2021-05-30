@@ -669,6 +669,8 @@ class FunctionBlock(CountedBlock):
 
         params = ((ty, self.new_temp()) for ty in param_types)
         self.define = DefineInstr(rettype, funcname, params)
+        # function body
+        self.blocks: list[BasicBlock] = []
 
     def new_temp(self) -> TempVariable:
         return TempVariable(self._new_version("temp"))
@@ -676,8 +678,21 @@ class FunctionBlock(CountedBlock):
     def named_var(self, name: str) -> NamedVariable:
         return NamedVariable(name)
 
+    def new_block(self, name: Optional[str] = None) -> BasicBlock:
+        if name is None:
+            # generate generic name
+            version = self._new_version("label")
+            name = f".L{version}"
+
+        block = BasicBlock(self, name)
+        self.blocks.append(block)
+        return block
+
     def _instructions(self) -> Iterator[DefineInstr]:
         yield self.define
+
+    def subblocks(self) -> Iterator[BasicBlock]:
+        return iter(self.blocks)
 
 
 class BasicBlock(Block):
@@ -686,10 +701,35 @@ class BasicBlock(Block):
     flows to the next block.
     """
 
-    def __init__(self, label: str):
-        super(self).__init__(label)
-        # Not necessary the same as next_block in the linked list
-        self.branch: Optional[Block] = None
+    def __init__(self, function: FunctionBlock, name: str):
+        super().__init__()
+        self.function = function
+
+        self.instr: list[Instruction] = []
+        # label definition
+        self.label_def = LabelInstr(name)
+
+    @property
+    def label(self) -> LabelName:
+        return LabelName(self.label_def.label)
+
+    def append(self, instr: Instruction) -> None:
+        self.instr.append(instr)
+
+    def new_temp(self) -> TempVariable:
+        return self.function.new_temp()
+
+    def named_var(self, name: str) -> NamedVariable:
+        return self.function.named_var(name)
+
+    def new_literal(self, typename: str, value: str) -> TextVariable:
+        return self.function.parent.new_literal(typename, value)
+
+    def _instructions(self) -> Iterator[Instruction]:
+        return chain((self.label_def,), self.instr)
+
+    def subblocks(self) -> Iterator[Block]:
+        return iter(())
 
 
 class ConditionBlock(Block):
