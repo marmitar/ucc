@@ -1,7 +1,20 @@
 from __future__ import annotations
 from dataclasses import dataclass
+from functools import lru_cache
 from itertools import chain
-from typing import DefaultDict, Iterable, Iterator, NamedTuple, Optional, Tuple, Union
+from typing import (
+    Callable,
+    DefaultDict,
+    Generic,
+    Iterable,
+    Iterator,
+    List,
+    NamedTuple,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+)
 from graphviz import Digraph
 from uc.uc_type import FunctionType, uCType
 
@@ -578,11 +591,8 @@ class Block:
     def classname(self) -> str:
         return self.__class__.__name__
 
-    def _instructions(self) -> Iterator[Instruction]:
+    def instructions(self) -> Iterator[Instruction]:
         raise NotImplementedError()
-
-    def instructions(self) -> tuple[Instruction, ...]:
-        return tuple(self._instructions())
 
     def subblocks(self) -> Iterator[Block]:
         raise NotImplementedError()
@@ -646,7 +656,7 @@ class GlobalBlock(CountedBlock):
         self.consts[typename, value] = varname
         return varname
 
-    def _instructions(self) -> Iterator[GlobalInstr]:
+    def instructions(self) -> Iterator[GlobalInstr]:
         # show text variables, then data
         return chain(self.text, self.data)
 
@@ -688,7 +698,7 @@ class FunctionBlock(CountedBlock):
         self.blocks.append(block)
         return block
 
-    def _instructions(self) -> Iterator[DefineInstr]:
+    def instructions(self) -> Iterator[DefineInstr]:
         yield self.define
 
     def subblocks(self) -> Iterator[BasicBlock]:
@@ -710,8 +720,12 @@ class BasicBlock(Block):
         self.label_def = LabelInstr(name)
 
     @property
+    def name(self) -> str:
+        return self.label_def.label
+
+    @property
     def label(self) -> LabelName:
-        return LabelName(self.label_def.label)
+        return LabelName(self.name)
 
     def append(self, instr: Instruction) -> None:
         self.instr.append(instr)
@@ -725,90 +739,136 @@ class BasicBlock(Block):
     def new_literal(self, typename: str, value: str) -> TextVariable:
         return self.function.parent.new_literal(typename, value)
 
-    def _instructions(self) -> Iterator[Instruction]:
+    def instructions(self) -> Iterator[Instruction]:
         return chain((self.label_def,), self.instr)
 
     def subblocks(self) -> Iterator[Block]:
         return iter(())
 
 
-class ConditionBlock(Block):
-    """
-    Class for a block representing an conditional statement.
-    There are two branches to handle each possibility.
-    """
+# class ConditionBlock(Block):
+#     """
+#     Class for a block representing an conditional statement.
+#     There are two branches to handle each possibility.
+#     """
 
-    def __init__(self, label: str):
-        super(self).__init__(label)
-        self.taken: Optional[Block] = None
-        self.fall_through: Optional[Block] = None
+#     def __init__(self, label: str):
+#         super(self).__init__(label)
+#         self.taken: Optional[Block] = None
+#         self.fall_through: Optional[Block] = None
+
+# container and value
+C = TypeVar("C")
+V = TypeVar("V")
 
 
-class BlockVisitor:
+class BlockVisitor(Generic[C, V]):
     """
     Class for visiting blocks.  Define a subclass and define
     methods such as visit_BasicBlock or visit_ConditionalBlock to
     implement custom processing (similar to ASTs).
     """
 
-    def visit(self, block: Optional[Block]) -> None:
-        while isinstance(block, Block):
-            name = f"visit_{block.classname}"
-            getattr(self, name, lambda _: None)(block)
-            block = block.next_block
+    def __init__(self, combine: Callable[[C, V], Optional[C]], default: Callable[[], C]):
+        self.visitor = lru_cache(maxsize=None)(self.visitor)
+        self.default = default
+        # insert new value in total
+        def append(total: C, data: Optional[V]) -> C:
+            # nothing ot insert
+            if data is None:
+                return total
+            new_total = combine(total, data)
+            # insertion may be in-place
+            if new_total is None:
+                return total
+            else:
+                return new_total
+
+        self.combine = append
+
+    def generic_visit(self, _block: Block) -> Optional[V]:
+        raise NotImplementedError()
+
+    def visitor(self, classname: str) -> Callable[[Block], Optional[V]]:
+        return getattr(self, f"visit_{classname}", self.generic_visit)
+
+    def visit(self, block: Block) -> C:
+        result = self.default()
+
+        value = self.visitor(block.classname)(block)
+        result = self.combine(result, value)
+
+        for subblock in block.subblocks():
+            result = self.combine(result, self.visit(subblock))
+
+        return result
 
 
-class EmitBlocks(BlockVisitor):
+class EmitBlocks(BlockVisitor[List[Instruction], Iterator[Instruction]]):
     def __init__(self):
-        super().__init__()
-        self.code: list[Instr] = []
+        super().__init__(list.extend, default=list)
 
-    def visit_BasicBlock(self, block: BasicBlock) -> None:
-        for inst in block.instructions:
-            self.code.append(inst)
-
-    def visit_ConditionBlock(self, block: ConditionBlock) -> None:
-        for inst in block.instructions:
-            self.code.append(inst)
+    def generic_visit(self, block: Block) -> Iterator[Instruction]:
+        return block.instructions()
 
 
-class CFG(BlockVisitor):
-    def __init__(self, fname: str):
-        super().__init__()
-        self.fname = fname
-        self.g = Digraph("g", filename=fname + ".gv", node_attr={"shape": "record"})
+@dataclass
+class NodeData:
+    instr: tuple[Instruction, ...]
+    name: Optional[str]
 
-    def visit_BasicBlock(self, block: BasicBlock) -> None:
-        # Get the label as node name
-        name = block.label
-        if name:
-            # get the formatted instructions as node label
-            label = "{" + name + ":\\l\t"
-            for inst in block.instructions[1:]:
-                label += format_instruction(inst) + "\\l\t"
-            label += "}"
-            self.g.node(name, label=label)
-            if block.branch:
-                self.g.edge(name, block.branch.label)
+    def __init__(self, instr: Iterable[Instruction] = (), name: Optional[str] = None):
+        self.instr = tuple(instr)
+        self.name = name
+
+    def as_label(self) -> str:
+        """Create node label from data."""
+        if self.name:
+            init = ("{" + self.name + ":",)
         else:
-            # Function definition. An empty block that connect to the Entry Block
-            self.g.node(self.fname, label=None, _attributes={"shape": "ellipse"})
-            self.g.edge(self.fname, block.next_block.label)
+            init = "{"
+        instr = (i.format() for i in self.instr)
+        end = "}"
 
-    def visit_ConditionBlock(self, block: ConditionBlock) -> None:
-        # Get the label as node name
-        name = block.label
-        # get the formatted instructions as node label
-        label = "{" + name + ":\\l\t"
-        for inst in block.instructions[1:]:
-            label += format_instruction(inst) + "\\l\t"
-        label += "|{<f0>T|<f1>F}}"
-        self.g.node(name, label=label)
-        self.g.edge(name + ":f0", block.taken.label)
-        self.g.edge(name + ":f1", block.fall_through.label)
+        return "\\l\t".join(chain(init, instr, end))
 
-    def view(self, block: Optional[Block] = None) -> None:
-        self.visit(block)
+
+class CFG(BlockVisitor[Digraph, NodeData]):
+    def __init__(self, name: str):
+        # initializer for base BlockVisitor
+        def new_graph() -> Digraph:
+            return Digraph("g", filename=f"{name}.gv", node_attr={"shape": "record"})
+
+        def add_node(g: Digraph, node: NodeData):
+            # TODO: edges
+            g.node(node.name, node.as_label())
+
+        super().__init__(add_node, new_graph)
+
+    def generic_visit(self, block: Block) -> NodeData:
+        return NodeData(block.instructions())
+
+    def visit_BasicBlock(self, block: BasicBlock) -> NodeData:
+        return NodeData(block.instr, block.name)
+        # TODO:
+        # # Function definition. An empty block that connect to the Entry Block
+        # self.g.node(self.fname, label=None, _attributes={"shape": "ellipse"})
+        # self.g.edge(self.fname, block.next_block.label)
+
+    # def visit_ConditionBlock(self, block: ConditionBlock) -> None:
+    #     # Get the label as node name
+    #     name = block.label
+    #     # get the formatted instructions as node label
+    #     label = "{" + name + ":\\l\t"
+    #     for inst in block.instructions[1:]:
+    #         label += format_instruction(inst) + "\\l\t"
+    #     label += "|{<f0>T|<f1>F}}"
+    #     self.g.node(name, label=label)
+    #     self.g.edge(name + ":f0", block.taken.label)
+    #     self.g.edge(name + ":f1", block.fall_through.label)
+
+    def view(self, block: Block) -> None:
+        graph = self.visit(block)
         # You can use the next stmt to see the dot file
-        # print(self.g.source)
-        self.g.view(quiet=True, quiet_view=True)
+        # print(graph.source)
+        graph.view(quiet=True, quiet_view=True)
