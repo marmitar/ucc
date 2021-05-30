@@ -14,7 +14,53 @@ from __future__ import annotations
 import re
 import sys
 from typing import Iterator, Optional, Union
-from uc.uc_block import Instr, format_instruction
+from uc.uc_block import Instruction
+
+
+def format_instruction(t: tuple[str, ...]) -> str:
+    operand = t[0].split("_")
+    op = operand[0]
+    ty = operand[1] if len(operand) > 1 else None
+    if len(operand) >= 3:
+        for qual in operand[2:]:
+            if qual == "*":
+                ty += "*"
+            else:
+                ty += f"[{qual}]"
+    if len(t) > 1:
+        if op == "define":
+            return f"\n{op} {ty} {t[1]} (" + ", ".join(" ".join(el) for el in t[2]) + ")"
+        else:
+            _str = "" if op == "global" else "  "
+            if op == "jump":
+                _str += f"{op} label {t[1]}"
+            elif op == "cbranch":
+                _str += f"{op} {t[1]} label {t[2]} label {t[3]}"
+            elif op == "global":
+                if ty.startswith("string"):
+                    _str += f"{t[1]} = {op} {ty} '{t[2]}'"
+                elif len(t) > 2:
+                    _str += f"{t[1]} = {op} {ty} {t[2]}"
+                else:
+                    _str += f"{t[1]} = {op} {ty}"
+            elif op == "return" or op == "print":
+                _str += f"{op} {ty} {t[1]}"
+            elif op == "sitofp" or op == "fptosi":
+                _str += f"{t[2]} = {op} {t[1]}"
+            elif op == "store" or op == "param":
+                _str += f"{op} {ty} "
+                for el in t[1:]:
+                    _str += f"{el} "
+            else:
+                _str += f"{t[-1]} = {op} {ty} "
+                for el in t[1:-1]:
+                    _str += f"{el} "
+            return _str
+    elif ty == "void":
+        return f"  {op}"
+    else:
+        return f"{op}"
+
 
 Value = Union[str, int, float, None]
 
@@ -229,7 +275,7 @@ class Interpreter:
             except Exception:
                 print("unrecognized command")
 
-    def run(self, ircode: list[Instr]) -> None:
+    def run(self, ircode: list[Instruction]) -> None:
         """
         Run intermediate code in the interpreter.  ircode is a list
         of instruction tuples.  Each instruction (opcode, *args) is
@@ -237,7 +283,7 @@ class Interpreter:
         """
         # First, store the global vars & constants
         # Also, set the start pc to the main function entry
-        self.code = ircode
+        self.code = [ir.as_tuple() for ir in ircode]
         self.pc = 0
         self.offset = 0
         while True:
@@ -469,7 +515,7 @@ class Interpreter:
             self.pc = self.vars[false_target]
 
     # Enter the function
-    def run_define_int(self, source: str, args: list[Instr]) -> None:
+    def run_define_int(self, source: str, args: list[tuple[str, ...]]) -> None:
         if source == "@main":
             # alloc register to the return value but initialize it with "None".
             # We use the "None" value when main function returns void.
@@ -484,7 +530,7 @@ class Interpreter:
     run_define_float = run_define_int
     run_define_char = run_define_int
 
-    def run_define_void(self, source: str, args: list[Instr]) -> None:
+    def run_define_void(self, source: str, args: list[tuple[str, ...]]) -> None:
         if source == "@main":
             # alloc register to the return value but not initialize it.
             # We use the "None" value to check if main function returns void.
