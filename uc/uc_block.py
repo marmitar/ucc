@@ -1,7 +1,9 @@
 from __future__ import annotations
 from dataclasses import dataclass
+from itertools import chain
 from typing import DefaultDict, Iterable, Iterator, NamedTuple, Optional, Tuple, Union
 from graphviz import Digraph
+from uc.uc_type import uCType
 
 Instr = Tuple[str, ...]
 
@@ -570,21 +572,70 @@ class PrintInstr(ParamInstr):
 
 
 class Block:
-    def __init__(self, label: str):
-        self.label = label  # Label that identifies the block
-        self.instructions: list[Instr] = []  # Instructions in the block
-        self.predecessors: list[Block] = []  # List of predecessors
-        self.next_block: Optional[Block] = None  # Link to the next block
+    __slots__ = ()
 
     @property
     def classname(self) -> str:
         return self.__class__.__name__
 
-    def append(self, instr: Instr) -> None:
-        self.instructions.append(instr)
+    def _instructions(self) -> Iterator[Instruction]:
+        raise NotImplementedError()
 
-    def __iter__(self) -> Iterator[Instr]:
-        return iter(self.instructions)
+    def instructions(self) -> tuple[Instruction, ...]:
+        return tuple(self._instructions())
+
+    def subblocks(self) -> Iterator[Block]:
+        raise NotImplementedError()
+
+
+class CountedBlock(Block):
+    __slots__ = ("_count",)
+
+    def __init__(self, initial: int = 0):
+        super().__init__()
+        self._count = DefaultDict[str, int](lambda: initial)
+
+    def _new_version(self, key: str) -> int:
+        value = self._count[key]
+        self._count[key] += 1
+        return value
+
+
+class GlobalBlock(CountedBlock):
+    """Main block, able to declare globals and constants."""
+
+    def __init__(self):
+        super().__init__()
+
+        self.data: list[GlobalInstr] = []
+        self.text: list[GlobalInstr] = []
+        # cache of defined constants, to avoid repeated values
+        self.consts: dict[tuple[str, str], TextVariable] = {}
+
+    def new_global(self, name: str, ty: uCType, init: Optional[str] = None) -> GlobalVariable:
+        """Create a new global variable on the 'data' section."""
+        varname = GlobalVariable(name)
+        self.data.append(GlobalInstr(ty.typename(), varname, init))
+        return varname
+
+    def new_literal(self, typename: str, value: str) -> TextVariable:
+        """Create a new literal constant on the 'text' section."""
+        # avoid repeated constants
+        varname = self.consts.get((typename, value))
+        if varname is not None:
+            return varname
+
+        # remove non alphanumeric character
+        name = "".join(ch if ch.isalnum() else "_" for ch in typename)
+        varname = TextVariable(name, self._new_version(name))
+        # and insert into the text section
+        self.text.append(GlobalInstr(typename, varname, value))
+        self.consts[typename, value] = varname
+        return varname
+
+    def _instructions(self) -> Iterator[GlobalInstr]:
+        # show text variables, then data
+        return chain(self.text, self.data)
 
 
 class BasicBlock(Block):
