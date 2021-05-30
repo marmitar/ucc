@@ -12,12 +12,15 @@ from uc.uc_ast import (
     Assert,
     Assignment,
     BinaryOp,
+    BoolConstant,
     Break,
+    CharConstant,
     Compound,
     Constant,
     Decl,
     DeclList,
     ExprList,
+    FloatConstant,
     For,
     FuncCall,
     FuncDecl,
@@ -25,6 +28,7 @@ from uc.uc_ast import (
     GlobalDecl,
     If,
     InitList,
+    IntConstant,
     Modifier,
     Node,
     ParamList,
@@ -34,6 +38,7 @@ from uc.uc_ast import (
     Read,
     RelationOp,
     Return,
+    StringConstant,
     Type,
     UnaryOp,
     VarDecl,
@@ -531,24 +536,24 @@ class UCParser:
     def p_integer_constant(self, p):
         """integer_constant : INT_CONST"""
         coord = self._token_coord(p, 1)
-        p[0] = Constant("int", int(p[1]), coord)
+        p[0] = IntConstant(int(p[1]), coord)
 
     def p_character_constant(self, p):
         """character_constant : CHAR_CONST"""
         coord = self._token_coord(p, 1)
-        p[0] = Constant("char", p[1], coord)
+        p[0] = CharConstant(p[1], coord)
 
     def p_boolean_constant(self, p):
         """boolean_constant : TRUE
         | FALSE
         """
         coord = self._token_coord(p, 1)
-        p[0] = Constant("bool", p[1] == "true", coord)
+        p[0] = BoolConstant(p[1] == "true", coord)
 
     def p_float_constant(self, p):
         """float_constant : FLOAT_CONST"""
         coord = self._token_coord(p, 1)
-        p[0] = Constant("float", float(p[1]), coord)
+        p[0] = FloatConstant(float(p[1]), coord)
 
     def p_identifier(self, p):
         """identifier : ID"""
@@ -558,7 +563,7 @@ class UCParser:
     def p_string(self, p):
         """string : STRING_LITERAL"""
         coord = self._token_coord(p, 1)
-        p[0] = Constant("string", p[1], coord)
+        p[0] = StringConstant(p[1], coord)
 
     # # # # # #
     # ERRORS  #

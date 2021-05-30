@@ -626,22 +626,64 @@ class AddressOp(UnaryOp):
 
 
 class Constant(Node):
-    __slots__ = "rawtype", "value"
-    attr_names = "rawtype", "value"
+    __slots__ = ("value",)
+    attr_names = ("value",)
 
-    # fmt: off
-    @overload
-    def __init__(self, type: Literal["int"], value: int, coord: Coord): ...
-    @overload
-    def __init__(self, type: Literal["bool"], value: bool, coord: Coord): ...
-    @overload
-    def __init__(self, type: Literal["float"], value: float, coord: Coord): ...
-    @overload
-    def __init__(self, type: Literal["char", "string"], value: str, coord: Coord): ...
-    # fmt: on
-    def __init__(self, type: str, value: Union[int, bool, float, str], coord: Coord):
+    value: Union[int, bool, float, str]
+
+
+class StringConstant(Constant):
+    __slots__ = ()
+    attr_names = ()
+
+    value: str
+
+    def __init__(self, value: str, coord: Coord):
         super().__init__(coord)
-        self.rawtype = type
+        self.value = value
+
+
+class IntConstant(Constant):
+    __slots__ = ()
+    attr_names = ()
+
+    value: int
+
+    def __init__(self, value: int, coord: Coord):
+        super().__init__(coord)
+        self.value = value
+
+
+class FloatConstant(Constant):
+    __slots__ = ()
+    attr_names = ()
+
+    value: float
+
+    def __init__(self, value: float, coord: Coord):
+        super().__init__(coord)
+        self.value = float
+
+
+class CharConstant(Constant):
+    __slots__ = ()
+    attr_names = ()
+
+    value: str
+
+    def __init__(self, value: str, coord: Coord):
+        super().__init__(coord)
+        self.value = value
+
+
+class BoolConstant(Constant):
+    __slots__ = ()
+    attr_names = ()
+
+    value: bool
+
+    def __init__(self, value: bool, coord: Coord):
+        super().__init__(coord)
         self.value = value
 
 

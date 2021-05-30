@@ -90,6 +90,7 @@ IntType = PrimaryType.int
 CharType = PrimaryType.char
 BoolType = PrimaryType.bool
 VoidType = PrimaryType.void
+FloatType = PrimaryType.float
 
 
 # # # # # # # #
