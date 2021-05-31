@@ -39,7 +39,7 @@ from uc.uc_ast import (
     RelationOp,
     Return,
     StringConstant,
-    Type,
+    TypeSpec,
     UnaryOp,
     VarDecl,
     While,
@@ -130,7 +130,7 @@ class UCParser:
         column = p.lexpos(token_idx) - (last_cr)
         return Coord(p.lineno(token_idx), column)
 
-    def _build_declarations(self, spec: Optional[Type], decls: list[DeclSpec]) -> list[Decl]:
+    def _build_declarations(self, spec: Optional[TypeSpec], decls: list[DeclSpec]) -> list[Decl]:
         """Builds a list of declarations all sharing the given specifiers."""
         declarations = []
 
@@ -142,7 +142,7 @@ class UCParser:
 
         return declarations
 
-    def _fix_decl_name_type(self, decl: Decl, typename: Optional[Type]) -> Decl:
+    def _fix_decl_name_type(self, decl: Decl, typename: Optional[TypeSpec]) -> Decl:
         """Fixes a declaration. Modifies decl."""
         # Reach the underlying basic type
         type = decl
@@ -154,9 +154,9 @@ class UCParser:
             # Functions default to returning int
             if not isinstance(decl.type, FuncDecl):
                 self._parser_error("Missing type in declaration", decl.coord)
-            type.type = Type("int", coord=decl.coord)
+            type.type = TypeSpec("int", coord=decl.coord)
         else:
-            type.type = Type(typename.name, coord=typename.coord)
+            type.type = TypeSpec(typename.name, coord=typename.coord)
 
         return decl
 
@@ -522,7 +522,7 @@ class UCParser:
         | FLOAT
         """
         coord = self._token_coord(p, 1)
-        p[0] = Type(p[1], coord)
+        p[0] = TypeSpec(p[1], coord)
 
     def p_unary_operator(self, p):
         """unary_operator : PLUS
