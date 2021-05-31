@@ -189,19 +189,26 @@ class AllocInstr(TypedInstruction):
 class GlobalInstr(AllocInstr):
     """Allocate on heap a global var of a given type. value is optional."""
 
-    __slots__ = ("value",)
+    __slots__ = ("_value",)
 
     opname = "global"
     arguments = "varname", "value"
     indent = False
 
-    def __init__(self, type: str, varname: Variable, value: Optional[str] = None):
+    def __init__(self, type: str, varname: Variable, value: Optional[Any] = None):
         super().__init__(type, varname)
+        self._value = value
+
+    def as_tuple(self) -> tuple[str, ...]:
+        return self.operation, self.varname, self._value
+
+    @property
+    def value(self) -> Optional[Any]:
         # format string as expected
-        if self.type.startswith("string") and value is not None:
-            self.value = f"'{value}'"
+        if self.type == "string" and self._value is not None:
+            return f"'{self._value}'"
         else:
-            self.value = value
+            return self._value
 
 
 class LoadInstr(TargetInstruction):
@@ -239,7 +246,7 @@ class LiteralInstr(TargetInstruction):
     opname = "literal"
     arguments = "value", "target"
 
-    def __init__(self, type: str, value: str, target: Variable):
+    def __init__(self, type: str, value: Any, target: Variable):
         super().__init__(type, target)
         self.value = value
 
@@ -727,60 +734,47 @@ class BasicBlock(Block):
 # # # # # # # # #
 # BLOCK VISITOR #
 
-# container and value
+# container
 C = TypeVar("C")
-V = TypeVar("V")
 
 
-class BlockVisitor(Generic[C, V]):
+class BlockVisitor(Generic[C]):
     """
     Class for visiting blocks.  Define a subclass and define
     methods such as visit_BasicBlock or visit_ConditionalBlock to
     implement custom processing (similar to ASTs).
     """
 
-    def __init__(self, combine: Callable[[C, V], Optional[C]], default: Callable[[], C]):
+    def __init__(self, default: Callable[[], C]):
         self.visitor = lru_cache(maxsize=None)(self.visitor)
         self.default = default
-        # insert new value in total
-        def append(total: C, data: Optional[V]) -> C:
-            # nothing ot insert
-            if data is None:
-                return total
-            new_total = combine(total, data)
-            # insertion may be in-place
-            if new_total is None:
-                return total
-            else:
-                return new_total
 
-        self.combine = append
-
-    def generic_visit(self, _block: Block) -> Optional[V]:
+    def generic_visit(self, _block: Block, _total: C) -> Optional[C]:
         raise NotImplementedError()
 
-    def visitor(self, classname: str) -> Callable[[Block], Optional[V]]:
+    def visitor(self, classname: str) -> Callable[[Block, C], Optional[C]]:
         return getattr(self, f"visit_{classname}", self.generic_visit)
 
     def visit(self, block: Block, total: Optional[C] = None) -> C:
         if total is None:
             total = self.default()
 
-        value = self.visitor(block.classname)(block)
-        total = self.combine(total, value)
-
-        for subblock in block.subblocks():
-            total = self.visit(subblock, total)
-
-        return total
+        value = self.visitor(block.classname)(block, total)
+        if value is not None:
+            return value
+        else:
+            return total
 
 
-class EmitBlocks(BlockVisitor[List[Instruction], Iterator[Instruction]]):
+class EmitBlocks(BlockVisitor[List[Instruction]]):
     def __init__(self):
-        super().__init__(list.extend, list)
+        super().__init__(list)
 
-    def generic_visit(self, block: Block) -> Iterator[Instruction]:
-        return block.instructions()
+    def generic_visit(self, block: Block, total: list[Instruction]) -> None:
+        total.extend(block.instructions())
+
+        for sub in block.subblocks():
+            self.visit(sub, total)
 
 
 # # # # # # # # # # # #
@@ -788,95 +782,93 @@ class EmitBlocks(BlockVisitor[List[Instruction], Iterator[Instruction]]):
 
 
 @dataclass
-class NodeData:
-    instr: tuple[Instruction, ...]
-    name: Optional[str]
-    edges: list[tuple[str, Optional[str]]]
+class GraphData:
+    """Wrapper for building the CFG graph."""
 
-    def __init__(self, instr: Iterable[Instruction] = (), name: Optional[str] = None):
-        self.instr = tuple(instr)
-        self.name = name
-        self.edges = []
+    def __init__(self, graph: Digraph):
+        self.graph = graph
+        self.nodes: dict[Block, str] = {}
 
-    def add_edge(self, node: Union[str, NodeData], label: Optional[str] = None) -> None:
-        if isinstance(node, NodeData):
-            node = node.name
-
-        self.edges.append((node, label))
-
-    def as_label(self) -> str:
-        """Create node label from data."""
-        if self.name and self.instr:
-            init = ("{" + self.name + ":",)
-        elif self.isntr:
-            init = "{"
-        elif self.name:
-            return "{" + self.name + "}"
-        else:
+    def build_label(self, name: str = "", instr: Iterable[Instruction] = ()) -> str:
+        """Create node label from instructions."""
+        if not name and not instr:
             raise ValueError()
+        elif not instr:
+            return "{" + name + "}"
 
-        instr = (i.format() for i in self.instr)
+        init = "{"
+        if name:
+            init += name + ":"
+        body = (i.format() for i in instr)
         end = "}"
 
-        return "\\l\t".join(chain(init, instr, end))
+        return "\\l\t".join(chain((init,), body, (end,)))
+
+    def add_node(
+        self,
+        block: Optional[Block],
+        name: str,
+        instr: Iterable[Instruction] = (),
+        show_name: bool = True,
+    ) -> None:
+        label = self.build_label(name if show_name else "", instr)
+        self.graph.node(name, label=label)
+
+        if block:
+            self.nodes[block] = name
+
+    def add_edge(
+        self, tail: Union[str, Block], head: Union[str, Block], label: Optional[str] = None
+    ) -> None:
+        if isinstance(tail, Block):
+            tail = self.nodes[tail]
+        if isinstance(head, Block):
+            head = self.nodes[head]
+
+        self.graph.edge(tail, head, label=label)
 
 
-Data = Union[NodeData, Iterable[NodeData]]
-
-
-class CFG(BlockVisitor[Digraph, Data]):
+class CFG(BlockVisitor[GraphData]):
     def __init__(self, name: str):
-        self.g = Digraph("g", filename=f"{name}.gv", node_attr={"shape": "record"})
-        super().__init__(lambda _, node: self.add_node(node), lambda: self.g)
+        def new_data():
+            g = Digraph("g", filename=f"{name}.gv", node_attr={"shape": "record"})
+            return GraphData(g)
 
-    def add_node(self, node: Data) -> None:
-        # adiciona um nó no grafo
-        if isinstance(node, NodeData):
-            self.g.node(node.name, node.as_label())
-            for adj, label in node.edges:
-                self.g.edge(node.name, adj, label=label)
-        # ou vários nós
-        else:
-            for data in node:
-                self.add_node(data)
+        super().__init__(new_data)
 
-    def generic_visit(self, block: Block) -> NodeData:
-        return NodeData(block.instructions())
+    def generic_visit(self, block: Block, g: GraphData) -> None:
+        g.add_node(block, "", block.instructions())
 
-    def visit_GlobalBlock(self, block: GlobalBlock) -> Iterator[NodeData]:
-        glob = NodeData(name=":global:")
-
-        text = NodeData(block.text, ".text")
-        yield text
-        glob.add_edge(text)
-
-        data = NodeData(block.data, ".data")
-        yield data
-        glob.add_edge(data)
-
+    def visit_GlobalBlock(self, block: GlobalBlock, g: GraphData) -> None:
+        # special node for data and text sections
+        g.add_node(None, ".text")
+        g.add_node(None, ".data")
+        # that are connected to the global node
+        g.add_node(block, ":global:")
+        g.add_edge(block, ".text")
+        g.add_edge(block, ".data")
+        # and all functions as well
         for func in block.subblocks():
-            self.visit(func, self.g)
-            glob.add_edge(func.name)
+            self.visit(func, g)
+            g.add_edge(block, func)
 
-        yield glob
+    def visit_FuntionBlock(self, func: FunctionBlock, g: GraphData) -> None:
+        g.add_node(func, func.name)
+        # connect each block to the next
+        it = iter(func.subblocks())  # TODO: don't
+        block = next(it)
 
-    def visit_FuntionBlock(self, block: FunctionBlock) -> Iterator[NodeData]:
-        func = NodeData(name=block.name)
+        self.visit(block, g)
+        g.add_edge(func, block)
 
-        it = iter(block.subblocks())
-
-        yield (data := self.visit_BasicBlock(next(it)))
-        func.add_edge(data)
         for subblock in it:
-            yield (blk := self.visit_BasicBlock(subblock))
-            data.add_edge(blk)
-            data = blk
+            self.visit(subblock, g)
+            g.add_edge(block, subblock)
+            block = subblock
 
-        yield func
-
-    def visit_BasicBlock(self, block: BasicBlock) -> NodeData:
+    def visit_BasicBlock(self, block: BasicBlock, g: GraphData) -> None:
         name = f"<{block.function.name}>{block.name}"
-        return NodeData(block.instr, name)
+        g.add_node(block, name, block.instr)
         # TODO:
         # # Function definition. An empty block that connect to the Entry Block
         # self.g.node(self.fname, label=None, _attributes={"shape": "ellipse"})
@@ -895,7 +887,7 @@ class CFG(BlockVisitor[Digraph, Data]):
     #     self.g.edge(name + ":f1", block.fall_through.label)
 
     def view(self, block: Block) -> None:
-        graph = self.visit(block)
+        graph = self.visit(block).graph
         # You can use the next stmt to see the dot file
         # print(graph.source)
         graph.view(quiet=True, quiet_view=True)
