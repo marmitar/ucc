@@ -47,7 +47,7 @@ from uc.uc_ast import (
     RelationOp,
     Return,
     StringConstant,
-    Type,
+    TypeSpec,
     UnaryOp,
     VarDecl,
     While,
@@ -310,7 +310,7 @@ class NameAlreadyDefined(SemanticError):  # msg_code: 25
 class NodeIsNotAVariable(SemanticError):  # msg_code: 23
     def __init__(self, node: Node):
         node.uc_type = ""  # delete type to match output
-        super().__init__(f"{node} is not a variable", node.coord)
+        super().__init__(f"{node.classname} is not a variable", node.coord)
 
 
 class ExprIsNotAnArray(SemanticError):
@@ -634,7 +634,7 @@ class SemanticVisitor(NodeVisitor[uCType]):
 
     def visit_VarDecl(self, node: VarDecl) -> PrimaryType:
         # just pass on the basic type
-        return self.visit_Type(node.type)
+        return self.visit_TypeSpec(node.type)
 
     def visit_ArrayDecl(self, node: ArrayDecl) -> ArrayType:
         elem_type = self.visit(node.type)
@@ -975,7 +975,7 @@ class SemanticVisitor(NodeVisitor[uCType]):
     def visit_CharConstant(self, _: CharConstant) -> Literal[CharType]:
         return CharType
 
-    def visit_Type(self, node: Type) -> PrimaryType:
+    def visit_TypeSpec(self, node: TypeSpec) -> PrimaryType:
         # Get the matching basic uCType
         uc_type = PrimaryType.get(node.name)
         # check if type exists

@@ -2,7 +2,7 @@ from __future__ import annotations
 import inspect
 import sys
 from collections.abc import Sequence
-from typing import Literal, Optional, Protocol, TextIO, Tuple, Union, overload
+from typing import Literal, Optional, Protocol, TextIO, Tuple, Union
 from uc.uc_block import NamedVariable
 from uc.uc_type import ArrayType, FunctionType, PointerType, PrimaryType, uCType
 
@@ -144,7 +144,7 @@ class Node:
                 nvlist = [
                     (n, represent_node(getattr(self, n), offset + inner_offset + 1 + len(n) + 1))
                     for n in self.attributes()
-                    if getattr(self, n) is not None
+                    if getattr(self, n, None) is not None
                 ]
                 attrstr = ", ".join(f"{n}={v}" for n, v in nvlist)
             else:
@@ -231,7 +231,7 @@ class FuncDef(Node):
 
     def __init__(
         self,
-        return_type: Type,
+        return_type: TypeSpec,
         declaration: Decl,
         decl_list: DeclList,
         implementation: Compound,
@@ -357,7 +357,7 @@ class VarDecl(Node):
     attr_names = ()
     special_attr = ("declname",)
 
-    type: Type
+    type: TypeSpec
     uc_type: PrimaryType
 
     def __init__(self, declname: ID):
@@ -629,8 +629,6 @@ class Constant(Node):
     __slots__ = ("value",)
     attr_names = ("value",)
 
-    value: Union[int, bool, float, str]
-
 
 class StringConstant(Constant):
     __slots__ = ()
@@ -718,7 +716,7 @@ class ID(Node):
         self._definition = name
 
 
-class Type(Node):
+class TypeSpec(Node):
     __slots__ = ("name",)
     attr_names = ("name",)
 
