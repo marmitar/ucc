@@ -4,7 +4,7 @@ import pathlib
 import sys
 from argparse import ArgumentParser
 from contextlib import contextmanager
-from functools import lru_cache
+from functools import wraps
 from typing import (
     Callable,
     Generic,
@@ -552,25 +552,69 @@ class NodeVisitor(Generic[R]):
     Subclass it and define your own visit_NODE methods.
     """
 
-    def __init__(self, default: R) -> None:
-        self._default = default
-        # cache visitor methods
-        self.visitor_for = lru_cache(maxsize=None)(self.visitor_for)
+    default: R = None
 
-    def visitor_for(self, classname: str) -> Callable[[Node], Optional[R]]:
-        """Find visitor method for a node class."""
-        return getattr(self, f"visit_{classname}", self.generic_visit)
+    def apply_value(self, node: Node, value: R) -> None:
+        """Use visitor return value."""
+        raise NotImplementedError()
 
-    def visit(self, node: Node) -> R:
-        """Visit a node, set and return its type."""
-        value = self.visitor_for(node.classname)(node)
-        return value or self._default
-
-    def generic_visit(self, node: Node) -> R:
+    def visit_children(self, node: Node) -> None:
         """Preorder visiting of the node's children."""
         for _, child in node.children():
             self.visit(child)
-        return self._default
+        # dows not apply return value
+
+    def visit(self, node: Node) -> None:
+        """Generic visitor for non special nodes."""
+        self.visit_children(node)
+
+    def __init_subclass__(cls) -> None:
+        """Add visitor cache and wrapper to apply return value."""
+
+        VisitorMethod = Callable[[NodeVisitor[R], Node], Optional[R]]
+        Visitor = Callable[[NodeVisitor[R], Node], R]
+
+        # wrapper that applies return value "R" to node
+        if "apply_value" in cls.__dict__:
+
+            def as_visitor(visitor: VisitorMethod) -> Visitor:
+                @wraps(visitor)
+                def wrapper(self: NodeVisitor[R], node: Node, *args, **kwargs) -> R:
+                    value = visitor(self, node, *args, **kwargs) or cls.default
+                    self.apply_value(node, value)
+                    return value
+
+                return wrapper
+
+        # or just return the default value when not given
+        else:
+
+            def as_visitor(visitor: VisitorMethod) -> Visitor:
+                @wraps(visitor)
+                def wrapper(self: NodeVisitor[R], *args, **kwargs) -> R:
+                    return visitor(self, *args, **kwargs) or cls.default
+
+                return wrapper
+
+        # apply wrappers and build visitor cache
+        cache: dict[str, Visitor] = {}
+        n = len("visit_")
+        for attr, value in cls.__dict__.items():
+            if attr.startswith("visit_") and attr[n].isupper():
+                visitor = as_visitor(value)
+                setattr(cls, attr, visitor)
+
+                classname = attr[n:]
+                cache[classname] = visitor
+
+        # main visitor, that uses generic visitor or a specialized one
+        generic_visitor = as_visitor(cls.visit)
+
+        @wraps(cls.visit)
+        def main_visitor(self: NodeVisitor[R], node: Node, *args, **kwargs) -> R:
+            return cache.get(node.classname, generic_visitor)(self, node, *args, **kwargs)
+
+        cls.visit = main_visitor
 
 
 class SemanticVisitor(NodeVisitor[uCType]):
@@ -580,18 +624,14 @@ class SemanticVisitor(NodeVisitor[uCType]):
     AST node that you want to process.
     """
 
-    __slots__ = ("symtab",)
+    default = VoidType
 
     def __init__(self):
-        super().__init__(VoidType)
         # Initialize the symbol table
         self.symtab = SymbolTable()
 
-    def visit(self, node: Node) -> uCType:
-        uctype = super().visit(node)
-        # update node type
-        node.uc_type = uctype
-        return uctype
+    def apply_value(self, node: Node, uc_type: uCType) -> None:
+        node.uc_type = uc_type
 
     # # # # # # # # #
     # DECLARATIONS  #
@@ -600,7 +640,7 @@ class SemanticVisitor(NodeVisitor[uCType]):
         # global scope
         with self.symtab.new(block=node):
             # Visit all of the global declarations
-            self.generic_visit(node)
+            self.visit_children(node)
 
     def visit_Decl(self, node: Decl, *, ltype: Optional[uCType] = None) -> None:
         # Visit the declaration type and initialization
@@ -726,7 +766,7 @@ class SemanticVisitor(NodeVisitor[uCType]):
                 self.visit(stmt)
 
     def visit_InitList(self, node: InitList) -> ArrayType:
-        self.generic_visit(node)
+        self.visit_children(node)
         # init lists without elements have no type, but can be coerced
         if len(node) == 0:
             return ArrayType.empty_list()
@@ -766,7 +806,7 @@ class SemanticVisitor(NodeVisitor[uCType]):
     def visit_Compound(self, node: Compound, scope: Optional[Scope] = None) -> None:
         # open new scope
         with self.symtab.new(scope):
-            self.generic_visit(node)
+            self.visit_children(node)
 
     def _is_basic_type(self, type: uCType) -> bool:
         """Checker for basic types."""
@@ -903,7 +943,7 @@ class SemanticVisitor(NodeVisitor[uCType]):
             return uctype.inner
 
     def visit_ExprList(self, node: ExprList) -> uCType:
-        self.generic_visit(node)
+        self.visit_children(node)
         # when used as the comma operator
         return node.as_comma_op().uc_type
 
