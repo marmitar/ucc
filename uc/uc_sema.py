@@ -434,7 +434,7 @@ class InvalidVariableType(UnexpectedType):
 class InvalidOperation(SemanticError):
     """Abstract Exception for invalid operations."""
 
-    error_fotmat: str
+    error_format: str
 
     def __init__(self, expr: Union[BinaryOp, UnaryOp]):
         if isinstance(expr, UnaryOp):
@@ -444,16 +444,25 @@ class InvalidOperation(SemanticError):
             kind = "Assignment" if isinstance(expr, Assignment) else "Binary"
             type = (expr.left.uc_type, expr.right.uc_type)
 
-        msg = self.error_fotmat.format(kind=kind, op=expr.op, type=type)
+        msg = self.error_format.format(kind=kind, op=expr.op, type=type)
         super().__init__(msg, expr.coord)
 
 
+class InvalidReference(InvalidOperation):
+    error_format = "Cannot reference an unamed value"
+
+
 class UnsupportedOperation(InvalidOperation):  # msg_code: 26
-    error_fotmat = "{kind} operator {op} is not supported"
+    error_format = "{kind} operator {op} is not supported"
 
 
 class UnsupportedBinaryOperation(UnsupportedOperation):  # msg_code: 5, 7
-    error_fotmat = UnsupportedOperation.error_fotmat + " by {type[0]}"
+    error_format = UnsupportedOperation.error_format + " by {type[0]}"
+
+
+class InvalidAssignmentExpr(SemanticError):
+    def __init__(self, node: Node):
+        super().__init__("Invalid lvalue expression", node.coord)
 
 
 class OperationTypeDoesNotMatch(InvalidOperation):  # msg_code: 4, 6
@@ -900,14 +909,18 @@ class SemanticVisitor(NodeVisitor[uCType]):
         # comparison results in boolean
         return BoolType
 
+    def _valid_lvalue(self, node: Node) -> bool:
+        """Valid lvalues are: ID, ArrayRef or the deref operator."""
+        return isinstance(node, (ArrayRef, ID)) or (isinstance(node, UnaryOp) and node.op == "*")
+
     def visit_Assignment(self, node: Assignment) -> uCType:
         rtype = self._visit_binary(node, "assign_ops", node.right, node.left)
         ltype = node.left.uc_type
 
+        if not self._valid_lvalue(node.left):
+            raise InvalidAssignmentExpr(node.left)
         if isinstance(ltype, ArrayType) and ltype.size is not None and ltype.size != rtype.size:
             raise ArraySizeMismatch(node)
-        elif node.left.lvalue_name() is None:
-            raise NodeIsNotAVariable(node.left)
 
     def visit_UnaryOp(self, node: UnaryOp) -> uCType:
         uctype = self.visit(node.expr)
@@ -917,10 +930,17 @@ class SemanticVisitor(NodeVisitor[uCType]):
         # Assign the result type
         return uctype
 
+    def _assert_reference(self, node: Node) -> None:
+        if not isinstance(node, (ArrayRef, AddressOp, ID)):
+            raise InvalidReference(node)
+        elif isinstance(node, AddressOp) and node.op != "&":
+            raise InvalidReference(node)
+
     def visit_AddressOp(self, node: AddressOp) -> uCType:
         uctype = self.visit_UnaryOp(node)
         # change to pointer type
         if node.op == "&":
+            self._assert_reference(node)
             return PointerType(uctype)
         # check valid dereference
         elif not isinstance(uctype, PointerType):
