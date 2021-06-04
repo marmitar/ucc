@@ -2,12 +2,13 @@ int arr[11] = {1, 2, 2, 3, 4, 5, 6, 7, 7, 8, 9};
 
 int remove_duplicate(int n)
 {
-  if (n == 0 || n == 1)
-    return n;
-
   int temp[11];
   int j = 0;
   int i;
+
+  if (n == 0 || n == 1)
+    return n;
+
   for (i=0; i<n-1; i=i+1)
     if (arr[i] != arr[i + 1]) {
       temp[j] = arr[i];
