@@ -103,7 +103,7 @@
       {
         "name": "Test 11",
         "setup": "",
-        "run": "pytest --tb=short -q tests/test_code.py::test_code_error -k t11",
+        "run": "pytest --tb=short -q tests/test_code.py::test_code -k t11",
         "input": "",
         "output": "",
         "comparison": "included",
