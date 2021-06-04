@@ -906,6 +906,8 @@ class SemanticVisitor(NodeVisitor[uCType]):
 
         if isinstance(ltype, ArrayType) and ltype.size is not None and ltype.size != rtype.size:
             raise ArraySizeMismatch(node)
+        elif node.left.lvalue_name() is None:
+            raise NodeIsNotAVariable(node.left)
 
     def visit_UnaryOp(self, node: UnaryOp) -> uCType:
         uctype = self.visit(node.expr)

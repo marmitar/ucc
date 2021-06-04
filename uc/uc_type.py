@@ -208,4 +208,4 @@ class PointerType(uCType):
         return isinstance(other, PointerType) and self.inner == other.inner
 
     def typename(self) -> str:
-        return f"ptr<{self.inner!r}>"
+        return f"{self.inner!r}[]"
