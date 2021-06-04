@@ -595,15 +595,6 @@ class GlobalBlock(CountedBlock):
         # all functions in the program
         self.functions: list[FunctionBlock] = []
 
-    # def new_function(self, uctype: FunctionType) -> FunctionBlock:
-    #     """Create a new function block."""
-    #     # types and variable names
-    #     rettype = uctype.rettype.typename()
-    #     varname = GlobalVariable(uctype.funcname)
-    #     params = (ty.typename() for ty in uctype.param_types)
-    #     # create function block
-    #     return FunctionBlock(self, rettype, varname, params)
-
     def new_literal(self, typename: str, value: Any) -> TextVariable:
         """Create a new literal constant on the 'text' section."""
         # avoid repeated constants
@@ -630,29 +621,25 @@ class GlobalBlock(CountedBlock):
 class FunctionBlock(CountedBlock):
     """Special block for function definition."""
 
-    def __init__(
-        self,
-        program: GlobalBlock,
-        name: str,
-        rettype: str,
-        param_types: Iterable[str] = (),
-    ):
+    def __init__(self, program: GlobalBlock, function: FunctionType):
         super().__init__()
         self.program = program
         program.functions.append(self)
         # initialize register count on 1
         self._count["%temp%"] = 1
 
-        self.name = name
-        # function header
-        params = ((ty, self.new_temp()) for ty in param_types)
-        self.define = DefineInstr(rettype, GlobalVariable(name), params)
-
+        # function data
+        self.name = function.funcname
+        self.params = [(name, ty.typename(), self.new_temp()) for name, ty in function.params]
+        # function definition
+        self.define = DefineInstr(
+            function.rettype, GlobalVariable(self.name), ((ty, var) for _, ty, var in self.params)
+        )
         self.entry = BasicBlock(self, "entry")
 
     def new_temp(self) -> TempVariable:
         """
-        Create a new temporary variable of a given scope.
+        Create a new temporary variable for the function scope.
         """
         return TempVariable(self._new_version("%temp%"))
 
