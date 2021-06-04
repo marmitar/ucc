@@ -547,9 +547,6 @@ class BinaryOp(Node):
         self.left = left
         self.right = right
 
-    def lvalue_name(self) -> Optional[ID]:
-        return self.left.lvalue_name()
-
 
 class Assignment(BinaryOp):
     __slots__ = ()
@@ -596,9 +593,6 @@ class FuncCall(Node):
             return self.params.expr
         else:
             return ()
-
-    def lvalue_name(self) -> Optional[ID]:
-        return self.callable.lvalue_name()
 
 
 class RelationOp(BinaryOp):
