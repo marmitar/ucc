@@ -170,14 +170,15 @@ class Node:
 
 
 class Program(Node):
-    __slots__ = "gdecls", "symbols"
+    __slots__ = "gdecls", "symbols", "name"
     attr_names = ()
-    special_attr = ("symbols",)
+    special_attr = ("symbols", "name")
 
     def __init__(self, gdecls: list[Union[GlobalDecl, FuncDef]]):
         super().__init__()
         self.gdecls = tuple(gdecls)
         self.symbols: list[ID] = []
+        self.name: Optional[str] = None
 
 
 class DeclList(Node):

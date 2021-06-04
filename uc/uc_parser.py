@@ -2,7 +2,16 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
-from typing import NoReturn, Optional, Sequence, TypedDict, TypeVar, Union, overload
+from typing import (
+    NoReturn,
+    Optional,
+    Sequence,
+    TextIO,
+    TypedDict,
+    TypeVar,
+    Union,
+    overload,
+)
 from ply.yacc import yacc
 from uc.uc_ast import (
     ID,
@@ -105,10 +114,20 @@ class UCParser:
         # Keeps track of the last token given to yacc (the lookahead token)
         self._last_yielded_token = None
 
-    def parse(self, text: str, debuglevel: int = 0) -> Program:
+    def _parse(self, text: str, debuglevel: int = 0) -> Program:
         self.uclex.reset_lineno()
         self._last_yielded_token = None
         return self.ucparser.parse(input=text, lexer=self.uclex, debug=debuglevel)
+
+    def parse(self, text: Union[str, TextIO], debuglevel: int = 0) -> Program:
+        # program can be unamed
+        if isinstance(text, str):
+            return self._parse(text, debuglevel)
+        # or we can use the filename
+        else:
+            ast = self._parse(text.read(), debuglevel)
+            ast.name = text.name
+            return ast
 
     def _lexer_error(self, msg: str, line: int, column: int) -> NoReturn:
         # use stdout to match with the output in the .out test files
