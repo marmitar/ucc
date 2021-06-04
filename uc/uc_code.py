@@ -2,11 +2,12 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
-from typing import Any, Optional, TextIO, Type, Union
+from typing import Any, Optional, TextIO, Type
 from uc.uc_ast import (
     ID,
     AddressOp,
     ArrayRef,
+    Assignment,
     BinaryOp,
     BoolConstant,
     CharConstant,
@@ -45,6 +46,7 @@ from uc.uc_block import (
     Instruction,
     LeInstr,
     LiteralInstr,
+    LoadInstr,
     LtInstr,
     ModInstr,
     MulInstr,
@@ -84,7 +86,7 @@ binary_op: dict[str, Type[BinaryOpInstruction]] = {
 unary_op: dict[str, Type[UnaryOpInstruction]] = {"!": NotInstr}
 
 
-class CodeGenerator(NodeVisitor[Optional[Variable]]):
+class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
     """
     Node visitor class that creates 3-address encoded instruction sequences
     with Basic Blocks & Control Flow Graph.
@@ -186,6 +188,11 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
     # # # # # # # #
     # EXPRESSIONS #
 
+    def visit_Assignment(self, node: Assignment) -> TempVariable:
+        source = self.visit(node.right)
+        raise NotImplementedError()
+        return source
+
     def visit_BinaryOp(self, node: BinaryOp) -> TempVariable:
         # Visit the left and right expressions
         left = self.visit(node.left)
@@ -279,11 +286,20 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
     def visit_StringConstant(self, node: StringConstant) -> TextVariable:
         return self.glob.new_literal("string", node.value)
 
-    def visit_ID(self, node: ID) -> NamedVariable:
-        if node.is_global:
-            return GlobalVariable(node.name)
+    def _varname(self, ident: ID) -> NamedVariable:
+        """Get variable name for identifier"""
+        if ident.is_global:
+            return GlobalVariable(ident.name)
         else:
-            return NamedVariable(node.name)
+            return NamedVariable(ident.name)
+
+    def visit_ID(self, node: ID) -> TempVariable:
+        stackvar = self._varname(node)
+        # load into a register
+        register = self.current.new_temp()
+        instr = LoadInstr(node.uc_type.typename(), stackvar, register)
+        self.current.append(instr)
+        return register
 
 
 if __name__ == "__main__":

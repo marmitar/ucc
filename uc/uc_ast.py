@@ -547,6 +547,9 @@ class BinaryOp(Node):
         self.left = left
         self.right = right
 
+    def lvalue_name(self) -> Optional[ID]:
+        return self.left.lvalue_name()
+
 
 class Assignment(BinaryOp):
     __slots__ = ()
@@ -575,6 +578,9 @@ class ExprList(Node):
         else:
             super().show(*args, **kwargs)
 
+    def lvalue_name(self) -> Optional[ID]:
+        return self.as_comma_op().lvalue_name()
+
 
 class FuncCall(Node):
     __slots__ = "callable", "params"
@@ -591,6 +597,9 @@ class FuncCall(Node):
         else:
             return ()
 
+    def lvalue_name(self) -> Optional[ID]:
+        return self.callable.lvalue_name()
+
 
 class RelationOp(BinaryOp):
     __slots__ = ()
@@ -605,6 +614,9 @@ class UnaryOp(Node):
         super().__init__(expr.coord)
         self.op = op
         self.expr = expr
+
+    def lvalue_name(self) -> Optional[ID]:
+        return self.expr.lvalue_name()
 
 
 class AddressOp(UnaryOp):
