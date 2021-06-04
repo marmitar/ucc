@@ -2,9 +2,10 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
-from typing import Any, Optional, TextIO, Type
+from typing import Any, Optional, TextIO, Type, Union
 from uc.uc_ast import (
     ID,
+    AddressOp,
     BinaryOp,
     BoolConstant,
     CharConstant,
@@ -19,6 +20,7 @@ from uc.uc_ast import (
     Program,
     RelationOp,
     StringConstant,
+    UnaryOp,
 )
 from uc.uc_block import (
     CFG,
@@ -28,10 +30,12 @@ from uc.uc_block import (
     BasicBlock,
     BinaryOpInstruction,
     DivInstr,
+    ElemInstr,
     EmitBlocks,
     EqInstr,
     FunctionBlock,
     GeInstr,
+    GetInstr,
     GlobalBlock,
     GlobalVariable,
     GtInstr,
@@ -43,16 +47,19 @@ from uc.uc_block import (
     MulInstr,
     NamedVariable,
     NeInstr,
+    NotInstr,
     OrInstr,
     StoreInstr,
     SubInstr,
     TempVariable,
     TextVariable,
+    UnaryOpInstruction,
     Variable,
 )
 from uc.uc_interpreter import Interpreter
 from uc.uc_parser import UCParser
 from uc.uc_sema import NodeVisitor, Visitor
+from uc.uc_type import IntType, PrimaryType, uCType
 
 # instructions for basic operations
 binary_op: dict[str, Type[BinaryOpInstruction]] = {
@@ -70,6 +77,7 @@ binary_op: dict[str, Type[BinaryOpInstruction]] = {
     "&&": AndInstr,
     "||": OrInstr,
 }
+unary_op: dict[str, Type[UnaryOpInstruction]] = {"!": NotInstr}
 
 
 class CodeGenerator(NodeVisitor[Optional[Variable]]):
@@ -179,26 +187,59 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
         left = self.visit(node.left)
         right = self.visit(node.right)
         # Make a new temporary for storing the result
-        target = self.new_temp()
+        target = self.current.new_temp()
 
         # Create the opcode and append to list
         instr = binary_op[node.op](node.uc_type.typename(), left, right, target)
-        self.current_block.append(instr)
+        self.current.append(instr)
         return target
 
     def visit_RelationOp(self, node: RelationOp) -> TempVariable:
         return self.visit_BinaryOp(node)
 
+    def visit_UnaryOp(self, node: UnaryOp) -> TempVariable:
+        # get source and target registers
+        source = self.visit(node.expr)
+        target = self.current.new_temp()
+
+        # Create the opcode and append to list
+        instr = unary_op[node.op](node.uc_type.typename(), source, target)
+        self.current.append(instr)
+        return target
+
+    def _access_element(self, uctype: uCType, source: Variable, index: Variable) -> TempVariable:
+        target = self.current.new_temp()
+        # access at index
+        instr = ElemInstr(uctype.typename(), source, index, target)
+        self.current.append(instr)
+        return target
+
+    def visit_AddressOp(self, node: AddressOp) -> TempVariable:
+        source = self.visit(node.expr)
+        # get address
+        if node.op == "&":
+            target = self.current.new_temp()
+            instr = GetInstr(node.expr.uc_type.typename(), source, target)
+            self.current.append(instr)
+            return target
+        # or element
+        else:
+            index = self._new_constant(IntType, 0)
+            return self._access_element(node.expr.uc_type, source, index)
+
     # # # # # # # # #
     # BASIC SYMBOLS #
 
-    def visit_Constant(self, node: Constant) -> TempVariable:
+    def _new_constant(self, uctype: PrimaryType, value: Any) -> TempVariable:
         # Create a new temporary variable name
         target = self.current.new_temp()
         # Make the SSA opcode and append to list of generated instructions
-        instr = LiteralInstr(node.uc_type.typename(), node.value, target)
+        instr = LiteralInstr(uctype.typename(), value, target)
         self.current.append(instr)
         return target
+
+    def visit_Constant(self, node: Constant) -> TempVariable:
+        return self._new_constant(node.uc_type, node.value)
 
     def visit_IntConstant(self, node: IntConstant) -> TempVariable:
         return self.visit_Constant(node)
