@@ -2,7 +2,7 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
-from typing import Any, Optional, TextIO
+from typing import Any, Optional, TextIO, Type
 from uc.uc_ast import (
     ID,
     BinaryOp,
@@ -17,21 +17,35 @@ from uc.uc_ast import (
     ParamList,
     Print,
     Program,
+    RelationOp,
     StringConstant,
 )
 from uc.uc_block import (
     CFG,
+    AddInstr,
     AllocInstr,
+    AndInstr,
     BasicBlock,
+    BinaryOpInstruction,
+    DivInstr,
     EmitBlocks,
+    EqInstr,
     FunctionBlock,
+    GeInstr,
     GlobalBlock,
     GlobalVariable,
+    GtInstr,
     Instruction,
+    LeInstr,
     LiteralInstr,
-    LoadInstr,
+    LtInstr,
+    ModInstr,
+    MulInstr,
     NamedVariable,
+    NeInstr,
+    OrInstr,
     StoreInstr,
+    SubInstr,
     TempVariable,
     TextVariable,
     Variable,
@@ -39,6 +53,23 @@ from uc.uc_block import (
 from uc.uc_interpreter import Interpreter
 from uc.uc_parser import UCParser
 from uc.uc_sema import NodeVisitor, Visitor
+
+# instructions for basic operations
+binary_op: dict[str, Type[BinaryOpInstruction]] = {
+    "+": AddInstr,
+    "-": SubInstr,
+    "*": MulInstr,
+    "/": DivInstr,
+    "%": ModInstr,
+    "<": LtInstr,
+    "<=": LeInstr,
+    ">": GtInstr,
+    ">=": GeInstr,
+    "==": EqInstr,
+    "!=": NeInstr,
+    "&&": AndInstr,
+    "||": OrInstr,
+}
 
 
 class CodeGenerator(NodeVisitor[Optional[Variable]]):
@@ -143,25 +174,20 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
     # # # # # # # #
     # EXPRESSIONS #
 
-    def visit_BinaryOp(self, node: BinaryOp) -> None:
+    def visit_BinaryOp(self, node: BinaryOp) -> TempVariable:
         # Visit the left and right expressions
-        self.visit(node.left)
-        self.visit(node.right)
-
-        # TODO:
-        # - Load the location containing the left expression
-        # - Load the location containing the right expression
-
+        left = self.visit(node.left)
+        right = self.visit(node.right)
         # Make a new temporary for storing the result
         target = self.new_temp()
 
         # Create the opcode and append to list
-        opcode = ""  # TODO: binary_ops[node.op] + "_" + node.left.type.name
-        inst = (opcode, node.left.gen_location, node.right.gen_location, target)
-        self.current_block.append(inst)
+        instr = binary_op[node.op](node.uc_type.typename(), left, right, target)
+        self.current_block.append(instr)
+        return target
 
-        # Store location of the result on the node
-        node.gen_location = target
+    def visit_RelationOp(self, node: RelationOp) -> TempVariable:
+        return self.visit_BinaryOp(node)
 
     # # # # # # # # #
     # BASIC SYMBOLS #
