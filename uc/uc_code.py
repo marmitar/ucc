@@ -2,11 +2,13 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
-from typing import Optional, TextIO
+from typing import Any, Optional, TextIO
 from uc.uc_ast import (
+    ID,
     BinaryOp,
     Constant,
-    FuncDef,
+    Decl,
+    Node,
     Print,
     Program,
     StringConstant,
@@ -14,31 +16,32 @@ from uc.uc_ast import (
 )
 from uc.uc_block import (
     CFG,
+    AllocInstr,
     BasicBlock,
-    Block,
-    ConditionBlock,
     EmitBlocks,
-    FunctionBlock,
     GlobalBlock,
-    GlobalInstr,
+    GlobalVariable,
     Instruction,
+    NamedVariable,
+    StoreInstr,
+    Variable,
 )
 from uc.uc_interpreter import Interpreter
 from uc.uc_parser import UCParser
 from uc.uc_sema import NodeVisitor, Visitor
 
 
-class CodeGenerator(NodeVisitor[None]):
+class CodeGenerator(NodeVisitor[Optional[Variable]]):
     """
     Node visitor class that creates 3-address encoded instruction sequences
     with Basic Blocks & Control Flow Graph.
     """
 
     def __init__(self, viewcfg: bool):
-        super().__init__(None)
         self.viewcfg = viewcfg
 
         self.glob = GlobalBlock()
+        self.current: Optional[BasicBlock] = None
 
         # TODO: Complete if needed.
 
@@ -49,25 +52,11 @@ class CodeGenerator(NodeVisitor[None]):
         buf.write(text)
 
     @property
-    def current_function(self) -> FunctionBlock:
-        if self.glob.functions:
-            return self.glob.functions[-1]
-        raise ValueError()
-
-    @property
-    def current_block(self) -> BasicBlock:
-        func = self.current_function
-        if func.blocks:
-            return func.blocks[-1]
-        raise ValueError()
-
-    @property
     def code(self) -> list[Instruction]:
         """
         The generated code (can be mapped to a list of tuples)
         """
-        bb = EmitBlocks()
-        return bb.visit(self.glob)
+        return EmitBlocks().visit(self.glob)
 
     # You must implement visit_Nodename methods for all of the other
     # AST nodes.  In your code, you will need to make instructions
@@ -88,22 +77,24 @@ class CodeGenerator(NodeVisitor[None]):
             dot = CFG(node.name)
             dot.view(node)
 
-    def visit_VarDecl(self, node: VarDecl) -> None:
-        # Allocate on stack memory
-        varname = f"%{node.declname.name}"
-        inst = (f"alloc_{node.type.name}", varname)
-        self.current_block.append(inst)
+    def _evaluate_init(self, node: Optional[Node]) -> Any:
+        ...  # TODO
 
-        # Store optional init val
-        init = node.decl.init
-        if init is not None:
-            self.visit(init)
-            inst = (
-                f"store_{node.type.name}",
-                init.gen_location,
-                node.declname.gen_location,
-            )
-            self.current_block.append(inst)
+    def visit_Decl(self, node: Decl) -> None:
+        uctype = node.type.uc_type
+        varname = self.visit_ID(node.name)
+        # insert globals on '.data' section
+        if isinstance(varname, GlobalVariable):
+            self.glob.new_global(uctype, varname, self._evaluate_init(node.init))
+            return
+        # local variables are allocated on the function stack
+        instr = AllocInstr(uctype.typename(), varname)
+        self.current.append(instr)
+        # if a value is given, initialize it
+        if node.init is not None:
+            source = self.visit(node.init)
+            instr = StoreInstr(uctype.typename(), source, varname)
+            self.current.append(instr)
 
     # # # # # # # #
     # STATEMENTS  #
@@ -166,6 +157,12 @@ class CodeGenerator(NodeVisitor[None]):
         # self.text.append(inst)
 
     # TODO: Complete.
+
+    def visit_ID(self, node: ID) -> NamedVariable:
+        if node.is_global:
+            return GlobalVariable(node.name)
+        else:
+            return NamedVariable(node.name)
 
 
 if __name__ == "__main__":

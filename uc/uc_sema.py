@@ -543,9 +543,10 @@ class NodeVisitor(Generic[R]):
             self.visit(child)
         # dows not apply return value
 
-    def visit(self, node: Node) -> None:
+    def visit(self, node: Node) -> R:
         """Generic visitor for non special nodes."""
         self.visit_children(node)
+        return self.default
 
     def __init_subclass__(cls) -> None:
         """Add visitor cache and wrapper to apply return value."""
@@ -566,7 +567,7 @@ class NodeVisitor(Generic[R]):
                 return wrapper
 
         # or just return the default value when not given
-        else:
+        elif cls.default is not None:
 
             def as_visitor(visitor: VisitorMethod) -> Visitor:
                 @wraps(visitor)
@@ -574,6 +575,10 @@ class NodeVisitor(Generic[R]):
                     return visitor(self, *args, **kwargs) or cls.default
 
                 return wrapper
+
+        # when no default is given, do nothing
+        else:
+            as_visitor = lambda x: x
 
         # apply wrappers and build visitor cache
         cache: dict[str, Visitor] = {}
