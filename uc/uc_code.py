@@ -1,3 +1,4 @@
+from __future__ import annotations
 import argparse
 import pathlib
 import sys
@@ -38,14 +39,6 @@ class CodeGenerator(NodeVisitor[None]):
         self.viewcfg = viewcfg
 
         self.glob = GlobalBlock()
-        self._function: Optional[FunctionBlock] = None
-        self._block: Optional[BasicBlock] = None
-
-        # The generated code (list of tuples)
-        # At the end of visit_program, we call each function definition to emit
-        # the instructions inside basic blocks. The global instructions that
-        # are stored in self.text are appended at beginning of the code
-        self.code: list[Instruction] = []
 
         # TODO: Complete if needed.
 
@@ -57,15 +50,24 @@ class CodeGenerator(NodeVisitor[None]):
 
     @property
     def current_function(self) -> FunctionBlock:
-        if self._function is None:
-            raise ValueError()
-        return self._function
+        if self.glob.functions:
+            return self.glob.functions[-1]
+        raise ValueError()
 
     @property
     def current_block(self) -> BasicBlock:
-        if self._block is None:
-            raise ValueError()
-        return self._block
+        func = self.current_function
+        if func.blocks:
+            return func.blocks[-1]
+        raise ValueError()
+
+    @property
+    def code(self) -> list[Instruction]:
+        """
+        The generated code (can be mapped to a list of tuples)
+        """
+        bb = EmitBlocks()
+        return bb.visit(self.glob)
 
     # You must implement visit_Nodename methods for all of the other
     # AST nodes.  In your code, you will need to make instructions
@@ -81,27 +83,10 @@ class CodeGenerator(NodeVisitor[None]):
         # Visit all of the global declarations
         for decl in node.gdecls:
             self.visit(decl)
-        # At the end of codegen, first init the self.code with
-        # the list of global instructions allocated in self.text
-        self.code = self.text.copy()
-        # Also, copy the global instructions into the Program node
-        node.text = self.text.copy()
-        # After, visit all the function definitions and emit the
-        # code stored inside basic blocks.
-        for decl in node.gdecls:
-            if isinstance(decl, FuncDef):
-                # _decl.cfg contains the Control Flow Graph for the function
-                # cfg points to start basic block
-                bb = EmitBlocks()
-                bb.visit(decl.cfg)
-                for _code in bb.code:
-                    self.code.append(_code)
 
         if self.viewcfg:  # evaluate to True if -cfg flag is present in command line
-            for decl in node.gdecls:
-                if isinstance(decl, FuncDef):
-                    dot = CFG(decl.decl.name.name)
-                    dot.view(decl.cfg)  # _decl.cfg contains the CFG for the function
+            dot = CFG(node.name)
+            dot.view(node)
 
     def visit_VarDecl(self, node: VarDecl) -> None:
         # Allocate on stack memory
@@ -218,7 +203,7 @@ if __name__ == "__main__":
     p = UCParser()
     # open file and parse it
     with open(input_path) as f:
-        ast = p.parse(f.read())
+        ast = p.parse(f)
 
     sema = Visitor()
     sema.visit(ast)
