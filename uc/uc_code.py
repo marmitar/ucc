@@ -8,22 +8,25 @@ from uc.uc_ast import (
     BinaryOp,
     Constant,
     Decl,
+    FuncDef,
     Node,
+    ParamList,
     Print,
     Program,
     StringConstant,
-    VarDecl,
 )
 from uc.uc_block import (
     CFG,
     AllocInstr,
     BasicBlock,
     EmitBlocks,
+    FunctionBlock,
     GlobalBlock,
     GlobalVariable,
     Instruction,
     NamedVariable,
     StoreInstr,
+    TempVariable,
     Variable,
 )
 from uc.uc_interpreter import Interpreter
@@ -78,9 +81,9 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
             dot.view(node)
 
     def _evaluate_init(self, node: Optional[Node]) -> Any:
-        ...  # TODO
+        raise NotImplementedError("# TODO")
 
-    def visit_Decl(self, node: Decl) -> None:
+    def visit_Decl(self, node: Decl, source: Optional[TempVariable] = None) -> None:
         uctype = node.type.uc_type
         varname = self.visit_ID(node.name)
         # insert globals on '.data' section
@@ -91,10 +94,29 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
         instr = AllocInstr(uctype.typename(), varname)
         self.current.append(instr)
         # if a value is given, initialize it
-        if node.init is not None:
+        if source is None and node.init is not None:
             source = self.visit(node.init)
+        if source is not None:
             instr = StoreInstr(uctype.typename(), source, varname)
             self.current.append(instr)
+
+    def visit_FuncDef(self, node: FuncDef) -> None:
+        decl = node.declaration.type
+        # create function block
+        block = FunctionBlock(self.glob, decl.uc_type)
+        # create entry block and populate it
+        self.current = block.entry
+        self.visit(decl.param_list)
+        # visit body
+        self.visit(node.decl_list)
+        self.visit(node.implementation)
+        # remove from block list
+        self.current = None
+
+    def visit_ParamList(self, node: ParamList) -> None:
+        tempname = [var for _, _, var in self.current.function.params]
+        for decl, varname in zip(node.params, tempname):
+            self.visit_Decl(decl, varname)
 
     # # # # # # # #
     # STATEMENTS  #
