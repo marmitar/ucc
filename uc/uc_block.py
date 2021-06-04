@@ -195,7 +195,7 @@ class GlobalInstr(AllocInstr):
     arguments = "varname", "value"
     indent = False
 
-    def __init__(self, type: str, varname: Variable, value: Optional[Any] = None):
+    def __init__(self, type: str, varname: NamedVariable, value: Optional[Any] = None):
         super().__init__(type, varname)
         self._value = value
 
@@ -554,17 +554,21 @@ class PrintInstr(ParamInstr):
 
 
 class Block:
-    __slots__ = ()
+    __slots__ = ("instr", "next")
+
+    def __init__(self) -> None:
+        self.instr: list[Instruction] = []
+        self.next: Optional[Block] = None
 
     @property
     def classname(self) -> str:
         return self.__class__.__name__
 
     def instructions(self) -> Iterator[Instruction]:
-        raise NotImplementedError()
+        return iter(self.instr)
 
-    def subblocks(self) -> Iterator[Block]:
-        return ()
+    def append(self, instr: Instruction) -> None:
+        self.instr.append(instr)
 
 
 class CountedBlock(Block):
@@ -583,37 +587,30 @@ class CountedBlock(Block):
 class GlobalBlock(CountedBlock):
     """Main block, able to declare globals and constants."""
 
+    next: None
+
     def __init__(self):
         super().__init__()
 
-        self.data: list[GlobalInstr] = []
         self.text: list[GlobalInstr] = []
         # cache of defined constants, to avoid repeated values
         self.consts: dict[tuple[str, str], TextVariable] = {}
         # all functions in the program
         self.functions: list[FunctionBlock] = []
 
-    def new_function(self, uctype: FunctionType) -> FunctionBlock:
-        """Create a new function block."""
-        # types and variable names
-        rettype = uctype.rettype.typename()
-        varname = GlobalVariable(uctype.funcname)
-        params = (ty.typename() for ty in uctype.param_types)
-        # create function block
-        block = FunctionBlock(self, rettype, varname, params)
-        self.functions.append(block)
-        return block
+    # def new_function(self, uctype: FunctionType) -> FunctionBlock:
+    #     """Create a new function block."""
+    #     # types and variable names
+    #     rettype = uctype.rettype.typename()
+    #     varname = GlobalVariable(uctype.funcname)
+    #     params = (ty.typename() for ty in uctype.param_types)
+    #     # create function block
+    #     return FunctionBlock(self, rettype, varname, params)
 
-    def new_global(self, name: str, ty: uCType, init: Optional[str] = None) -> GlobalVariable:
-        """Create a new global variable on the 'data' section."""
-        varname = GlobalVariable(name)
-        self.data.append(GlobalInstr(ty.typename(), varname, init))
-        return varname
-
-    def new_literal(self, typename: str, value: str) -> TextVariable:
+    def new_literal(self, typename: str, value: Any) -> TextVariable:
         """Create a new literal constant on the 'text' section."""
         # avoid repeated constants
-        varname = self.consts.get((typename, value))
+        varname = self.consts.get((typename, str(value)))
         if varname is not None:
             return varname
 
@@ -622,40 +619,36 @@ class GlobalBlock(CountedBlock):
         varname = TextVariable(name, self._new_version(name))
         # and insert into the text section
         self.text.append(GlobalInstr(typename, varname, value))
-        self.consts[typename, value] = varname
+        self.consts[typename, str(value)] = varname
         return varname
 
-    def instructions(self) -> Iterator[GlobalInstr]:
+    def instructions(self) -> Iterator[Instruction]:
         # show text variables, then data
-        return chain(self.text, self.data)
-
-    def subblocks(self) -> Iterator[FunctionBlock]:
-        return iter(self.functions)
+        return chain(self.text, super().instructions())
 
 
 class FunctionBlock(CountedBlock):
     """Special block for function definition."""
 
+    next: BasicBlock
+
     def __init__(
         self,
         parent: GlobalBlock,
+        name: str,
         rettype: str,
-        funcname: NamedVariable,
         param_types: Iterable[str] = (),
     ):
         super().__init__()
         self.parent = parent
+        parent.functions.append(self)
 
+        self.name = name
+        # function header
         params = ((ty, self.new_temp()) for ty in param_types)
-        self.define = DefineInstr(rettype, funcname, params)
-        # function body
-        self.head: Optional[BasicBlock] = None
-        # all blocks in function (important to discover unreachable blocks)
-        self.blocks: list[BasicBlock] = []
+        self.define = DefineInstr(rettype, GlobalVariable(name), params)
 
-    @property
-    def name(self) -> str:
-        return self.define.source.name
+        self.next = BasicBlock(self, "entry")
 
     def new_temp(self) -> TempVariable:
         """
@@ -667,6 +660,9 @@ class FunctionBlock(CountedBlock):
         version = self._new_version("label")
         return f".L{version}"
 
+    def append(self, _: Instruction) -> None:
+        raise TypeError()
+
     def instructions(self) -> Iterator[DefineInstr]:
         yield self.define
 
@@ -677,31 +673,24 @@ class BasicBlock(Block):
     flows to the next block.
     """
 
+    next: Optional[BasicBlock]
+
     def __init__(self, function: FunctionBlock, name: Optional[str] = None):
         super().__init__()
         function.blocks.append(self)
-
-        self.instr: list[Instruction] = []
         # label definition
         if name is None:
             name = function.new_label()
-        self.label_def = LabelInstr(name)
-        # sequential block
-        self.next: Optional[BasicBlock] = None
-
-    @property
-    def name(self) -> str:
-        return self.label_def.label
+        self.name = name
 
     @property
     def label(self) -> LabelName:
         return LabelName(self.name)
 
-    def append(self, instr: Instruction) -> None:
-        self.instr.append(instr)
-
     def instructions(self) -> Iterator[Instruction]:
-        return chain((self.label_def,), self.instr)
+        yield LabelInstr(self.name)
+        for instr in super().instructions():
+            yield instr
 
 
 # class ConditionBlock(Block):
@@ -757,9 +746,13 @@ class EmitBlocks(BlockVisitor[List[Instruction]]):
 
     def generic_visit(self, block: Block, total: list[Instruction]) -> None:
         total.extend(block.instructions())
+        if block.next is not None:
+            self.visit(block.next)
 
-        for sub in block.subblocks():
-            self.visit(sub, total)
+    def visit_GlobalBlock(self, block: GlobalBlock, total: list[Instruction]) -> None:
+        total.extend(block.instructions())
+        for subblock in block.functions:
+            self.visit(subblock)
 
 
 # # # # # # # # # # # #
@@ -829,24 +822,17 @@ class CFG(BlockVisitor[GraphData]):
 
     def visit_GlobalBlock(self, block: GlobalBlock, g: GraphData) -> None:
         # special node for data and text sections
-        g.add_node(None, ".text")
-        g.add_node(None, ".data")
-        # that are connected to the global node
-        g.add_node(block, ":global:")
-        g.add_edge(block, ".text")
-        g.add_edge(block, ".data")
+        g.add_node(None, ".text", block.text)
+        g.add_node(block, ".data", block.instr)
         # and all functions as well
         for func in block.subblocks():
             self.visit(func, g)
-            g.add_edge(block, func)
 
     def visit_FuntionBlock(self, func: FunctionBlock, g: GraphData) -> None:
-        g.add_node(func, func.name)
-
-        if func.head is not None:
-            self.visit(func.head, g)
-            # connect to the first block
-            g.add_edge(func, func.head)
+        g.add_node(func, func.name, func.instr)
+        # connect to the first block
+        self.visit(func.next, g)
+        g.add_edge(func, func.head)
 
     def visit_BasicBlock(self, block: BasicBlock, g: GraphData) -> None:
         name = f"<{block.function.name}>{block.name}"
