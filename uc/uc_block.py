@@ -814,9 +814,12 @@ class GraphData:
 
 
 class CFG(BlockVisitor[GraphData]):
-    def __init__(self, name: str):
+    def __init__(self, name: Optional[str] = None):
+        # program name
+        self.name = name or "program"
+
         def new_data():
-            g = Digraph("g", filename=f"{name}.gv", node_attr={"shape": "record"})
+            g = Digraph("g", filename=f"{self.name}.gv", node_attr={"shape": "record"})
             return GraphData(g)
 
         super().__init__(new_data)
