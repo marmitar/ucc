@@ -557,7 +557,6 @@ class Block:
     __slots__ = ("instr", "next")
 
     def __init__(self) -> None:
-        self.instr: list[Instruction] = []
         self.next: Optional[Block] = None
 
     @property
@@ -565,18 +564,17 @@ class Block:
         return self.__class__.__name__
 
     def instructions(self) -> Iterator[Instruction]:
-        return iter(self.instr)
-
-    def append(self, instr: Instruction) -> None:
-        self.instr.append(instr)
+        raise NotImplementedError()
 
 
 class CountedBlock(Block):
     __slots__ = ("_count",)
 
-    def __init__(self, initial: int = 0):
+    next: None
+
+    def __init__(self):
         super().__init__()
-        self._count = DefaultDict[str, int](lambda: initial)
+        self._count = DefaultDict[str, int](int)
 
     def _new_version(self, key: str) -> int:
         value = self._count[key]
@@ -587,11 +585,10 @@ class CountedBlock(Block):
 class GlobalBlock(CountedBlock):
     """Main block, able to declare globals and constants."""
 
-    next: None
-
     def __init__(self):
         super().__init__()
 
+        self.data: list[GlobalInstr] = []
         self.text: list[GlobalInstr] = []
         # cache of defined constants, to avoid repeated values
         self.consts: dict[tuple[str, str], TextVariable] = {}
@@ -622,46 +619,46 @@ class GlobalBlock(CountedBlock):
         self.consts[typename, str(value)] = varname
         return varname
 
+    def new_global(self, uctype: uCType, varname: GlobalVariable, value: Optional[Any]) -> None:
+        self.data.append(GlobalInstr(uctype.typename(), varname, value))
+
     def instructions(self) -> Iterator[Instruction]:
         # show text variables, then data
-        return chain(self.text, super().instructions())
+        return chain(self.text, self.data)
 
 
 class FunctionBlock(CountedBlock):
     """Special block for function definition."""
 
-    next: BasicBlock
-
     def __init__(
         self,
-        parent: GlobalBlock,
+        program: GlobalBlock,
         name: str,
         rettype: str,
         param_types: Iterable[str] = (),
     ):
         super().__init__()
-        self.parent = parent
-        parent.functions.append(self)
+        self.program = program
+        program.functions.append(self)
+        # initialize register count on 1
+        self._count["%temp%"] = 1
 
         self.name = name
         # function header
         params = ((ty, self.new_temp()) for ty in param_types)
         self.define = DefineInstr(rettype, GlobalVariable(name), params)
 
-        self.next = BasicBlock(self, "entry")
+        self.entry = BasicBlock(self, "entry")
 
     def new_temp(self) -> TempVariable:
         """
-        Create a new temporary variable of a given scope (function name).
+        Create a new temporary variable of a given scope.
         """
-        return TempVariable(self._new_version("temp"))
+        return TempVariable(self._new_version("%temp%"))
 
     def new_label(self) -> str:
         version = self._new_version("label")
         return f".L{version}"
-
-    def append(self, _: Instruction) -> None:
-        raise TypeError()
 
     def instructions(self) -> Iterator[DefineInstr]:
         yield self.define
@@ -677,20 +674,28 @@ class BasicBlock(Block):
 
     def __init__(self, function: FunctionBlock, name: Optional[str] = None):
         super().__init__()
-        function.blocks.append(self)
+        self.function = function
+
+        self.instr: list[Instruction] = []
         # label definition
         if name is None:
-            name = function.new_label()
-        self.name = name
+            self.name = function.new_label()
+        else:
+            self.name = name
+
+    def new_temp(self) -> TempVariable:
+        return self.function.new_temp()
 
     @property
     def label(self) -> LabelName:
         return LabelName(self.name)
 
+    def append(self, instr: Instruction) -> None:
+        self.instr.append(instr)
+
     def instructions(self) -> Iterator[Instruction]:
-        yield LabelInstr(self.name)
-        for instr in super().instructions():
-            yield instr
+        init = (LabelInstr(self.name),)
+        return chain(init, self.instr)
 
 
 # class ConditionBlock(Block):
