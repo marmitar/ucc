@@ -3,7 +3,6 @@ import inspect
 import sys
 from collections.abc import Sequence
 from typing import Literal, Optional, Protocol, TextIO, Tuple, Union
-from uc.uc_block import NamedVariable
 from uc.uc_type import ArrayType, FunctionType, PointerType, PrimaryType, uCType
 
 
@@ -170,14 +169,13 @@ class Node:
 
 
 class Program(Node):
-    __slots__ = "gdecls", "symbols", "name"
+    __slots__ = "gdecls", "name"
     attr_names = ()
-    special_attr = ("symbols", "name")
+    special_attr = ("name",)
 
     def __init__(self, gdecls: list[Union[GlobalDecl, FuncDef]]):
         super().__init__()
         self.gdecls = tuple(gdecls)
-        self.symbols: list[ID] = []
         self.name: Optional[str] = None
 
 
@@ -225,10 +223,9 @@ class FuncDef(Node):
         "decl_list",
         "implementation",
         "return_list",
-        "symbols",
     )
     attr_names = ()
-    special_attr = "return_list", "symbols"
+    special_attr = ("return_list",)
 
     def __init__(
         self,
@@ -243,7 +240,6 @@ class FuncDef(Node):
         self.decl_list = decl_list
         self.implementation = implementation
         self.return_list: Tuple[Return, ...] = ()
-        self.symbols: list[ID] = []
 
     def add_return(self, node: Return) -> None:
         self.return_list += (node,)
@@ -687,34 +683,17 @@ class BoolConstant(Constant):
 
 
 class ID(Node):
-    __slots__ = "name", "_definition"
+    __slots__ = "name", "is_global"
     attr_names = ("name",)
-    special_attr = ("_definition",)
-
-    _definition: Union[ID, NamedVariable]
+    special_attr = ("is_global",)
 
     def __init__(self, name: str, coord: Coord):
         super().__init__(coord)
         self.name = name
+        self.is_global = False
 
     def lvalue_name(self) -> ID:
         return self
-
-    def def_site(self, definition: ID) -> None:
-        """Set definition for identifier."""
-        self._definition = definition
-
-    @property
-    def varname(self) -> NamedVariable:
-        """Variable name for identifier."""
-        ident = self
-        while isinstance(ident._definition, ID):
-            ident = ident._definition
-        return ident._definition
-
-    @varname.setter
-    def varname(self, name: NamedVariable) -> None:
-        self._definition = name
 
 
 class TypeSpec(Node):

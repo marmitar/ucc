@@ -95,6 +95,10 @@ class Symbol:
     def type(self) -> uCType:
         return self.definition.uc_type
 
+    @property
+    def is_global(self) -> bool:
+        return self.definition.is_global
+
     def __str__(self) -> str:
         return repr(self)
 
@@ -119,30 +123,20 @@ class FuncDefSymbol(Symbol):
 class Scope:
     """Scope with symbol mappings."""
 
-    __slots__ = "table", "block"
+    __slots__ = ("table",)
 
-    def __init__(self, block: Union[Program, FuncDef]):
+    def __init__(self):
         self.table: dict[str, Symbol] = {}
-        self.block = block
 
     def add(self, symb: Symbol) -> None:
         """Add or change symbol definition in scope."""
-        self.pop(symb.name)
-        # inser new symbol
         self.table[symb.name] = symb
-        self.block.symbols.append(symb)
 
     def get(self, name: str) -> Optional[Symbol]:
         return self.table.get(name, None)
 
     def pop(self, name: str) -> Optional[Symbol]:
-        symbol = self.table.pop(name, None)
-        if symbol is None:
-            return
-        # remove symbol if found
-        for i, s in enumerate(self.block.symbols):
-            if s in symbol:
-                return self.block.symbols.pop(i)
+        return self.table.pop(name, None)
 
     def __contains__(self, name: str) -> bool:
         return name in self.table
@@ -152,16 +146,8 @@ class Scope:
         return f"{self.__class__.__name__} {super().__str__()}"
 
 
-class EmptyScope(Scope):
-    """Scope that doesn't define variables."""
-
-    __slots__ = ()
-
-    def __init__(self):
-        super().__init__(None)
-
-    def add(self, symb: Symbol) -> None:
-        self.table[symb.name] = symb
+class GlobalScope(Scope):
+    """Scope for global variables."""
 
 
 class IterationScope(Scope):
@@ -169,22 +155,23 @@ class IterationScope(Scope):
 
     __slots__ = ("statement",)
 
-    def __init__(self, iteration_stmt: IterationStmt, block: Union[Program, FuncDef]):
-        super().__init__(block)
+    def __init__(self, iteration_stmt: IterationStmt):
+        super().__init__()
         self.statement = iteration_stmt
 
 
 class FunctionScope(Scope):
     """Scope inside function body."""
 
-    block: FuncDef
+    __slots__ = ("definition",)
 
     def __init__(self, definition: FuncDef):
-        super().__init__(definition)
+        super().__init__()
+        self.definition = definition
 
     @property
     def ident(self) -> ID:
-        return self.block.declaration.name
+        return self.definition.declaration.name
 
     @property
     def type(self) -> FunctionType:
@@ -196,7 +183,7 @@ class FunctionScope(Scope):
 
     @property
     def return_type(self) -> uCType:
-        return self.block.return_type.uc_type
+        return self.definition.return_type.uc_type
 
     def already_defined(self, outer: Scope) -> bool:
         """Check if function was already defined in a given scope."""
@@ -213,12 +200,12 @@ class FunctionScope(Scope):
         """Special scope for function definition."""
 
         class DeclScope(Scope):
-            def add(this, sym: Symbol) -> None:
+            def add(this, sym: Symbol) -> Symbol:
                 assert sym.definition is self.ident
                 # add function to outer scope
-                outer.add(FuncDefSymbol(self.ident, self.block))
+                return outer.add(FuncDefSymbol(self.ident, self.definition))
 
-        return DeclScope(None)
+        return DeclScope()
 
 
 class SymbolTable:
@@ -229,31 +216,23 @@ class SymbolTable:
     def __init__(self):
         # lookup stack of scope
         self.stack: list[Scope] = []
-        self.block: Union[Program, FuncDef, None] = None
 
     @contextmanager
-    def new(
-        self, scope: Optional[Scope] = None, *, block: Union[Program, FuncDef, None] = None
-    ) -> Iterator[Scope]:
+    def new(self, scope: Optional[Scope] = None) -> Iterator[Scope]:
         """
         Insert new scope in the lookup stack and automatically
         removes it when closed.
         """
         #
-        # update block
-        old_block = self.block
-        if block is not None:
-            self.block = block
         # open new scope
         if scope is None:
-            scope = Scope(self.block)
+            scope = Scope()
         self.stack.append(scope)
         try:
             yield scope
         finally:
-            # close scope and recover block
+            # close scope
             self.stack.pop()
-            self.block = old_block
 
     @property
     def current_scope(self) -> Scope:
@@ -638,7 +617,7 @@ class SemanticVisitor(NodeVisitor[uCType]):
 
     def visit_Program(self, node: Program) -> None:
         # global scope
-        with self.symtab.new(block=node):
+        with self.symtab.new(GlobalScope()):
             # Visit all of the global declarations
             self.visit_children(node)
 
@@ -709,7 +688,7 @@ class SemanticVisitor(NodeVisitor[uCType]):
     def visit_FuncDecl(self, node: FuncDecl, scope: Optional[Scope] = None) -> FunctionType:
         rettype = self.visit(node.type)
         # visit parameters in given scope, if any
-        with self.symtab.new(scope or EmptyScope()):
+        with self.symtab.new(scope):
             self.visit(node.param_list)
         # build the function type
         params = [(p.name.name, p.type.uc_type) for p in node.param_list.params]
@@ -858,11 +837,11 @@ class SemanticVisitor(NodeVisitor[uCType]):
         if ret_type != scope.return_type:
             raise InvalidReturnType(node, scope.return_type)
         # bind to function
-        node.bind(scope.block)
+        node.bind(scope.definition)
 
     def visit_IterationStmt(self, node: IterationStmt) -> None:
         # create new breakable scope
-        with self.symtab.new(IterationScope(node, self.symtab.block)) as scope:
+        with self.symtab.new(IterationScope(node)) as scope:
             for _, child in node.children():
                 # reuse iteration scope
                 if isinstance(child, Compound):
@@ -986,8 +965,8 @@ class SemanticVisitor(NodeVisitor[uCType]):
             definition = self.symtab.lookup(node.name)
             if definition is None:
                 raise UndefinedIdentifier(node)
-            # bind identifier to its associated symbol type
-            node.def_site(definition)
+            # mark as global
+            node.is_global = definition.is_global
             return definition.type
 
         else:  # initialize the type
@@ -996,6 +975,7 @@ class SemanticVisitor(NodeVisitor[uCType]):
                 raise InvalidVariableType(node, "a variable")
             if node.name in self.symtab.current_scope:
                 raise NameAlreadyDefined(node)
+            node.is_global = isinstance(self.symtab.current_scope, GlobalScope)
             # add to table
             self.symtab.add(node)
             return uctype
