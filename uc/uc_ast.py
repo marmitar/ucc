@@ -2,7 +2,7 @@ from __future__ import annotations
 import inspect
 import sys
 from collections.abc import Sequence
-from typing import Literal, Optional, Protocol, TextIO, Tuple, Union
+from typing import Any, Literal, Optional, Protocol, TextIO, Tuple, Union
 from uc.uc_type import ArrayType, FunctionType, PointerType, PrimaryType, uCType
 
 
@@ -625,6 +625,8 @@ class AddressOp(UnaryOp):
 class Constant(Node):
     __slots__ = ("value",)
     attr_names = ("value",)
+
+    value: Any
 
 
 class StringConstant(Constant):

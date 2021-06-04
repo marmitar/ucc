@@ -6,9 +6,13 @@ from typing import Any, Optional, TextIO
 from uc.uc_ast import (
     ID,
     BinaryOp,
+    BoolConstant,
+    CharConstant,
     Constant,
     Decl,
+    FloatConstant,
     FuncDef,
+    IntConstant,
     Node,
     ParamList,
     Print,
@@ -24,9 +28,12 @@ from uc.uc_block import (
     GlobalBlock,
     GlobalVariable,
     Instruction,
+    LiteralInstr,
+    LoadInstr,
     NamedVariable,
     StoreInstr,
     TempVariable,
+    TextVariable,
     Variable,
 )
 from uc.uc_interpreter import Interpreter
@@ -159,26 +166,28 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
     # # # # # # # # #
     # BASIC SYMBOLS #
 
-    def visit_Constant(self, node: Constant) -> None:
-        if node.rawtype == "string":
-            target = self.new_text("str")
-            inst = ("global_string", target, node.value)
-            self.text.append(inst)
-        else:
-            # Create a new temporary variable name
-            target = self.new_temp()
-            # Make the SSA opcode and append to list of generated instructions
-            inst = (f"literal_{node.uc_type!r}", node.value, target)
-            self.current_block.append(inst)
-        # Save the name of the temporary variable where the value was placed
-        node.gen_location = target
+    def visit_Constant(self, node: Constant) -> TempVariable:
+        # Create a new temporary variable name
+        target = self.current.new_temp()
+        # Make the SSA opcode and append to list of generated instructions
+        instr = LiteralInstr(node.uc_type.typename(), node.value, target)
+        self.current.append(instr)
+        return target
 
-    def visit_StringConstant(self, node: StringConstant) -> None:
-        target = self.new_text("str")
-        # inst = GlobalInstr("string", )
-        # self.text.append(inst)
+    def visit_IntConstant(self, node: IntConstant) -> TempVariable:
+        return self.visit_Constant(node)
 
-    # TODO: Complete.
+    def visit_FloatConstant(self, node: FloatConstant) -> TempVariable:
+        return self.visit_Constant(node)
+
+    def visit_BoolConstant(self, node: BoolConstant) -> TempVariable:
+        return self.visit_Constant(node)
+
+    def visit_CharConstant(self, node: CharConstant) -> TempVariable:
+        return self.visit_Constant(node)
+
+    def visit_StringConstant(self, node: StringConstant) -> TextVariable:
+        return self.glob.new_literal("string", node.value)
 
     def visit_ID(self, node: ID) -> NamedVariable:
         if node.is_global:
