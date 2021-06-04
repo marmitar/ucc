@@ -6,12 +6,14 @@ from typing import Any, Optional, TextIO, Type, Union
 from uc.uc_ast import (
     ID,
     AddressOp,
+    ArrayRef,
     BinaryOp,
     BoolConstant,
     CharConstant,
     Constant,
     Decl,
     FloatConstant,
+    FuncCall,
     FuncDef,
     IntConstant,
     Node,
@@ -29,6 +31,7 @@ from uc.uc_block import (
     AndInstr,
     BasicBlock,
     BinaryOpInstruction,
+    CallInstr,
     DivInstr,
     ElemInstr,
     EmitBlocks,
@@ -49,6 +52,7 @@ from uc.uc_block import (
     NeInstr,
     NotInstr,
     OrInstr,
+    ParamInstr,
     StoreInstr,
     SubInstr,
     TempVariable,
@@ -225,7 +229,26 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
         # or element
         else:
             index = self._new_constant(IntType, 0)
-            return self._access_element(node.expr.uc_type, source, index)
+            return self._access_element(node.uc_type, source, index)
+
+    def visit_ArrayRef(self, node: ArrayRef) -> TempVariable:
+        source = self.visit(node.array)
+        index = self.visit(node.index)
+        return self._access_element(node.uc_type, source, index)
+
+    def visit_FuncCall(self, node: FuncCall) -> TempVariable:
+        # get function address
+        source = self.visit(node.callable)
+        # load parameters
+        for param in node.parameters():
+            varname = self.visit(param)
+            instr = ParamInstr(param.uc_type.typename(), varname)
+            self.current.append(instr)
+        # then call function
+        target = self.current.new_temp()
+        isntr = CallInstr(node.uc_type.typename(), source, target)
+        self.current.append(instr)
+        return target
 
     # # # # # # # # #
     # BASIC SYMBOLS #
