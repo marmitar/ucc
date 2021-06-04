@@ -564,7 +564,7 @@ class Block:
         raise NotImplementedError()
 
     def subblocks(self) -> Iterator[Block]:
-        raise NotImplementedError()
+        return ()
 
 
 class CountedBlock(Block):
@@ -590,7 +590,7 @@ class GlobalBlock(CountedBlock):
         self.text: list[GlobalInstr] = []
         # cache of defined constants, to avoid repeated values
         self.consts: dict[tuple[str, str], TextVariable] = {}
-        # list o function blocks
+        # all functions in the program
         self.functions: list[FunctionBlock] = []
 
     def new_function(self, uctype: FunctionType) -> FunctionBlock:
@@ -649,6 +649,8 @@ class FunctionBlock(CountedBlock):
         params = ((ty, self.new_temp()) for ty in param_types)
         self.define = DefineInstr(rettype, funcname, params)
         # function body
+        self.head: Optional[BasicBlock] = None
+        # all blocks in function (important to discover unreachable blocks)
         self.blocks: list[BasicBlock] = []
 
     @property
@@ -656,26 +658,17 @@ class FunctionBlock(CountedBlock):
         return self.define.source.name
 
     def new_temp(self) -> TempVariable:
+        """
+        Create a new temporary variable of a given scope (function name).
+        """
         return TempVariable(self._new_version("temp"))
 
-    def named_var(self, name: str) -> NamedVariable:
-        return NamedVariable(name)
-
-    def new_block(self, name: Optional[str] = None) -> BasicBlock:
-        if name is None:
-            # generate generic name
-            version = self._new_version("label")
-            name = f".L{version}"
-
-        block = BasicBlock(self, name)
-        self.blocks.append(block)
-        return block
+    def new_label(self) -> str:
+        version = self._new_version("label")
+        return f".L{version}"
 
     def instructions(self) -> Iterator[DefineInstr]:
         yield self.define
-
-    def subblocks(self) -> Iterator[BasicBlock]:
-        return iter(self.blocks)
 
 
 class BasicBlock(Block):
@@ -684,13 +677,17 @@ class BasicBlock(Block):
     flows to the next block.
     """
 
-    def __init__(self, function: FunctionBlock, name: str):
+    def __init__(self, function: FunctionBlock, name: Optional[str] = None):
         super().__init__()
-        self.function = function
+        function.blocks.append(self)
 
         self.instr: list[Instruction] = []
         # label definition
+        if name is None:
+            name = function.new_label()
         self.label_def = LabelInstr(name)
+        # sequential block
+        self.next: Optional[BasicBlock] = None
 
     @property
     def name(self) -> str:
@@ -703,20 +700,8 @@ class BasicBlock(Block):
     def append(self, instr: Instruction) -> None:
         self.instr.append(instr)
 
-    def new_temp(self) -> TempVariable:
-        return self.function.new_temp()
-
-    def named_var(self, name: str) -> NamedVariable:
-        return self.function.named_var(name)
-
-    def new_literal(self, typename: str, value: str) -> TextVariable:
-        return self.function.parent.new_literal(typename, value)
-
     def instructions(self) -> Iterator[Instruction]:
         return chain((self.label_def,), self.instr)
-
-    def subblocks(self) -> Iterator[Block]:
-        return iter(())
 
 
 # class ConditionBlock(Block):
@@ -854,21 +839,19 @@ class CFG(BlockVisitor[GraphData]):
 
     def visit_FuntionBlock(self, func: FunctionBlock, g: GraphData) -> None:
         g.add_node(func, func.name)
-        # connect each block to the next
-        it = iter(func.subblocks())  # TODO: don't
-        block = next(it)
 
-        self.visit(block, g)
-        g.add_edge(func, block)
-
-        for subblock in it:
-            self.visit(subblock, g)
-            g.add_edge(block, subblock)
-            block = subblock
+        if func.head is not None:
+            self.visit(func.head, g)
+            # connect to the first block
+            g.add_edge(func, func.head)
 
     def visit_BasicBlock(self, block: BasicBlock, g: GraphData) -> None:
         name = f"<{block.function.name}>{block.name}"
         g.add_node(block, name, block.instr)
+
+        if block.next is not None:
+            self.visit(block.next, g)
+            g.add_edge(block, block.next)
         # TODO:
         # # Function definition. An empty block that connect to the Entry Block
         # self.g.node(self.fname, label=None, _attributes={"shape": "ellipse"})

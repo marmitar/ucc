@@ -1,16 +1,26 @@
 import argparse
 import pathlib
 import sys
-from typing import DefaultDict, Optional, TextIO
-from uc.uc_ast import BinaryOp, Constant, FuncDef, Print, Program, VarDecl
+from typing import Optional, TextIO
+from uc.uc_ast import (
+    BinaryOp,
+    Constant,
+    FuncDef,
+    Print,
+    Program,
+    StringConstant,
+    VarDecl,
+)
 from uc.uc_block import (
     CFG,
     BasicBlock,
     Block,
     ConditionBlock,
     EmitBlocks,
-    Instr,
-    format_instruction,
+    FunctionBlock,
+    GlobalBlock,
+    GlobalInstr,
+    Instruction,
 )
 from uc.uc_interpreter import Interpreter
 from uc.uc_parser import UCParser
@@ -26,48 +36,36 @@ class CodeGenerator(NodeVisitor[None]):
     def __init__(self, viewcfg: bool):
         super().__init__(None)
         self.viewcfg = viewcfg
-        self.current_block: Optional[Block] = None
 
-        # version dictionary for temporaries. We use the name as a Key
-        self.fname = "_glob_"
-        self.versions = {self.fname: 0}
+        self.glob = GlobalBlock()
+        self._function: Optional[FunctionBlock] = None
+        self._block: Optional[BasicBlock] = None
 
         # The generated code (list of tuples)
         # At the end of visit_program, we call each function definition to emit
         # the instructions inside basic blocks. The global instructions that
         # are stored in self.text are appended at beginning of the code
-        self.code: list[Instr] = []
-
-        self.text: list[str] = []  # Used for global declarations & constants (list, strings)
+        self.code: list[Instruction] = []
 
         # TODO: Complete if needed.
 
     def show(self, buf: TextIO = sys.stdout) -> None:
         text = ""
         for code in self.code:
-            text += format_instruction(code) + "\n"
+            text += code.format() + "\n"
         buf.write(text)
 
-    def new_temp(self) -> str:
-        """
-        Create a new temporary variable of a given scope (function name).
-        """
-        if self.fname not in self.versions:
-            version = self.versions[self.fname] = 1
-        else:
-            version = self.versions[self.fname]
-        self.versions[self.fname] += 1
+    @property
+    def current_function(self) -> FunctionBlock:
+        if self._function is None:
+            raise ValueError()
+        return self._function
 
-        return f"%{version}"
-
-    def new_text(self, typename: str) -> str:
-        """
-        Create a new literal constant on global section (text).
-        """
-        version = self.versions["_glob_"]
-        self.versions["_glob_"] += 1
-
-        return f"@.{typename}{version}"
+    @property
+    def current_block(self) -> BasicBlock:
+        if self._block is None:
+            raise ValueError()
+        return self._block
 
     # You must implement visit_Nodename methods for all of the other
     # AST nodes.  In your code, you will need to make instructions
@@ -176,6 +174,11 @@ class CodeGenerator(NodeVisitor[None]):
             self.current_block.append(inst)
         # Save the name of the temporary variable where the value was placed
         node.gen_location = target
+
+    def visit_StringConstant(self, node: StringConstant) -> None:
+        target = self.new_text("str")
+        # inst = GlobalInstr("string", )
+        # self.text.append(inst)
 
     # TODO: Complete.
 
