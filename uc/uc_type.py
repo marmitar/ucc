@@ -144,6 +144,9 @@ class ArrayType(uCType):
         qualifier = "*" if self.size is None else str(self.size)
         return self.elem_type.ir() + "_" + qualifier
 
+    def __hash__(self) -> int:
+        return super().__hash__()
+
     @staticmethod
     def empty_list() -> ArrayType:
         """Special type for empty initialization lists: '{}'."""
@@ -163,8 +166,7 @@ class StringType(ArrayType):
     "Type for string literals"
 
     def __init__(self, size: int):
-        # add space for "\0"
-        super().__init__(CharType, size + 1)
+        super().__init__(CharType, size)
 
     def typename(self) -> str:
         return "string_literal"
@@ -187,6 +189,9 @@ class PointerType(uCType):
 
     def __eq__(self, other: uCType) -> bool:
         return isinstance(other, PointerType) and self.inner == other.inner
+
+    def __hash__(self) -> int:
+        return super().__hash__()
 
     def typename(self) -> str:
         return f"*{self.inner!r}"
@@ -228,6 +233,9 @@ class FunctionType(uCType):
             and self.rettype == other.rettype
             and self.param_types == other.param_types
         )
+
+    def __hash__(self) -> int:
+        return super().__hash__()
 
     def typename(self, *, show_names: bool = False) -> str:
         if show_names:
