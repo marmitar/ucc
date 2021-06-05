@@ -27,20 +27,24 @@ from uc.uc_ast import (
 )
 from uc.uc_block import (
     CFG,
+    BasicBlock,
+    EmitBlocks,
+    FunctionBlock,
+    GlobalBlock,
+    Variable,
+)
+from uc.uc_interpreter import Interpreter
+from uc.uc_ir import (
     AddInstr,
     AllocInstr,
     AndInstr,
-    BasicBlock,
     BinaryOpInstruction,
     CallInstr,
     DivInstr,
     ElemInstr,
-    EmitBlocks,
     EqInstr,
-    FunctionBlock,
     GeInstr,
     GetInstr,
-    GlobalBlock,
     GlobalVariable,
     GtInstr,
     Instruction,
@@ -60,9 +64,7 @@ from uc.uc_block import (
     TempVariable,
     TextVariable,
     UnaryOpInstruction,
-    Variable,
 )
-from uc.uc_interpreter import Interpreter
 from uc.uc_parser import UCParser
 from uc.uc_sema import NodeVisitor, Visitor
 from uc.uc_type import IntType, PrimaryType, uCType
@@ -283,7 +285,7 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
     def visit_CharConstant(self, node: CharConstant) -> TempVariable:
         return self.visit_Constant(node)
 
-    def visit_StringConstant(self, node: StringConstant) -> TextVariable:
+    def visit_StringConstant(self, node: StringConstant) -> TextVariable:  # TODO
         return self.glob.new_literal(node.uc_type, node.value)
 
     def _varname(self, ident: ID) -> NamedVariable:
