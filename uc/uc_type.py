@@ -31,6 +31,10 @@ class uCType:
         """The name of the uCType."""
         raise NotImplementedError()
 
+    def ir(self) -> str:
+        """Valid name for uCIR"""
+        return self.typename()
+
     def __str__(self) -> str:
         """Standard type formatting."""
         return f"type({self.typename()})"
@@ -38,6 +42,9 @@ class uCType:
     def __repr__(self) -> str:
         """Only show typename."""
         return self.typename()
+
+    def __hash__(self) -> int:
+        return hash(self.typename())
 
 
 # # # # # # # # #
@@ -133,6 +140,10 @@ class ArrayType(uCType):
     def typename(self) -> str:
         return f"{self.elem_type!r}[{self.size or ''}]"
 
+    def ir(self) -> str:
+        qualifier = "*" if self.size is None else str(self.size)
+        return self.elem_type.ir() + "_" + qualifier
+
     @staticmethod
     def empty_list() -> ArrayType:
         """Special type for empty initialization lists: '{}'."""
@@ -146,6 +157,42 @@ class ArrayType(uCType):
             return True
         # must be nonnegative and less than size, if known
         return value < 0 or (self.size is not None and value >= self.size)
+
+
+class StringType(ArrayType):
+    "Type for string literals"
+
+    def __init__(self, size: int):
+        # add space for "\0"
+        super().__init__(CharType, size + 1)
+
+    def typename(self) -> str:
+        return "string_literal"
+
+    def ir(self) -> str:
+        return "string"
+
+
+# # # # # # # # #
+# Pointer Type  #
+
+
+class PointerType(uCType):
+    __slots__ = ("inner",)
+
+    def __init__(self, inner: uCType):
+        relation = {"==", "!=", "<", ">", "<=", ">="}
+        super().__init__(unary_ops={"*", "&"}, rel_ops=relation, assign_ops={"="})
+        self.inner = inner
+
+    def __eq__(self, other: uCType) -> bool:
+        return isinstance(other, PointerType) and self.inner == other.inner
+
+    def typename(self) -> str:
+        return f"*{self.inner!r}"
+
+    def ir(self) -> str:
+        return self.inner.ir() + "_*"
 
 
 # # # # # # # # #
@@ -191,21 +238,6 @@ class FunctionType(uCType):
             params = ",".join(f"{t!r}" for t in self.param_types)
             return f"{self.rettype!r}({params})"
 
-
-# # # # # # # # #
-# Pointer Type  #
-
-
-class PointerType(uCType):
-    __slots__ = ("inner",)
-
-    def __init__(self, inner: uCType):
-        relation = {"==", "!=", "<", ">", "<=", ">="}
-        super().__init__(unary_ops={"*", "&"}, rel_ops=relation, assign_ops={"="})
-        self.inner = inner
-
-    def __eq__(self, other: uCType) -> bool:
-        return isinstance(other, PointerType) and self.inner == other.inner
-
-    def typename(self) -> str:
-        return f"{self.inner!r}[]"
+    def ir(self) -> str:
+        params = ",".join(p.ir() for p in self.params)
+        return self.rettype.ir() + "_(" + params + ")"

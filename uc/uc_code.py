@@ -2,7 +2,7 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
-from typing import Any, Optional, TextIO, Type
+from typing import Any, Optional, TextIO, Tuple, Type, Union
 from uc.uc_ast import (
     ID,
     AddressOp,
@@ -143,13 +143,13 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
             self.glob.new_global(uctype, varname, self._evaluate_init(node.init))
             return
         # local variables are allocated on the function stack
-        instr = AllocInstr(uctype.typename(), varname)
+        instr = AllocInstr(uctype, varname)
         self.current.append(instr)
         # if a value is given, initialize it
         if source is None and node.init is not None:
             source = self.visit(node.init)
         if source is not None:
-            instr = StoreInstr(uctype.typename(), source, varname)
+            instr = StoreInstr(uctype, source, varname)
             self.current.append(instr)
 
     def visit_FuncDef(self, node: FuncDef) -> None:
@@ -180,7 +180,7 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
         # TODO: Load the location containing the expression
 
         # Create the opcode and append to list
-        inst = (f"print_{node.param.uc_type!r}", node.param.gen_location)
+        inst = (f"print_{node.param.uc_type.ir()}", node.param.gen_location)
         self.current_block.append(inst)
 
         # TODO: Handle the cases when node.expr is None or ExprList
@@ -201,7 +201,7 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
         target = self.current.new_temp()
 
         # Create the opcode and append to list
-        instr = binary_op[node.op](node.uc_type.typename(), left, right, target)
+        instr = binary_op[node.op](node.uc_type, left, right, target)
         self.current.append(instr)
         return target
 
@@ -214,14 +214,14 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
         target = self.current.new_temp()
 
         # Create the opcode and append to list
-        instr = unary_op[node.op](node.uc_type.typename(), source, target)
+        instr = unary_op[node.op](node.uc_type, source, target)
         self.current.append(instr)
         return target
 
     def _access_element(self, uctype: uCType, source: Variable, index: Variable) -> TempVariable:
         target = self.current.new_temp()
         # access at index
-        instr = ElemInstr(uctype.typename(), source, index, target)
+        instr = ElemInstr(uctype, source, index, target)
         self.current.append(instr)
         return target
 
@@ -230,7 +230,7 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
         # get address
         if node.op == "&":
             target = self.current.new_temp()
-            instr = GetInstr(node.expr.uc_type.typename(), source, target)
+            instr = GetInstr(node.expr.uc_type, source, target)
             self.current.append(instr)
             return target
         # or element
@@ -249,11 +249,11 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
         # load parameters
         for param in node.parameters():
             varname = self.visit(param)
-            instr = ParamInstr(param.uc_type.typename(), varname)
+            instr = ParamInstr(param.uc_type, varname)
             self.current.append(instr)
         # then call function
         target = self.current.new_temp()
-        isntr = CallInstr(node.uc_type.typename(), source, target)
+        isntr = CallInstr(node.uc_type, source, target)
         self.current.append(instr)
         return target
 
@@ -264,7 +264,7 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
         # Create a new temporary variable name
         target = self.current.new_temp()
         # Make the SSA opcode and append to list of generated instructions
-        instr = LiteralInstr(uctype.typename(), value, target)
+        instr = LiteralInstr(uctype, value, target)
         self.current.append(instr)
         return target
 
@@ -284,7 +284,7 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
         return self.visit_Constant(node)
 
     def visit_StringConstant(self, node: StringConstant) -> TextVariable:
-        return self.glob.new_literal("string", node.value)
+        return self.glob.new_literal(node.uc_type, node.value)
 
     def _varname(self, ident: ID) -> NamedVariable:
         """Get variable name for identifier"""
@@ -297,7 +297,7 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
         stackvar = self._varname(node)
         # load into a register
         register = self.current.new_temp()
-        instr = LoadInstr(node.uc_type.typename(), stackvar, register)
+        instr = LoadInstr(node.uc_type, stackvar, register)
         self.current.append(instr)
         return register
 

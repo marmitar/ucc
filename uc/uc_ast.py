@@ -3,7 +3,18 @@ import inspect
 import sys
 from collections.abc import Sequence
 from typing import Any, Literal, Optional, Protocol, TextIO, Tuple, Union
-from uc.uc_type import ArrayType, FunctionType, PointerType, PrimaryType, uCType
+from uc.uc_type import (
+    ArrayType,
+    BoolType,
+    CharType,
+    FloatType,
+    FunctionType,
+    IntType,
+    PointerType,
+    PrimaryType,
+    StringType,
+    uCType,
+)
 
 
 class Coord(Protocol):
@@ -640,6 +651,7 @@ class StringConstant(Constant):
     attr_names = ()
 
     value: str
+    uc_type: StringType
 
     def __init__(self, value: str, coord: Coord):
         super().__init__(coord)
@@ -651,6 +663,7 @@ class IntConstant(Constant):
     attr_names = ()
 
     value: int
+    uc_type: IntType
 
     def __init__(self, value: int, coord: Coord):
         super().__init__(coord)
@@ -662,6 +675,7 @@ class FloatConstant(Constant):
     attr_names = ()
 
     value: float
+    uc_type: FloatType
 
     def __init__(self, value: float, coord: Coord):
         super().__init__(coord)
@@ -673,6 +687,7 @@ class CharConstant(Constant):
     attr_names = ()
 
     value: str
+    uc_type: CharType
 
     def __init__(self, value: str, coord: Coord):
         super().__init__(coord)
@@ -684,6 +699,7 @@ class BoolConstant(Constant):
     attr_names = ()
 
     value: bool
+    uc_type: BoolType
 
     def __init__(self, value: bool, coord: Coord):
         super().__init__(coord)
