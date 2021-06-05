@@ -16,7 +16,7 @@ from typing import (
     Union,
 )
 from graphviz import Digraph
-from uc.uc_type import FunctionType, uCType
+from uc.uc_type import FunctionType, StringType, uCType
 
 # # # # # # # # # #
 # Variable Types  #
@@ -97,17 +97,14 @@ class Instruction:
     __slots__ = ()
 
     opname: str
-    type: Optional[str] = None
+    type: Optional[uCType] = None
     arguments: tuple[str, ...] = ()
     target_attr: Optional[str] = None
     indent: bool = True
 
     @property
     def operation(self) -> str:
-        if self.type is not None:
-            return f"{self.opname}_{self.type}"
-        else:
-            return self.opname
+        return self.opname
 
     def as_tuple(self) -> tuple[str, ...]:
         values = (getattr(self, attr) for attr in self.arguments)
@@ -135,7 +132,7 @@ class Instruction:
         yield self.opname
 
         if self.type is not None:
-            yield self.type
+            yield self.type.ir()
 
         for attr in self.arguments:
             if attr == self.target_attr:
@@ -151,11 +148,15 @@ class Instruction:
 class TypedInstruction(Instruction):
     __slots__ = ("type",)
 
-    type: str
+    type: uCType
 
-    def __init__(self, type: str):
+    def __init__(self, type: uCType):
         super().__init__()
         self.type = type
+
+    @property
+    def operation(self) -> str:
+        return f"{self.opname}_{self.type.ir()}"
 
 
 class TargetInstruction(TypedInstruction):
@@ -163,7 +164,7 @@ class TargetInstruction(TypedInstruction):
 
     target_attr = "target"
 
-    def __init__(self, type: str, target: Variable):
+    def __init__(self, type: uCType, target: Variable):
         super().__init__(type)
         self.target = target
 
@@ -181,7 +182,7 @@ class AllocInstr(TypedInstruction):
     arguments = ("varname",)
     target_attr = "varname"
 
-    def __init__(self, type: str, varname: Variable):
+    def __init__(self, type: uCType, varname: NamedVariable):
         super().__init__(type)
         self.varname = varname
 
@@ -195,17 +196,17 @@ class GlobalInstr(AllocInstr):
     arguments = "varname", "value"
     indent = False
 
-    def __init__(self, type: str, varname: NamedVariable, value: Optional[Any] = None):
+    def __init__(self, type: uCType, varname: NamedVariable, value: Optional[Any] = None):
         super().__init__(type, varname)
         self._value = value
 
     def as_tuple(self) -> tuple[str, ...]:
-        return self.operation, self.varname, self._value
+        return self.operation, self.varname, self.value
 
     @property
     def value(self) -> Optional[Any]:
         # format string as expected
-        if self.type == "string" and self._value is not None:
+        if isinstance(self.type, StringType):
             return f"'{self._value}'"
         else:
             return self._value
@@ -219,23 +220,23 @@ class LoadInstr(TargetInstruction):
     opname = "load"
     arguments = "varname", "target"
 
-    def __init__(self, type: str, varname: Variable, target: Variable):
+    def __init__(self, type: uCType, varname: NamedVariable, target: TempVariable):
         super().__init__(type, target)
         self.varname = varname
 
 
-class StoreInstr(TargetInstruction):
+class StoreInstr(TypedInstruction):
     """Store the source/register into target/varname."""
 
-    __slots__ = ("varname",)
+    __slots__ = "varname", "target"
 
     opname = "store"
     arguments = "source", "target"
-    target_attr = None
 
-    def __init__(self, type: str, varname: Variable, target: Variable):
-        super().__init__(type, target)
-        self.varname = varname
+    def __init__(self, type: uCType, source: TempVariable, target: NamedVariable):
+        super().__init__(type)
+        self.source = source
+        self.target = target
 
 
 class LiteralInstr(TargetInstruction):
@@ -246,7 +247,7 @@ class LiteralInstr(TargetInstruction):
     opname = "literal"
     arguments = "value", "target"
 
-    def __init__(self, type: str, value: Any, target: Variable):
+    def __init__(self, type: uCType, value: Any, target: TempVariable):
         super().__init__(type, target)
         self.value = value
 
@@ -259,23 +260,25 @@ class ElemInstr(TargetInstruction):
     opname = "elem"
     arguments = "source", "index", "target"
 
-    def __init__(self, type: str, source: Variable, index: Variable, target: Variable):
+    def __init__(self, type: uCType, source: Variable, index: TempVariable, target: TempVariable):
         super().__init__(type, target)
         self.source = source
         self.index = index
 
 
-class GetInstr(TargetInstruction):
+class GetInstr(Instruction):
     """Store into target the address of source."""
 
-    __slots__ = ("source",)
+    __slots__ = ("source", "target")
 
     opname = "get"
     arguments = "source", "target"
+    target_attr = "target"
 
-    def __init__(self, type: str, source: Variable, target: Variable):
-        super().__init__(type, target)
+    def __init__(self, source: NamedVariable, target: TempVariable):
+        super().__init__()
         self.source = source
+        self.target = target
 
 
 # # # # # # # # # # #
@@ -287,7 +290,7 @@ class BinaryOpInstruction(TargetInstruction):
 
     arguments = "left", "right", "target"
 
-    def __init__(self, type: str, left: Variable, right: Variable, target: Variable):
+    def __init__(self, type: uCType, left: Variable, right: Variable, target: Variable):
         super().__init__(type, target)
         self.left = left
         self.right = right
@@ -333,7 +336,7 @@ class UnaryOpInstruction(TargetInstruction):
 
     arguments = "expr", "target"
 
-    def __init__(self, type: str, expr: Variable, target: Variable):
+    def __init__(self, type: uCType, expr: Variable, target: Variable):
         super().__init__(type, target)
         self.expr = expr
 
@@ -455,14 +458,14 @@ class CBranchInstr(Instruction):
 class DefineParam(NamedTuple):
     """Parameters for the 'define' instruction"""
 
-    type: str
-    name: Variable
+    type: uCType
+    name: TempVariable
 
     def __str__(self) -> str:
-        return f"{self.type} {self.name}"
+        return f"{self.type.ir()} {self.name}"
 
     def __repr__(self) -> str:
-        return f"({self.type}, {self.name})"
+        return f"({self.type.typename()}, {self.name})"
 
 
 class DefineInstr(TypedInstruction):
@@ -478,7 +481,7 @@ class DefineInstr(TypedInstruction):
     indent = False
 
     def __init__(
-        self, type: str, source: NamedVariable, args: Iterable[tuple[str, Variable]] = ()
+        self, type: uCType, source: NamedVariable, args: Iterable[tuple[uCType, TempVariable]] = ()
     ):
         super().__init__(type)
         self.source = source
@@ -496,7 +499,7 @@ class CallInstr(TypedInstruction):
     opname = "call"
     arguments = "source", "target"
 
-    def __init__(self, type: str, source: Variable, target: Optional[Variable] = None):
+    def __init__(self, type: uCType, source: NamedVariable, target: Optional[TempVariable] = None):
         super().__init__(type)
         self.source = source
         self.target = target
@@ -517,7 +520,7 @@ class ReturnInstr(TypedInstruction):
     opname = "return"
     arguments = ("target",)
 
-    def __init__(self, type: str, target: Optional[Variable] = None):
+    def __init__(self, type: uCType, target: Optional[TempVariable] = None):
         super().__init__(type)
         self.target = target
 
@@ -530,7 +533,7 @@ class ParamInstr(TypedInstruction):
     opname = "param"
     arguments = ("source",)
 
-    def __init__(self, type: str, source: Variable):
+    def __init__(self, type: uCType, source: TempVariable):
         super().__init__(type)
         self.source = source
 
@@ -540,6 +543,11 @@ class ReadInstr(ParamInstr):
 
     __slots__ = ()
     opname = "read"
+
+    source: NamedVariable
+
+    def __init__(self, type: uCType, source: NamedVariable):
+        super().__init__(type, source)
 
 
 class PrintInstr(ParamInstr):
@@ -595,23 +603,23 @@ class GlobalBlock(CountedBlock):
         # all functions in the program
         self.functions: list[FunctionBlock] = []
 
-    def new_literal(self, typename: str, value: Any) -> TextVariable:
+    def new_literal(self, ty: uCType, value: Any) -> TextVariable:
         """Create a new literal constant on the 'text' section."""
         # avoid repeated constants
-        varname = self.consts.get((typename, str(value)))
+        varname = self.consts.get((ty, str(value)))
         if varname is not None:
             return varname
 
         # remove non alphanumeric character
-        name = "".join(ch if ch.isalnum() else "_" for ch in typename)
+        name = "".join(ch if ch.isalnum() else "_" for ch in ty)
         varname = TextVariable(name, self._new_version(name))
         # and insert into the text section
-        self.text.append(GlobalInstr(typename, varname, value))
-        self.consts[typename, str(value)] = varname
+        self.text.append(GlobalInstr(ty, varname, value))
+        self.consts[ty, str(value)] = varname
         return varname
 
     def new_global(self, uctype: uCType, varname: GlobalVariable, value: Optional[Any]) -> None:
-        self.data.append(GlobalInstr(uctype.typename(), varname, value))
+        self.data.append(GlobalInstr(uctype, varname, value))
 
     def instructions(self) -> Iterator[Instruction]:
         # show text variables, then data
@@ -630,7 +638,7 @@ class FunctionBlock(CountedBlock):
 
         # function data
         self.name = function.funcname
-        self.params = [(name, ty.typename(), self.new_temp()) for name, ty in function.params]
+        self.params = [(name, ty, self.new_temp()) for name, ty in function.params]
         # function definition
         self.define = DefineInstr(
             function.rettype, GlobalVariable(self.name), ((ty, var) for _, ty, var in self.params)

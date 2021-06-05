@@ -62,6 +62,7 @@ from uc.uc_type import (
     IntType,
     PointerType,
     PrimaryType,
+    StringType,
     VoidType,
     uCType,
 )
@@ -468,9 +469,9 @@ class InvalidAssignmentExpr(SemanticError):
 class OperationTypeDoesNotMatch(InvalidOperation):  # msg_code: 4, 6
     def __init__(self, expr: BinaryOp):
         if isinstance(expr, Assignment):
-            self.error_fotmat = "Cannot assign {type[1]} to {type[0]}"
+            self.error_format = "Cannot assign {type[1]} to {type[0]}"
         else:
-            self.error_fotmat = "{kind} operator {op} does not have matching LHS/RHS types"
+            self.error_format = "{kind} operator {op} does not have matching LHS/RHS types"
 
         super().__init__(expr)
 
@@ -1007,8 +1008,8 @@ class SemanticVisitor(NodeVisitor[uCType]):
             self.symtab.add(node)
             return uctype
 
-    def visit_StringConstant(self, node: StringConstant) -> ArrayType:
-        return ArrayType(CharType, len(node.value) + 1)
+    def visit_StringConstant(self, node: StringConstant) -> StringType:
+        return StringType(len(node.value))
 
     def visit_IntConstant(self, _: IntConstant) -> Literal[IntType]:
         return IntType
