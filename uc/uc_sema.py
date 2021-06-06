@@ -910,15 +910,20 @@ class SemanticVisitor(NodeVisitor[uCType]):
         # comparison results in boolean
         return BoolType
 
-    def _valid_lvalue(self, node: Node) -> bool:
-        """Valid lvalues are: ID, ArrayRef or the deref operator."""
-        return isinstance(node, (ArrayRef, ID)) or (isinstance(node, UnaryOp) and node.op == "*")
+    def _valid_reference(self, node: Node) -> bool:
+        """Check for valid references (and assignable lvalue)"""
+        return (
+            # must be a reference to an identifier or some element of an array
+            isinstance(node, (ArrayRef, ID))
+            or isinstance(node, AddressOp)  # a reference to a derenced variable
+            and node.op == "*"
+        )
 
     def visit_Assignment(self, node: Assignment) -> uCType:
         rtype = self._visit_binary(node, "assign_ops", node.right, node.left)
         ltype = node.left.uc_type
 
-        if not self._valid_lvalue(node.left):
+        if not self._valid_reference(node.left):
             raise InvalidAssignmentExpr(node.left)
         if isinstance(ltype, ArrayType) and ltype.size is not None and ltype.size != rtype.size:
             raise ArraySizeMismatch(node)
@@ -931,17 +936,12 @@ class SemanticVisitor(NodeVisitor[uCType]):
         # Assign the result type
         return uctype
 
-    def _assert_reference(self, node: Node) -> None:
-        if not isinstance(node, (ArrayRef, AddressOp, ID)):
-            raise InvalidReference(node)
-        elif isinstance(node, AddressOp) and node.op != "&":
-            raise InvalidReference(node)
-
     def visit_AddressOp(self, node: AddressOp) -> uCType:
         uctype = self.visit_UnaryOp(node)
         # change to pointer type
         if node.op == "&":
-            self._assert_reference(node)
+            if not self._valid_reference(node.expr):
+                raise InvalidReference(node)
             return PointerType(uctype)
         # check valid dereference
         elif not isinstance(uctype, PointerType):
