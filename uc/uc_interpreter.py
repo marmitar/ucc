@@ -646,7 +646,8 @@ class Interpreter:
 
     def run_store(self, store: StoreInstr) -> None:
         source = self._alloc_reg(store.source)
-        self.registers[source] = self._get_value(store.target)
+        target = self._alloc_reg(store.target)
+        M[self.registers[target]] = self.registers[source]
 
     #
     # perform binary, relational & cast operations

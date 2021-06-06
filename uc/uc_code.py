@@ -168,8 +168,7 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
         self.current = None
 
     def visit_ParamList(self, node: ParamList) -> None:
-        tempname = [var for _, _, var in self.current.function.params]
-        for decl, varname in zip(node.params, tempname):
+        for decl, (_, _, varname) in zip(node.params, self.current.function.params):
             self.visit_Decl(decl, varname)
 
     # # # # # # # #
@@ -191,9 +190,11 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
     # EXPRESSIONS #
 
     def visit_Assignment(self, node: Assignment) -> TempVariable:
-        source = self.visit(node.right)
-        raise NotImplementedError()
-        return source
+        source = self.visit(node.right, ref=True)
+        value = self.visit(node.left)
+        instr = StoreInstr(node.uc_type, value, source)
+        self.current.append(instr)
+        return value
 
     def visit_BinaryOp(self, node: BinaryOp) -> TempVariable:
         # Visit the left and right expressions
