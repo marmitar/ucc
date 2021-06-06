@@ -32,8 +32,12 @@ class uCType:
         raise NotImplementedError()
 
     def ir(self) -> str:
-        """Valid name for uCIR"""
+        """Valid name for uCIR."""
         return self.typename()
+
+    def sizeof(self) -> int:
+        """Size of type in memory."""
+        raise NotImplementedError()
 
     def __str__(self) -> str:
         """Standard type formatting."""
@@ -62,6 +66,9 @@ class PrimaryType(uCType, Enum):
 
     def typename(self) -> str:
         return self.name
+
+    def sizeof(self) -> int:
+        return 0 if self == VoidType else 1
 
     int = (
         {"-", "+", "&"},
@@ -147,6 +154,10 @@ class ArrayType(uCType):
     def __hash__(self) -> int:
         return super().__hash__()
 
+    def sizeof(self) -> int:
+        assert self.size is not None
+        return self.size * self.elem_type.sizeof()
+
     @staticmethod
     def empty_list() -> ArrayType:
         """Special type for empty initialization lists: '{}'."""
@@ -199,6 +210,10 @@ class PointerType(uCType):
     def ir(self) -> str:
         return self.inner.ir() + "_*"
 
+    def sizeof(self) -> int:
+        # pointer is same as an integer
+        return 1
+
 
 # # # # # # # # #
 # Function Type #
@@ -249,3 +264,7 @@ class FunctionType(uCType):
     def ir(self) -> str:
         params = ",".join(p.ir() for p in self.params)
         return self.rettype.ir() + "_(" + params + ")"
+
+    def sizeof(self) -> int:
+        # same as pointer
+        return 1
