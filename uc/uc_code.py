@@ -2,7 +2,7 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
-from typing import Any, Optional, TextIO, Tuple, Type, Union
+from typing import Any, Literal, Optional, TextIO, Tuple, Type, Union, overload
 from uc.uc_ast import (
     ID,
     AddressOp,
@@ -220,30 +220,42 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
         self.current.append(instr)
         return target
 
-    def _access_element(self, uctype: uCType, source: Variable, index: Variable) -> TempVariable:
-        target = self.current.new_temp()
-        # access at index
-        instr = ElemInstr(uctype, source, index, target)
-        self.current.append(instr)
-        return target
-
-    def visit_AddressOp(self, node: AddressOp) -> TempVariable:
-        source = self.visit(node.expr)
+    def visit_AddressOp(self, node: AddressOp, ref: bool = False) -> TempVariable:
+        source = self.visit(node.expr, ref=True)
         # get address
-        if node.op == "&":
-            target = self.current.new_temp()
-            instr = GetInstr(node.expr.uc_type, source, target)
-            self.current.append(instr)
-            return target
+        if node.op == "&" or ref:
+            return source
         # or element
         else:
             index = self._new_constant(IntType, 0)
-            return self._access_element(node.uc_type, source, index)
+            target = self.current.new_temp()
+            instr = ElemInstr(node.uc_type, source, index, target)
+            self.current.append(instr)
+            return target
 
-    def visit_ArrayRef(self, node: ArrayRef) -> TempVariable:
+    def visit_ArrayRef(self, node: ArrayRef, ref: bool = False) -> TempVariable:
         source = self.visit(node.array)
         index = self.visit(node.index)
-        return self._access_element(node.uc_type, source, index)
+        # calculate offset, if needed
+        if node.uc_type.sizeof() != 1:
+            offset = self.current.new_temp()
+            size = self._new_constant(IntType, node.uc_type.sizeof())
+            instr = MulInstr(IntType, size, index, offset)
+            self.current.append(instr)
+        else:
+            offset = index
+        # return reference for compound types
+        if ref or not isinstance(node.uc_type, PrimaryType):
+            address = self.current.new_temp()
+            instr = AddInstr(node.uc_type, source, offset, address)
+            self.current.append(instr)
+            return address
+        # and value for primaries
+        else:
+            value = self.current.new_temp()
+            instr = ElemInstr(node.uc_type, source, offset, value)
+            self.current.append(instr)
+            return value
 
     def visit_FuncCall(self, node: FuncCall) -> TempVariable:
         # get function address
@@ -295,11 +307,15 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
         else:
             return NamedVariable(ident.name)
 
-    def visit_ID(self, node: ID) -> TempVariable:
+    def visit_ID(self, node: ID, ref: bool = False) -> TempVariable:
         stackvar = self._varname(node)
-        # load into a register
         register = self.current.new_temp()
-        instr = LoadInstr(node.uc_type, stackvar, register)
+        # load value into a register
+        if not ref:
+            instr = LoadInstr(node.uc_type, stackvar, register)
+        # or load address
+        else:
+            instr = GetInstr(node.uc_type, stackvar, register)
         self.current.append(instr)
         return register
 

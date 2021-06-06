@@ -264,17 +264,16 @@ class ElemInstr(TargetInstruction):
         self.index = index
 
 
-class GetInstr(Instruction):
+class GetInstr(TargetInstruction):
     """Store into target the address of source."""
 
-    __slots__ = ("source", "target")
+    __slots__ = ("source",)
 
     opname = "get"
     arguments = "source", "target"
-    target_attr = "target"
 
-    def __init__(self, source: NamedVariable, target: TempVariable):
-        super().__init__()
+    def __init__(self, type: uCType, source: NamedVariable, target: TempVariable):
+        super().__init__(type)
         self.source = source
         self.target = target
 
@@ -502,7 +501,9 @@ class CallInstr(TypedInstruction):
     opname = "call"
     arguments = "source", "target"
 
-    def __init__(self, type: uCType, source: NamedVariable, target: Optional[TempVariable] = None):
+    def __init__(
+        self, type: uCType, source: GlobalVariable, target: Optional[TempVariable] = None
+    ):
         super().__init__(type)
         self.source = source
         self.target = target
