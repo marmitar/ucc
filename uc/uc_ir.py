@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable, Iterator, NamedTuple, Optional, Union
-from uc.uc_type import StringType, uCType
+from uc.uc_type import StringType, VoidType, uCType
 
 # # # # # # # # # #
 # Variable Types  #
@@ -84,6 +84,9 @@ class LabelName(NamedVariable):
 # INSTRUCTION TYPES #
 
 
+Value = Union[int, float, str]
+
+
 class Instruction:
     __slots__ = ()
 
@@ -106,7 +109,7 @@ class Instruction:
         if value is not None:
             return str(value)
 
-    def values(self) -> Iterator[Any]:
+    def values(self) -> Iterator[Value]:
         for attr in self.arguments:
             value = getattr(self, attr, None)
             if value is not None:
@@ -155,7 +158,7 @@ class TargetInstruction(TypedInstruction):
 
     target_attr = "target"
 
-    def __init__(self, type: uCType, target: Variable):
+    def __init__(self, type: uCType, target: TempVariable):
         super().__init__(type)
         self.target = target
 
@@ -187,7 +190,9 @@ class GlobalInstr(AllocInstr):
     arguments = "varname", "value"
     indent = False
 
-    def __init__(self, type: uCType, varname: NamedVariable, value: Optional[Any] = None):
+    def __init__(
+        self, type: uCType, varname: GlobalVariable, value: Union[Value, list[Value], None] = None
+    ):
         super().__init__(type, varname)
         self._value = value
 
@@ -195,7 +200,7 @@ class GlobalInstr(AllocInstr):
         return self.operation, self.varname, self.value
 
     @property
-    def value(self) -> Optional[Any]:
+    def value(self) -> Union[Value, list[Value]]:
         # format string as expected
         if isinstance(self.type, StringType):
             return f"'{self._value}'"
@@ -238,7 +243,7 @@ class LiteralInstr(TargetInstruction):
     opname = "literal"
     arguments = "value", "target"
 
-    def __init__(self, type: uCType, value: Any, target: TempVariable):
+    def __init__(self, type: uCType, value: Union[int, str], target: TempVariable):
         super().__init__(type, target)
         self.value = value
 
@@ -251,7 +256,9 @@ class ElemInstr(TargetInstruction):
     opname = "elem"
     arguments = "source", "index", "target"
 
-    def __init__(self, type: uCType, source: Variable, index: TempVariable, target: TempVariable):
+    def __init__(
+        self, type: uCType, source: TempVariable, index: TempVariable, target: TempVariable
+    ):
         super().__init__(type, target)
         self.source = source
         self.index = index
@@ -281,7 +288,9 @@ class BinaryOpInstruction(TargetInstruction):
 
     arguments = "left", "right", "target"
 
-    def __init__(self, type: uCType, left: Variable, right: Variable, target: Variable):
+    def __init__(
+        self, type: uCType, left: TempVariable, right: TempVariable, target: TempVariable
+    ):
         super().__init__(type, target)
         self.left = left
         self.right = right
@@ -327,7 +336,7 @@ class UnaryOpInstruction(TargetInstruction):
 
     arguments = "expr", "target"
 
-    def __init__(self, type: uCType, expr: Variable, target: Variable):
+    def __init__(self, type: uCType, expr: TempVariable, target: TempVariable):
         super().__init__(type, target)
         self.expr = expr
 
@@ -435,7 +444,7 @@ class CBranchInstr(Instruction):
     opname = "cbranch"
     arguments = "expr_test", "true_target", "false_target"
 
-    def __init__(self, expr_test: Variable, true_target: LabelName, false_target: LabelName):
+    def __init__(self, expr_test: TempVariable, true_target: LabelName, false_target: LabelName):
         super().__init__()
         self.expr_test = expr_test
         self.true_target = true_target
@@ -472,7 +481,10 @@ class DefineInstr(TypedInstruction):
     indent = False
 
     def __init__(
-        self, type: uCType, source: NamedVariable, args: Iterable[tuple[uCType, TempVariable]] = ()
+        self,
+        type: uCType,
+        source: GlobalVariable,
+        args: Iterable[tuple[uCType, TempVariable]] = (),
     ):
         super().__init__(type)
         self.source = source
@@ -546,3 +558,8 @@ class PrintInstr(ParamInstr):
 
     __slots__ = ()
     opname = "print"
+
+    source: Optional[Variable]
+
+    def __init__(self, type: uCType = VoidType, source: Optional[Variable] = None):
+        super().__init__(type, source)

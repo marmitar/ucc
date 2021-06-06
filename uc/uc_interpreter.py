@@ -13,56 +13,148 @@
 from __future__ import annotations
 import re
 import sys
-from typing import Iterator, Optional, Union
-from uc.uc_block import Instruction
+from typing import Callable, Iterator, Optional, Union
+from uc.uc_ir import (
+    AddInstr,
+    AllocInstr,
+    AndInstr,
+    BinaryOpInstruction,
+    CallInstr,
+    CBranchInstr,
+    DefineInstr,
+    ElemInstr,
+    EqInstr,
+    GeInstr,
+    GetInstr,
+    GlobalInstr,
+    GlobalVariable,
+    GtInstr,
+    Instruction,
+    JumpInstr,
+    LabelInstr,
+    LabelName,
+    LeInstr,
+    LiteralInstr,
+    LoadInstr,
+    LtInstr,
+    ModInstr,
+    MulInstr,
+    NamedVariable,
+    NeInstr,
+    NotInstr,
+    OrInstr,
+    ParamInstr,
+    PrintInstr,
+    ReadInstr,
+    ReturnInstr,
+    StoreInstr,
+    SubInstr,
+    TempVariable,
+    UnaryOpInstruction,
+)
+from uc.uc_type import CharType, FloatType, IntType, uCType
+
+# def format_instruction(t: tuple[str, ...]) -> str:
+#     operand = t[0].split("_")
+#     op = operand[0]
+#     ty = operand[1] if len(operand) > 1 else None
+#     if len(operand) >= 3:
+#         for qual in operand[2:]:
+#             if qual == "*":
+#                 ty += "*"
+#             else:
+#                 ty += f"[{qual}]"
+#     if len(t) > 1:
+#         if op == "define":
+#             return f"\n{op} {ty} {t[1]} (" + ", ".join(" ".join(el) for el in t[2]) + ")"
+#         else:
+#             _str = "" if op == "global" else "  "
+#             if op == "jump":
+#                 _str += f"{op} label {t[1]}"
+#             elif op == "cbranch":
+#                 _str += f"{op} {t[1]} label {t[2]} label {t[3]}"
+#             elif op == "global":
+#                 if ty.startswith("string"):
+#                     _str += f"{t[1]} = {op} {ty} '{t[2]}'"
+#                 elif len(t) > 2:
+#                     _str += f"{t[1]} = {op} {ty} {t[2]}"
+#                 else:
+#                     _str += f"{t[1]} = {op} {ty}"
+#             elif op == "return" or op == "print":
+#                 _str += f"{op} {ty} {t[1]}"
+#             elif op == "sitofp" or op == "fptosi":
+#                 _str += f"{t[2]} = {op} {t[1]}"
+#             elif op == "store" or op == "param":
+#                 _str += f"{op} {ty} "
+#                 for el in t[1:]:
+#                     _str += f"{el} "
+#             else:
+#                 _str += f"{t[-1]} = {op} {ty} "
+#                 for el in t[1:-1]:
+#                     _str += f"{el} "
+#             return _str
+#     elif ty == "void":
+#         return f"  {op}"
+#     else:
+#         return f"{op}"
 
 
-def format_instruction(t: tuple[str, ...]) -> str:
-    operand = t[0].split("_")
-    op = operand[0]
-    ty = operand[1] if len(operand) > 1 else None
-    if len(operand) >= 3:
-        for qual in operand[2:]:
-            if qual == "*":
-                ty += "*"
-            else:
-                ty += f"[{qual}]"
-    if len(t) > 1:
-        if op == "define":
-            return f"\n{op} {ty} {t[1]} (" + ", ".join(" ".join(el) for el in t[2]) + ")"
-        else:
-            _str = "" if op == "global" else "  "
-            if op == "jump":
-                _str += f"{op} label {t[1]}"
-            elif op == "cbranch":
-                _str += f"{op} {t[1]} label {t[2]} label {t[3]}"
-            elif op == "global":
-                if ty.startswith("string"):
-                    _str += f"{t[1]} = {op} {ty} '{t[2]}'"
-                elif len(t) > 2:
-                    _str += f"{t[1]} = {op} {ty} {t[2]}"
-                else:
-                    _str += f"{t[1]} = {op} {ty}"
-            elif op == "return" or op == "print":
-                _str += f"{op} {ty} {t[1]}"
-            elif op == "sitofp" or op == "fptosi":
-                _str += f"{t[2]} = {op} {t[1]}"
-            elif op == "store" or op == "param":
-                _str += f"{op} {ty} "
-                for el in t[1:]:
-                    _str += f"{el} "
-            else:
-                _str += f"{t[-1]} = {op} {ty} "
-                for el in t[1:-1]:
-                    _str += f"{el} "
-            return _str
-    elif ty == "void":
-        return f"  {op}"
-    else:
-        return f"{op}"
+def printerr(*args) -> None:
+    """Show error or warning messages."""
+    print(*args, file=sys.stderr, flush=True)
 
 
-Value = Union[str, int, float, None]
+class Uninitilized:
+    __slots__ = ()
+
+    def __str__(self) -> str:
+        return "XXXX"
+
+    def __repr__(self) -> str:
+        return "Uninit"
+
+    def _ignore(self, *_) -> Uninitilized:
+        return self
+
+    __add__ = _ignore
+    __radd__ = _ignore
+    __sub__ = _ignore
+    __rsub__ = _ignore
+    __mul__ = _ignore
+    __rmul__ = _ignore
+    __div__ = _ignore
+    __rdiv__ = _ignore
+    __mod__ = _ignore
+    __rmod__ = _ignore
+    __truediv__ = _ignore
+    __rtruediv__ = _ignore
+    __and__ = _ignore
+    __rand__ = _ignore
+    __or__ = _ignore
+    __ror__ = _ignore
+    __neg__ = _ignore
+    __pos__ = _ignore
+
+    def _cmp(self, *_) -> bool:
+        return False
+
+    __eq__ = _cmp
+    __ne__ = _cmp
+    __lt__ = _cmp
+    __le__ = _cmp
+    __gt__ = _cmp
+    __ge__ = _cmp
+
+
+Uninit = Uninitilized()
+
+Value = Union[int, float, Uninitilized]
+Size = Union[int, uCType]
+Address = Union[int, NamedVariable]
+Register = Union[int, TempVariable]
+
+# Data memory
+M: list[Value] = []
 
 
 class Interpreter:
@@ -93,58 +185,36 @@ class Interpreter:
     """
 
     def __init__(self, debug: bool = False):
-        global inputline, M
-        inputline: list[str] = []
-        M: list[Value] = 10000 * [None]  # Memory for global & local vars
+        global M
+        self.input: Optional[str] = None
+        M = 10000 * [Uninit]  # Memory for global & local vars
 
-        self.globals: dict[str, int] = {}  # Dictionary of address of global vars & constants
-        self.vars: dict[str, int] = {}  # Dictionary of address of local vars relative to sp
+        self.globals: dict[
+            GlobalVariable, int
+        ] = {}  # Dictionary of address of global vars & constants
+        self.vars: dict[
+            NamedVariable, int
+        ] = {}  # Dictionary of address of local vars relative to sp
+        self.registers: list[Value] = [Uninit]
 
         self.offset = 0  # offset (index) of local & global vars. Note that
         # each instance of var has absolute address in Memory
-        self.stack: list[dict[str, int]] = []  # Stack to save address of vars between calls
+        self.stack: list[
+            tuple[dict[NamedVariable, int], list[Value]]
+        ] = []  # Stack to save address of vars between calls
         self.sp: list[int] = []  # Stack to save & restore the last offset
 
-        self.params: list[int] = []  # List of parameters from caller (address)
-        self.result = None  # Result Value (address) from the callee
-
-        self.registers: list[str] = []  # Stack of register names (in the caller) to return value
+        self.params: list[Value] = []  # List of parameters from caller (value)
+        self.retval: list[int] = []  # list of register to store result from call instruction
         self.returns: list[int] = []  # Stack of return addresses (program counters)
 
-        self.pc = 0  # Program Counter
-        self.lastpc = 0  # last pc
-        self.start = 0  # PC of the main function
-        self.debug = debug  # Set the debug mode
+        self.pc: int = 0  # Program Counter
+        self.lastpc: int = 0  # last pc
+        self.start: int = 0  # PC of the main function
+        self.debug: bool = debug  # Set the debug mode
 
-    def _extract_operation(self, source: str) -> tuple[str, dict[str, str]]:
-        aux = source.split("_")
-        if aux[0] not in {"fptosi", "sitofp", "label", "jump", "cbranch", "call"}:
-            opcode = aux[0] + "_" + aux[1]
-            modifier = {}
-            for i, val in enumerate(aux[2:]):
-                if val.isdigit():
-                    modifier[f"dim{i}"] = val
-                elif val == "*":
-                    modifier[f"ptr{i}"] = val
-
-            return opcode, modifier
-        else:
-            opcode = aux[0]
-            return opcode, {}
-
-    def _copy_data(
-        self, address: int, size: int, value: Union[str, list[Union[str, list[str]]]]
-    ) -> None:
-        def flatten(item: Union[str, list[Union[str, list[str]]]]) -> Iterator[str]:
-            if isinstance(item, str):
-                yield item
-                return
-            for subitem in item:
-                for value in flatten(subitem):
-                    yield value
-
-        value = [item for item in flatten(value)]
-        M[address : address + size] = value
+    # # # # # # #
+    # DEBUGGER  #
 
     def _show_idb_help(self):
         msg = """
@@ -158,7 +228,7 @@ class Interpreter:
           q, quit : quit (abort) the program;
           h, help: print this text.
         """
-        print(msg)
+        printerr(msg)
 
     def _idb(self, pos: int) -> Optional[int]:
         init = pos - 2
@@ -169,8 +239,8 @@ class Interpreter:
             end = self.lastpc
         for i in range(init, end):
             mark = ": >> " if i == pos else ":    "
-            print(str(i) + mark + format_instruction(self.code[i]))
-        print()
+            printerr(str(i) + mark + self.code[i].format())
+        printerr()
         return self._parse_input()
 
     def _assign_location(self, loc: str, uc_type: str, value: str) -> None:
@@ -186,7 +256,7 @@ class Interpreter:
             elif loc.startswith("@"):
                 M[self.globals[loc]] = val
             else:
-                print(loc + ": unrecognized var or temp")
+                printerr(loc + ": unrecognized var or temp")
         elif len(var) == 3:
             address = var[0]
             if var[1].isdigit():
@@ -196,45 +266,45 @@ class Interpreter:
                 elif loc.startswith("@"):
                     M[self.globals[address] + idx] = val
                 else:
-                    print(loc + ": unrecognized var or temp")
+                    printerr(loc + ": unrecognized var or temp")
             else:
-                print(loc + ": only assign single var or temp at time")
+                printerr(loc + ": only assign single var or temp at time")
         else:
-            print("Construction not supported. For matrices, linearize it.")
+            printerr("Construction not supported. For matrices, linearize it.")
 
     def _view_location(self, loc: str) -> None:
         var: list[str] = re.split(r"\[|\]", loc)
         if len(var) == 1:
             if loc.startswith("%"):
-                print(loc + " : " + str(M[self.vars[loc]]))
+                printerr(loc + " : " + str(M[self.vars[loc]]))
             elif loc.startswith("@"):
-                print(loc + " : " + str(M[self.globals[loc]]))
+                printerr(loc + " : " + str(M[self.globals[loc]]))
             else:
-                print(loc + ": unrecognized var or temp")
+                printerr(loc + ": unrecognized var or temp")
         elif len(var) == 3:
             address = var[0]
             if var[1].isdigit():
                 idx = int(var[1])
                 if loc.startswith("%"):
-                    print(loc + " : " + str(M[self.vars[address] + idx]))
+                    printerr(loc + " : " + str(M[self.vars[address] + idx]))
                 elif loc.startswith("@"):
-                    print(loc + " : " + str(M[self.globals[address] + idx]))
+                    printerr(loc + " : " + str(M[self.globals[address] + idx]))
                 else:
-                    print(loc + ": unrecognized var or temp")
+                    printerr(loc + ": unrecognized var or temp")
             else:
                 tmp = re.split(":", var[1])
                 i = int(tmp[0])
                 j = int(tmp[1]) + 1
                 if loc.startswith("%"):
-                    print(loc + " : " + str(M[self.vars[address] + i : self.vars[address] + j]))
+                    printerr(loc + " : " + str(M[self.vars[address] + i : self.vars[address] + j]))
                 elif loc.startswith("@"):
-                    print(
+                    printerr(
                         loc + " : " + str(M[self.globals[address] + i : self.globals[address] + j])
                     )
                 else:
-                    print(loc + ": unrecognized var or temp")
+                    printerr(loc + ": unrecognized var or temp")
         else:
-            print("Construction not supported. For matrices, linearize it.")
+            printerr("Construction not supported. For matrices, linearize it.")
 
     def _parse_input(self) -> Optional[int]:
         while True:
@@ -249,7 +319,9 @@ class Interpreter:
                         self._view_location(cmd[i])
                 elif cmd[0] == "a" or cmd[0] == "assign":
                     if len(cmd) != 4:
-                        print("Cmd assign error: Just only single var and type must be specified.")
+                        printerr(
+                            "Cmd assign error: Just only single var and type must be specified."
+                        )
                     else:
                         self._assign_location(cmd[1], cmd[2], cmd[3])
                 elif cmd[0] == "l" or cmd[0] == "list":
@@ -260,7 +332,7 @@ class Interpreter:
                         start = 1
                         end = self.lastpc
                     for i in range(start, end):
-                        print(str(i) + ":    " + format_instruction(self.code[i]))
+                        printerr(str(i) + ":    " + self.code[i].format())
                 elif cmd[0] == "v" or cmd[0] == "view":
                     self._idb(self.pc)
                 elif cmd[0] == "r" or cmd[0] == "run":
@@ -271,9 +343,148 @@ class Interpreter:
                 elif cmd[0] == "h" or cmd[0] == "help":
                     self._show_idb_help()
                 else:
-                    print(cmd[0] + " : unrecognized command")
+                    printerr(cmd[0] + " : unrecognized command")
             except Exception:
-                print("unrecognized command")
+                printerr("unrecognized command")
+
+    # # # # # # # #
+    # MEMORY & IO #
+
+    def _alloc_labels(self) -> None:
+        # Alloc labels for current function definition. Due to the uCIR and due to
+        # the chosen memory model, this is done every time we enter a function.
+        for lpc, instr in enumerate(self.code[self.pc :], self.pc):
+            if isinstance(instr, DefineInstr):
+                break
+            elif isinstance(instr, LabelInstr):
+                # labels don't go to memory, just store the pc on dictionary
+                # labels appears as name:, so we need to extract just the name
+                self.vars[LabelName(instr.label)] = lpc + 1
+
+    def _alloc_data(self, size: Size, target: NamedVariable) -> int:
+        if not isinstance(size, int):
+            size = size.sizeof()
+        # Alloc space in memory and save the offset in the dictionary
+        # for new vars or temporaries, only.
+        self.vars[target] = self.offset
+        self.offset += size
+        # return new address
+        return self.vars[target]
+
+    def _alloc_reg(self, target: Register) -> int:
+        if not isinstance(target, int):
+            target = target.name
+        if len(self.registers) <= target:
+            size = target + 1 - len(self.registers)
+            self.registers.extend([Uninit] * size)
+        return target
+
+    def _get_address(self, source: NamedVariable) -> int:
+        if isinstance(source, GlobalVariable):
+            return self.globals[source]
+        else:
+            return self.vars[source]
+
+    def _get_multiple(self, source: Address, size: Size) -> list[Value]:
+        if not isinstance(size, int):
+            size = size.sizeof()
+        if size <= 0:
+            return []
+        if not isinstance(source, int):
+            source = self._get_address(source)
+        return M[source : source + size]
+
+    def _get_value(self, source: Address) -> Value:
+        return self._get_multiple(source, 1)[0]
+
+    def _mem_copy(self, dest: Address, source: Address, size: Size) -> None:
+        if not isinstance(size, int):
+            size = size.sizeof()
+        # extract addresses
+        if not isinstance(source, int):
+            source = self._get_address(source)
+        if not isinstance(dest, int):
+            dest = self._get_address(dest)
+
+        M[dest : dest + size] = M[source : source + size]
+
+    def _store_value(self, address: Address, value: Union[Value, list[Value]]) -> None:
+        if not isinstance(address, int):
+            address = self._get_address(address)
+        if isinstance(value, list):
+            # overwrite data, if size is wrong
+            M[address : address + len(value)] = value
+        else:
+            M[address] = value
+
+    def _split_str(self, literal: Union[str, Value, list[str, Value], None]) -> list[Value]:
+        def flatten(value: Union[str, Value, list[str, Value], None]) -> Iterator[Value]:
+            if isinstance(value, str):
+                for ch in value:
+                    yield ord(ch)
+            elif isinstance(value, list):
+                for val in flatten(value):
+                    yield val
+            elif value is not None:
+                yield value
+
+        return list(flatten(literal))
+
+    def _push(self, target: Optional[Register] = None) -> None:
+        # prepare register for return value
+        reg = self._alloc_reg(target or 0)
+
+        # save the addresses of the vars from caller & their last offset
+        self.stack.append((self.vars, self.registers))
+        self.sp.append(self.offset)
+        self.retval.append(reg)
+        self.returns.append(self.pc)
+
+    def _pop(self) -> None:
+        if not self.returns:
+            # We reach the end of main function, so return to system
+            # with the code returned by main in the return register.
+            printerr(end="", flush=True)
+            # exit with return value
+            sys.exit(self.registers[0])
+
+        # get return value
+        retval = self.registers[0]
+        register = self.retval.pop()
+        # restore the vars of the caller
+        self.vars, regbank = self.stack.pop()
+        # restore registers
+        self.registers[: len(regbank)] = regbank
+        # set the return value
+        self.registers[register] = retval
+        # restore the last offset from the caller
+        self.offset = self.sp.pop()
+        # jump to the return point in the caller
+        self.pc = self.returns.pop()
+
+    def _read_line(self) -> str:
+        while not self.input:
+            line = sys.stdin.readline()
+            if not line:
+                printerr("Unexpected end of input file.")
+            self.input = line.rstrip("\n")
+        return self.input
+
+    def _read_word(self) -> str:
+        line = self._read_line()
+        # split at first space
+        [word, remainder] = line.split(" ", maxsplit=1)
+        self.input = remainder
+        return word
+
+    def _read_char(self) -> str:
+        line = self._read_line()
+        char = line[0]
+        self.input = line[1:]
+        return char
+
+    # # # # # # #
+    # EXECUTION #
 
     def run(self, ircode: list[Instruction]) -> None:
         """
@@ -283,47 +494,30 @@ class Interpreter:
         """
         # First, store the global vars & constants
         # Also, set the start pc to the main function entry
-        self.code = [ir.as_tuple() for ir in ircode]
-        self.pc = 0
+        self.code = ircode
         self.offset = 0
-        while True:
-            try:
-                op = self.code[self.pc]
-            except IndexError:
-                break
-            if len(op) > 1:  # that is, instruction is not a label
-                opcode, modifier = self._extract_operation(op[0])
-                if opcode.startswith("global"):
-                    self.globals[op[1]] = self.offset
-                    # get the size of global var
-                    if not modifier:
-                        # size equals 1 or is a constant, so we use only
-                        # one slot in the memory to make it simple.
-                        if len(op) == 3:
-                            M[self.offset] = op[2]
-                        self.offset += 1
-                    else:
-                        _len = 1
-                        for args in modifier.values():
-                            if args.isdigit():
-                                _len *= int(args)
-                        if len(op) == 3:
-                            self._copy_data(self.offset, _len, op[2])
-                        self.offset += _len
-                elif opcode.startswith("define"):
-                    self.globals[op[1]] = self.offset
-                    M[self.offset] = self.pc
-                    self.offset += 1
-                    if op[1] == "@main":
-                        self.start = self.pc
-            self.pc += 1
+
+        for pc, instr in enumerate(self.code):
+            # only instructions, not labels
+            if isinstance(instr, GlobalInstr):
+                self.globals[instr.varname] = self.offset
+                if instr.value != None:
+                    value = self._split_str(instr.value)
+                    self._store_value(self.offset, value)
+                self.offset += instr.type.sizeof()
+            elif isinstance(instr, DefineInstr):
+                self.globals[instr.source] = self.offset
+                M[self.offset] = pc
+                self.offset += 1
+                if instr.source.name == "main":
+                    self.start = pc
 
         # Now, running the program starting from the main function
         # If run in debug mode, show the available command lines.
         if self.debug:
-            print("Interpreter running in debug mode:")
+            printerr("Interpreter running in debug mode:")
             self._show_idb_help()
-        self.lastpc = self.pc - 1
+        self.lastpc = pc
         self.pc = self.start
         _breakpoint: Optional[int] = None
         while True:
@@ -335,476 +529,190 @@ class Interpreter:
                         _breakpoint = self._idb(self.pc)
                 elif self.debug:
                     _breakpoint = self._idb(self.pc)
-                op = ircode[self.pc]
+                instr = ircode[self.pc]
             except IndexError:
                 break
             self.pc += 1
-            if len(op) > 1 or op[0] == "return_void" or op[0] == "print_void":
-                opcode, modifier = self._extract_operation(op[0])
-                if hasattr(self, "run_" + opcode):
-                    if not modifier:
-                        getattr(self, "run_" + opcode)(*op[1:])
-                    else:
-                        getattr(self, "run_" + opcode + "_")(*op[1:], **modifier)
-                else:
-                    print("Warning: No run_" + opcode + "() method", flush=True)
-
-    #
-    # Auxiliary methods
-    #
-    def _alloc_labels(self) -> None:
-        # Alloc labels for current function definition. Due to the uCIR and due to
-        # the chosen memory model, this is done every time we enter a function.
-        lpc = self.pc
-        while True:
-            try:
-                op = self.code[lpc]
-                opcode = op[0]
-                lpc += 1
-                if opcode.startswith("define"):
-                    break
-                elif len(op) == 1 and opcode != "return_void":
-                    # labels don't go to memory, just store the pc on dictionary
-                    # labels appears as name:, so we need to extract just the name
-                    self.vars["%" + opcode[:-1]] = lpc
-            except IndexError:
-                break
-
-    def _alloc_reg(self, target: str) -> None:
-        # Alloc space in memory and save the offset in the dictionary
-        # for new vars or temporaries, only.
-        if target not in self.vars:
-            self.vars[target] = self.offset
-            self.offset += 1
-
-    def _get_address(self, source: str) -> int:
-        if source.startswith("@"):
-            return self.globals[source]
-        else:
-            return self.vars[source]
-
-    def _get_input(self) -> None:
-        global inputline
-        while True:
-            if len(inputline) > 0:
-                break
-            inputline = sys.stdin.readline()
-            if not inputline:
-                print("Unexpected end of input file.", flush=True)
-            inputline = inputline[:-1].strip().split()
-
-    def _get_value(self, source: str) -> Value:
-        if source.startswith("@"):
-            return M[self.globals[source]]
-        else:
-            return M[self.vars[source]]
-
-    def _load_multiple_values(self, size: int, varname: str, target: str) -> None:
-        self.vars[target] = self.offset
-        self.offset += size
-        self._store_multiple_values(size, target, varname)
-
-    def _push(self, locs: list[str], no_return: bool) -> None:
-        # save the addresses of the vars from caller & their last offset
-        self.stack.append(self.vars)
-        self.sp.append(self.offset)
-
-        # clear the dictionary of caller local vars and their offsets in memory
-        # alloc the temporary with reg %0 in case of void function and initialize
-        # the memory with None value. Copy the parameters passed to the callee in
-        # their local vars. Finally, cleanup parameters list used to transfer vars
-        self.vars = {}
-
-        if no_return:
-            self._alloc_reg("%0")
-            M[self.vars["%0"]] = None
-
-        for idx, val in enumerate(self.params):
-            # Note that arrays (size >=1) are passed by reference only.
-            self.vars[locs[idx]] = self.offset
-            M[self.offset] = M[val]
-            self.offset += 1
-        self.params = []
-        self._alloc_labels()
-
-    def _pop(self, target: Optional[int]) -> None:
-        if self.returns:
-            # get the return value
-            if target:
-                value = M[target]
+            # get instruction runner
+            executor = getattr(self, f"run_{instr.opname}", None)
+            if executor is not None:
+                executor(instr)
             else:
-                value = None
-            # restore the vars of the caller
-            self.vars = self.stack.pop()
-            # store in the caller return register the _value
-            M[self.vars[self.registers.pop()]] = value
-            # restore the last offset from the caller
-            self.offset = self.sp.pop()
-            # jump to the return point in the caller
-            self.pc = self.returns.pop()
-        else:
-            # We reach the end of main function, so return to system
-            # with the code returned by main in the return register.
-            print(end="", flush=True)
-            if target is None:
-                # void main () was defined, so exit with value 0
-                sys.exit(0)
-            else:
-                sys.exit(M[target])
-
-    def _store_deref(self, target: str, value: Optional[int]) -> None:
-        if target.startswith("@"):
-            M[M[self.globals[target]]] = value
-        else:
-            M[M[self.vars[target]]] = value
-
-    def _store_multiple_values(self, dim: int, target: str, value: str) -> None:
-        left = self._get_address(target)
-        right = self._get_address(value)
-        if value.startswith("@"):
-            if isinstance(M[right], str):
-                _value = list(M[right])
-                M[left : left + dim] = _value
-                return
-        M[left : left + dim] = M[right : right + dim]
-
-    def _store_value(self, target: str, value: Value) -> None:
-        if target.startswith("@"):
-            M[self.globals[target]] = value
-        else:
-            M[self.vars[target]] = value
+                printerr(f"Warning: No run_{instr.opname}() method")
 
     #
     # Run Operations, except Binary, Relational & Cast
     #
-    def run_alloc_int(self, varname: str) -> None:
-        self._alloc_reg(varname)
-        M[self.vars[varname]] = 0
+    def run_alloc(self, alloc: AllocInstr) -> None:
+        self._alloc_data(alloc.varname)
 
-    run_alloc_float = run_alloc_int
-    run_alloc_char = run_alloc_int
-
-    def run_alloc_int_(self, varname: str, **kwargs: str) -> None:
-        dim = 1
-        for arg in kwargs.values():
-            if arg.isdigit():
-                dim *= int(arg)
-        self.vars[varname] = self.offset
-        M[self.offset : self.offset + dim] = dim * [0]
-        self.offset += dim
-
-    run_alloc_float_ = run_alloc_int_
-    run_alloc_char_ = run_alloc_int_
-
-    def run_call(self, source: str, target: str) -> None:
-        # alloc register to return and append it to register stack
-        self._alloc_reg(target)
-        self.registers.append(target)
+    def run_call(self, call: CallInstr) -> None:
         # save the return pc in the return stack
-        self.returns.append(self.pc)
+        self._push(call.target)
         # jump to the calle function
-        if source.startswith("@"):
-            self.pc = M[self.globals[source]]
-        else:
-            self.pc = M[self.vars[source]]
+        self.pc = self._get_value(call.source)
 
-    def run_cbranch(self, expr_test: str, true_target: str, false_target: str) -> None:
-        if M[self.vars[expr_test]]:
-            self.pc = self.vars[true_target]
+    def run_cbranch(self, branch: CBranchInstr) -> None:
+        expr = self._alloc_reg(branch.expr_test)
+        if self.registers[expr]:
+            self.pc = self._get_address(branch.true_target)
         else:
-            self.pc = self.vars[false_target]
+            self.pc = self._get_address(branch.false_target)
 
     # Enter the function
-    def run_define_int(self, source: str, args: list[tuple[str, ...]]) -> None:
-        if source == "@main":
-            # alloc register to the return value but initialize it with "None".
-            # We use the "None" value when main function returns void.
-            self._alloc_reg("%0")
-            # alloc the labels with respective pc's
-            self._alloc_labels()
-        else:
-            # extract the location names of function args
-            locs = [el[1] for el in args]
-            self._push(locs, False)
+    def run_define(self, define: DefineInstr) -> None:
+        # load parameters in register bank
+        for _, register in reversed(define.args):
+            # Note that arrays (size >=1) are passed by reference only.
+            reg = self._alloc_reg(register)
+            if self.params:
+                self.registers[reg] = self.params.pop()
 
-    run_define_float = run_define_int
-    run_define_char = run_define_int
+        self.params = []
+        # prepare function
+        self._alloc_labels()
+        # clear the dictionary of caller local vars and their offsets in memory
+        self.vars = {}
 
-    def run_define_void(self, source: str, args: list[tuple[str, ...]]) -> None:
-        if source == "@main":
-            # alloc register to the return value but not initialize it.
-            # We use the "None" value to check if main function returns void.
-            self._alloc_reg("%0")
-            # alloc the labels with respective pc's
-            self._alloc_labels()
-        else:
-            # extract the location names of function args
-            locs = [el[1] for el in args]
-            self._push(locs, True)
+    def run_elem(self, elem: ElemInstr) -> None:
+        target = self._alloc_reg(elem.target)
+        base = self._alloc_reg(elem.source)
+        idx = self._alloc_reg(elem.index)
+        # calculate and access address
+        address = self.registers[base] + self.registers[idx]
+        self.registers[target] = M[address]
 
-    def run_elem_int(self, source: str, index: str, target: str) -> None:
-        self._alloc_reg(target)
-        aux = self._get_address(source)
-        idx = self._get_value(index)
-        address = aux + idx
-        self._store_value(target, address)
+    def run_get(self, get: GetInstr) -> None:
+        target = self._alloc_reg(get.target)
+        self.registers[target] = self._get_address(get.source)
 
-    run_elem_float = run_elem_int
-    run_elem_char = run_elem_int
-
-    def run_get_int(self, source: str, target: str) -> None:
-        # We never generate this code without * (ref) but we need to define it
-        pass
-
-    def run_get_int_(self, source: str, target: str, **kwargs) -> None:
-        # kwargs always contain * (ref), so we ignore it.
-        self._store_value(target, self._get_address(source))
-
-    run_get_float_ = run_get_int_
-    run_get_char_ = run_get_int_
-
-    def run_jump(self, target: str) -> None:
-        self.pc = self.vars[target]
+    def run_jump(self, jump: JumpInstr) -> None:
+        self.pc = self.vars[jump.target]
 
     # load literals into registers
-    def run_literal_int(self, value: Optional[int], target: str) -> None:
-        self._alloc_reg(target)
-        M[self.vars[target]] = value
+    def run_literal(self, literal: LiteralInstr) -> None:
+        target = self._alloc_reg(literal.target)
+        self.registers[target] = literal.value
 
-    run_literal_float = run_literal_int
+    def run_load(self, load: LoadInstr) -> None:
+        target = self._alloc_reg(load.target)
+        self.registers[target] = self._get_value(load.varname)
 
-    def run_literal_char(self, value: str, target: str) -> None:
-        self._alloc_reg(target)
-        M[self.vars[target]] = value.strip("'")
+    def run_param(self, param: ParamInstr) -> None:
+        source = self._alloc_reg(param.source)
+        self.params.append(self.registers[source])
 
-    # Load/stores
-    def run_load_int(self, varname: str, target: str) -> None:
-        self._alloc_reg(target)
-        M[self.vars[target]] = self._get_value(varname)
+    def run_print(self, op: PrintInstr) -> None:  # TODO
+        data = self._get_multiple(op.source, op.type)
+        print(*data, end="", flush=True)
 
-    run_load_float = run_load_int
-    run_load_char = run_load_int
-    run_load_bool = run_load_int
+    def _scan_int(
+        self,
+    ) -> int:
+        return int(self._read_word())
 
-    def run_load_int_(self, varname: str, target: str, **kwargs: str) -> None:
-        ref = 0
-        dim = 1
-        for arg in kwargs.values():
-            if arg.isdigit():
-                dim *= int(arg)
-            elif arg == "*":
-                ref += 1
-        if ref == 0:
-            self._load_multiple_values(dim, varname, target)
-        elif dim == 1 and ref == 1:
-            self._alloc_reg(target)
-            M[self.vars[target]] = M[self._get_value(varname)]
+    def _scan_float(self) -> float:
+        return float(self._read_word())
 
-    run_load_float_ = run_load_int_
-    run_load_char_ = run_load_int_
+    def _scan_char(self) -> int:
+        return ord(self._read_char())
 
-    def run_param_int(self, source: str) -> None:
-        self.params.append(self.vars[source])
+    def _scan_string(self) -> list[int]:
+        return [ord(ch) for ch in self._read_line()]
 
-    run_param_float = run_param_int
-    run_param_char = run_param_int
+    def run_read(self, read: ReadInstr) -> None:
+        scanner: dict[uCType, Callable[[], Union[Value, list[Value]]]] = {
+            IntType: self._scan_int,
+            FloatType: self._scan_float,
+            CharType: self._scan_char,
+        }
 
-    def run_param_int_(self, source: str, **kwargs) -> None:
-        # Note that arrays are passed by reference
-        self.params.append(self.vars[source])
-
-    run_param_float_ = run_param_int_
-    run_param_char_ = run_param_int_
-
-    def run_print_string(self, source: str) -> None:
-        c = list(self._get_value(source))
-        print(c, end="", flush=True)
-
-    def run_print_int(self, source: str) -> None:
-        print(self._get_value(source), end="", flush=True)
-
-    run_print_float = run_print_int
-    run_print_char = run_print_int
-    run_print_bool = run_print_int
-
-    def run_print_void(self) -> None:
-        print(flush=True)
-
-    def _read_int(self) -> Optional[int]:
-        global inputline
-        self._get_input()
         try:
-            v1 = inputline[0]
-            inputline = inputline[1:]
-            return int(v1)
-        except Exception:
-            print("Illegal input value.", flush=True)
+            # read value
+            value = scanner.get(read.type, self._scan_string)()
+        # may evoke parsing errors
+        except ValueError:
+            printerr("Illegal input value.", flush=True)
+            value = Uninit
+        self._store_value(read.source, value)
 
-    def run_read_int(self, source: str) -> None:
-        value = self._read_int()
-        self._store_value(source, value)
+    def run_return(self, ret: ReturnInstr) -> None:
+        # set return value
+        if ret.target:
+            target = self._alloc_reg(ret.target)
+            self.registers[0] = self.registers[target]
+        # and return pc
+        self._pop()
 
-    def run_read_int_(self, source: str, **kwargs) -> None:
-        value = self._read_int()
-        self._store_deref(source, value)
-
-    def _read_float(self) -> None:
-        global inputline
-        self._get_input()
-        try:
-            v1 = inputline[0]
-            inputline = inputline[1:]
-            return float(v1)
-        except Exception:
-            print("Illegal input value.", flush=True)
-
-    def run_read_float(self, source: str) -> None:
-        value = self._read_float()
-        self._store_value(source, value)
-
-    def run_read_float_(self, source: str, **kwargs) -> None:
-        value = self._read_float()
-        self._store_deref(source, value)
-
-    def run_read_char(self, source: str) -> None:
-        global inputline
-        self._get_input()
-        v1 = inputline[0]
-        inputline = inputline[1:]
-        self._store_value(source, v1)
-
-    def run_read_char_(self, source: str, **kwargs) -> None:
-        global inputline
-        self._get_input()
-        v1 = inputline[0]
-        inputline = inputline[1:]
-        self._store_deref(source, v1)
-
-    def run_return_int(self, target: str) -> None:
-        self._pop(self.vars[target])
-
-    run_return_float = run_return_int
-    run_return_char = run_return_int
-
-    def run_return_void(self) -> None:
-        self._pop(M[self.vars["%0"]])
-
-    def run_store_int(self, source: str, target: str) -> None:
-        self._store_value(target, self._get_value(source))
-
-    run_store_float = run_store_int
-    run_store_char = run_store_int
-    run_store_bool = run_store_int
-
-    def run_store_int_(self, source: str, target: str, **kwargs: str) -> None:
-        ref = 0
-        dim = 1
-        for arg in kwargs.values():
-            if arg.isdigit():
-                dim *= int(arg)
-            elif arg == "*":
-                ref += 1
-        if ref == 0:
-            self._store_multiple_values(dim, target, source)
-        elif dim == 1 and ref == 1:
-            self._store_deref(target, self._get_value(source))
-
-    run_store_float_ = run_store_int_
-    run_store_char_ = run_store_int_
+    def run_store(self, store: StoreInstr) -> None:
+        source = self._alloc_reg(store.source)
+        self.registers[source] = self._get_value(store.target)
 
     #
     # perform binary, relational & cast operations
     #
-    def run_add_int(self, left: str, right: str, target: str) -> None:
-        self._alloc_reg(target)
-        M[self.vars[target]] = M[self.vars[left]] + M[self.vars[right]]
+    def _run_binop(self, instr: BinaryOpInstruction, op: Callable[[Value, Value], Value]) -> None:
+        left = self._alloc_reg(instr.left)
+        right = self._alloc_reg(instr.right)
+        target = self._alloc_reg(instr.target)
+        self.registers[target] = op(self.registers[left], self.registers[right])
 
-    def run_sub_int(self, left: str, right: str, target: str) -> None:
-        self._alloc_reg(target)
-        M[self.vars[target]] = M[self.vars[left]] - M[self.vars[right]]
+    def run_add(self, instr: AddInstr) -> None:
+        self._run_binop(instr, lambda x, y: x + y)
 
-    def run_mul_int(self, left: str, right: str, target: str) -> None:
-        self._alloc_reg(target)
-        M[self.vars[target]] = M[self.vars[left]] * M[self.vars[right]]
+    def run_sub(self, instr: SubInstr) -> None:
+        self._run_binop(instr, lambda x, y: x - y)
 
-    def run_mod_int(self, left: str, right: str, target: str) -> None:
-        self._alloc_reg(target)
-        M[self.vars[target]] = M[self.vars[left]] % M[self.vars[right]]
+    def run_mul(self, instr: MulInstr) -> None:
+        self._run_binop(instr, lambda x, y: x * y)
 
-    def run_div_int(self, left: str, right: str, target: str) -> None:
-        self._alloc_reg(target)
-        M[self.vars[target]] = M[self.vars[left]] // M[self.vars[right]]
+    def run_mod(self, instr: ModInstr) -> None:
+        self._run_binop(instr, lambda x, y: x % y)
 
-    def run_div_float(self, left: str, right: str, target: str) -> None:
-        self._alloc_reg(target)
-        M[self.vars[target]] = M[self.vars[left]] / M[self.vars[right]]
-
-    # Floating point ops (same as int)
-    run_add_float = run_add_int
-    run_sub_float = run_sub_int
-    run_mul_float = run_mul_int
+    def run_div(self, instr: AddInstr) -> None:
+        if isinstance(instr.type, float):
+            self._run_binop(instr, lambda x, y: x / y)
+        else:
+            self._run_binop(instr, lambda x, y: x // y)
 
     # Integer comparisons
-    def run_lt_int(self, left: str, right: str, target: str) -> None:
-        self._alloc_reg(target)
-        M[self.vars[target]] = M[self.vars[left]] < M[self.vars[right]]
 
-    def run_le_int(self, left: str, right: str, target: str) -> None:
-        self._alloc_reg(target)
-        M[self.vars[target]] = M[self.vars[left]] <= M[self.vars[right]]
+    def run_lt(self, instr: LtInstr) -> None:
+        self._run_binop(instr, lambda x, y: x < y)
 
-    def run_gt_int(self, left: str, right: str, target: str) -> None:
-        self._alloc_reg(target)
-        M[self.vars[target]] = M[self.vars[left]] > M[self.vars[right]]
+    def run_le(self, instr: LeInstr) -> None:
+        self._run_binop(instr, lambda x, y: x <= y)
 
-    def run_ge_int(self, left: str, right: str, target: str) -> None:
-        self._alloc_reg(target)
-        M[self.vars[target]] = M[self.vars[left]] >= M[self.vars[right]]
+    def run_gt(self, instr: GtInstr) -> None:
+        self._run_binop(instr, lambda x, y: x > y)
 
-    def run_eq_int(self, left: str, right: str, target: str) -> None:
-        self._alloc_reg(target)
-        M[self.vars[target]] = M[self.vars[left]] == M[self.vars[right]]
+    def run_ge(self, instr: GeInstr) -> None:
+        self._run_binop(instr, lambda x, y: x >= y)
 
-    def run_ne_int(self, left: str, right: str, target: str) -> None:
-        self._alloc_reg(target)
-        M[self.vars[target]] = M[self.vars[left]] != M[self.vars[right]]
+    def run_eq(self, instr: EqInstr) -> None:
+        self._run_binop(instr, lambda x, y: x == y)
 
-    # Float comparisons
-    run_lt_float = run_lt_int
-    run_le_float = run_le_int
-    run_gt_float = run_gt_int
-    run_ge_float = run_ge_int
-    run_eq_float = run_eq_int
-    run_ne_float = run_ne_int
+    def run_ne(self, instr: NeInstr) -> None:
+        self._run_binop(instr, lambda x, y: x != y)
 
-    # String comparisons
-    run_lt_char = run_lt_int
-    run_le_char = run_le_int
-    run_gt_char = run_gt_int
-    run_ge_char = run_ge_int
-    run_eq_char = run_eq_int
-    run_ne_char = run_ne_int
+    def run_and(self, instr: AndInstr) -> None:
+        self._run_binop(instr, lambda x, y: x and y)
 
-    # Bool comparisons
-    run_eq_bool = run_eq_int
-    run_ne_bool = run_ne_int
+    def run_or(self, instr: OrInstr) -> None:
+        self._run_binop(instr, lambda x, y: x or y)
 
-    def run_and_bool(self, left: str, right: str, target: str) -> None:
-        self._alloc_reg(target)
-        M[self.vars[target]] = M[self.vars[left]] and M[self.vars[right]]
+    # Unary ops
 
-    def run_or_bool(self, left: str, right: str, target: str) -> None:
-        self._alloc_reg(target)
-        M[self.vars[target]] = M[self.vars[left]] or M[self.vars[right]]
+    def _run_unop(self, instr: UnaryOpInstruction, op: Callable[[Value], Value]) -> None:
+        expr = self._alloc_reg(instr.expr)
+        target = self._alloc_reg(instr.target)
+        self.registers[target] = op(self.registers[expr])
 
-    def run_not_bool(self, source: str, target: str) -> None:
-        self._alloc_reg(target)
-        M[self.vars[target]] = not self._get_value(source)
+    def run_not(self, instr: NotInstr) -> None:
+        self._run_unop(instr, lambda x: not x)
 
-    def run_sitofp(self, source: str, target: str) -> None:
-        self._alloc_reg(target)
-        M[self.vars[target]] = float(self._get_value(source))
+    def run_sitofp(self, instr) -> None:
+        self._run_unop(instr, lambda x: float(x))
 
-    def run_fptosi(self, source: str, target: str) -> None:
-        self._alloc_reg(target)
-        M[self.vars[target]] = int(self._get_value(source))
+    def run_fptosi(self, instr) -> None:
+        self._run_unop(instr, lambda x: int(x))
