@@ -88,8 +88,7 @@ class GlobalBlock(CountedBlock):
         if varname is not None:
             return varname
 
-        name = ty.ir()
-        varname = TextVariable((name, self._new_version(name)))
+        varname = TextVariable((ty.ir(), self._new_version(ty.ir())))
         # and insert into the text section
         self.text.append(GlobalInstr(ty, varname, value))
         self.consts[ty, str(value)] = varname
