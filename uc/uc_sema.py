@@ -150,6 +150,10 @@ class Scope:
 class GlobalScope(Scope):
     """Scope for global variables."""
 
+    def add(self, symb: Symbol) -> None:
+        symb.definition.is_global = True
+        super().add(symb)
+
 
 class IterationScope(Scope):
     """Scope inside iteration statement."""
@@ -1003,7 +1007,6 @@ class SemanticVisitor(NodeVisitor[uCType]):
                 raise InvalidVariableType(node, "a variable")
             if node.name in self.symtab.current_scope:
                 raise NameAlreadyDefined(node)
-            node.is_global = isinstance(self.symtab.current_scope, GlobalScope)
             # add to table
             self.symtab.add(node)
             return uctype

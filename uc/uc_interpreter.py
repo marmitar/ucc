@@ -13,7 +13,8 @@
 from __future__ import annotations
 import re
 import sys
-from typing import Callable, Dict, Iterator, Optional, Union
+from enum import Enum, unique
+from typing import Callable, Dict, Iterator, Literal, Optional, Union
 from uc.uc_ast import sizeof
 from uc.uc_ir import (
     AddInstr,
@@ -106,7 +107,8 @@ def printerr(*args) -> None:
     print(*args, file=sys.stderr, flush=True)
 
 
-class Uninitilized:
+@unique
+class Uninitialized(Enum):
     __slots__ = ()
 
     def __str__(self) -> str:
@@ -115,7 +117,7 @@ class Uninitilized:
     def __repr__(self) -> str:
         return "Uninit"
 
-    def _ignore(self, *_) -> Uninitilized:
+    def _ignore(self, *_) -> Uninitialized:
         return self
 
     __add__ = _ignore
@@ -147,10 +149,15 @@ class Uninitilized:
     __gt__ = _cmp
     __ge__ = _cmp
 
+    def __hash__(self) -> int:
+        return hash(self.__class__.__name__)
 
-Uninit = Uninitilized()
+    Uninit = ()
 
-Value = Union[str, int, float, Uninitilized]
+
+Uninit = Uninitialized.Uninit
+
+Value = Union[str, int, float, Literal[Uninit]]
 Size = Union[int, uCType]
 Scope = Dict[Union[NamedVariable, LabelName], int]
 Address = Union[int, NamedVariable, GlobalVariable]
@@ -689,7 +696,7 @@ class Interpreter:
         self._run_binop(instr, lambda x, y: x % y)
 
     def run_div(self, instr: AddInstr) -> None:
-        if isinstance(instr.type, float):
+        if instr.type is FloatType:
             self._run_binop(instr, lambda x, y: x / y)
         else:
             self._run_binop(instr, lambda x, y: x // y)
