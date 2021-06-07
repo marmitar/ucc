@@ -626,36 +626,30 @@ class Interpreter:
         self.params.append(self.registers[source])
 
     def run_print(self, op: PrintInstr) -> None:
-        data = self._get_multiple(op.source, op.type)
-        print(*data, sep="", end="", flush=True)
-
-    def _scan_int(self) -> int:
-        return int(self._read_word())
-
-    def _scan_float(self) -> float:
-        return float(self._read_word())
-
-    def _scan_char(self) -> str:
-        return self._read_char()
-
-    def _scan_string(self) -> list[str]:
-        return list(self._read_line())
+        if op.source is None:
+            print(flush=True)
+        else:
+            source = self._alloc_reg(op.source)
+            data = self._get_multiple(self.registers[source], op.type)
+            print(*data, sep="", end="", flush=True)
 
     def run_read(self, read: ReadInstr) -> None:
-        scanner: dict[uCType, Callable[[], Union[Value, list[Value]]]] = {
-            IntType: self._scan_int,
-            FloatType: self._scan_float,
-            CharType: self._scan_char,
-        }
-
         try:
             # read value
-            value = scanner.get(read.type, self._scan_string)()
+            if read.type is IntType:
+                value = int(self._read_word())
+            elif read.type is FloatType:
+                value = float(self._read_word())
+            elif read.type is CharType:
+                value = self._read_char()
+            else:
+                value = list(self._read_line())
+            # and store in variable
+            source = self._alloc_reg(read.source)
+            self._store_value(self.registers[source], value)
         # may evoke parsing errors
         except ValueError:
             printerr("Illegal input value.", flush=True)
-            value = Uninit
-        self._store_value(read.source, value)
 
     def run_return(self, ret: ReturnInstr) -> None:
         # set return value

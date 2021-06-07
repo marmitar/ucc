@@ -586,9 +586,7 @@ class ReadInstr(ParamInstr):
     __slots__ = ()
     opname = "read"
 
-    source: MemoryVariable
-
-    def __init__(self, type: uCType, source: MemoryVariable):
+    def __init__(self, type: uCType, source: TempVariable):
         super().__init__(type, source)
 
 
