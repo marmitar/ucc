@@ -14,6 +14,7 @@ from uc.uc_ast import (
     CharConstant,
     Constant,
     Decl,
+    ExprList,
     FloatConstant,
     FuncCall,
     FuncDecl,
@@ -24,18 +25,12 @@ from uc.uc_ast import (
     Print,
     Program,
     RelationOp,
+    Return,
     StringConstant,
     UnaryOp,
     VarDecl,
 )
-from uc.uc_block import (
-    CFG,
-    BasicBlock,
-    EmitBlocks,
-    FunctionBlock,
-    GlobalBlock,
-    Variable,
-)
+from uc.uc_block import CFG, BasicBlock, EmitBlocks, FunctionBlock, GlobalBlock
 from uc.uc_interpreter import Interpreter
 from uc.uc_ir import (
     AddInstr,
@@ -64,6 +59,7 @@ from uc.uc_ir import (
     OrInstr,
     ParamInstr,
     PrintInstr,
+    ReturnInstr,
     StoreInstr,
     SubInstr,
     TempVariable,
@@ -72,7 +68,7 @@ from uc.uc_ir import (
 )
 from uc.uc_parser import UCParser
 from uc.uc_sema import NodeVisitor, Visitor
-from uc.uc_type import IntType, PrimaryType, uCType
+from uc.uc_type import IntType, PrimaryType, VoidType, uCType
 
 # instructions for basic operations
 binary_op: dict[str, Type[BinaryOpInstruction]] = {
@@ -204,6 +200,19 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
             value = self.visit(param)
             instr = PrintInstr(param.uc_type, value)
             self.current.append(instr)
+
+    def visit_Return(self, node: Return) -> None:
+        if node.result is not None:
+            result = self.visit(node.result)
+            instr = ReturnInstr(node.result.uc_type, result)
+        else:
+            instr = ReturnInstr(VoidType)
+        self.current.append(instr)
+
+    def visit_ExprList(self, node: ExprList) -> TempVariable:
+        for expr in node.expr:
+            result = self.visit(expr)
+        return result
 
     # # # # # # # #
     # EXPRESSIONS #
