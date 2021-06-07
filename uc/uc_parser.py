@@ -70,12 +70,11 @@ class Coord:
 
     def __str__(self) -> str:
         if self.line and self.column is not None:
-            coord_str = "@ %s:%s" % (self.line, self.column)
+            return "@ %s:%s" % (self.line, self.column)
         elif self.line:
-            coord_str = "@ %s" % (self.line)
+            return "@ %s" % (self.line)
         else:
-            coord_str = ""
-        return coord_str
+            return ""
 
 
 T = TypeVar("T")

@@ -16,16 +16,24 @@ from typing import (
 )
 from graphviz import Digraph
 from uc.uc_ir import (
+    AddInstr,
+    CBranchInstr,
     DataVariable,
     DefineInstr,
+    ElemInstr,
+    GeInstr,
     GlobalInstr,
     Instruction,
+    JumpInstr,
     LabelInstr,
     LabelName,
+    LiteralInstr,
+    PrintInstr,
+    ReturnInstr,
     TempVariable,
     TextVariable,
 )
-from uc.uc_type import FunctionType, uCType
+from uc.uc_type import ArrayType, CharType, FunctionType, IntType, VoidType, uCType
 
 # # # # # #
 # BLOCKS  #
@@ -80,9 +88,8 @@ class GlobalBlock(CountedBlock):
         if varname is not None:
             return varname
 
-        # remove non alphanumeric character
-        name = "".join(ch if ch.isalnum() else "_" for ch in ty)
-        varname = TextVariable(name, self._new_version(name))
+        name = ty.ir()
+        varname = TextVariable((name, self._new_version(name)))
         # and insert into the text section
         self.text.append(GlobalInstr(ty, varname, value))
         self.consts[ty, str(value)] = varname
@@ -115,6 +122,10 @@ class FunctionBlock(CountedBlock):
         )
         self.entry = BasicBlock(self, "entry")
 
+    @property
+    def label(self) -> DataVariable:
+        return DataVariable(self.name)
+
     def new_temp(self) -> TempVariable:
         """
         Create a new temporary variable for the function scope.
@@ -127,6 +138,36 @@ class FunctionBlock(CountedBlock):
 
     def instructions(self) -> Iterator[DefineInstr]:
         yield self.define
+
+
+class PutsBlock(FunctionBlock):
+    def __init__(self, program: GlobalBlock):
+        # insert as first function in program
+        uctype = FunctionType(
+            ".puts", VoidType, [("str", ArrayType(CharType, None)), ("len", IntType)]
+        )
+        super().__init__(program, uctype)
+        program.functions.insert(0, program.functions.pop())
+
+        # create loop index and constant 1
+        index, one = self.new_temp(), self.new_temp()
+        self.entry.append(LiteralInstr(IntType, 0, index), LiteralInstr(IntType, 1, one))
+
+        self.entry.next = loop = BasicBlock(self)  # TODO: loop block
+        string, length = (var for _, _, var in self.params)
+        result = loop.new_temp()
+        # iterate over caracters
+        loop.append(
+            GeInstr(IntType, index, length, result),
+            CBranchInstr(result, true_target=LabelName("exit")),
+            ElemInstr(CharType, string, index, result),
+            PrintInstr(CharType, result),
+            AddInstr(IntType, index, one, index),
+            JumpInstr(loop.label),
+        )
+        # then exit
+        loop.next = BasicBlock(self, "exit")
+        loop.next.append(ReturnInstr(VoidType))
 
 
 class BasicBlock(Block):
@@ -155,8 +196,8 @@ class BasicBlock(Block):
     def label(self) -> LabelName:
         return LabelName(self.name)
 
-    def append(self, instr: Instruction) -> None:
-        self.instr.append(instr)
+    def append(self, *instr: Instruction) -> None:
+        self.instr.extend(instr)
 
     def instructions(self) -> Iterator[Instruction]:
         init = (LabelInstr(self.name),)
@@ -227,6 +268,8 @@ class EmitBlocks(BlockVisitor[List[Instruction]]):
     def visit_FunctionBlock(self, block: FunctionBlock, total: list[Instruction]) -> None:
         total.extend(block.instructions())
         self.visit(block.entry, total)
+
+    visit_PutsBlock = visit_FunctionBlock
 
 
 # # # # # # # # # # # #

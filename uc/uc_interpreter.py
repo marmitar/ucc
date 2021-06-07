@@ -503,18 +503,18 @@ class Interpreter:
             # allocate function reference
             elif isinstance(instr, DefineInstr):
                 current_function = instr.source, pc
-                self.globals[current_function] = self.offset
+                self.globals[instr.source] = self.offset
                 self.labels[instr.source] = []
 
                 M[self.offset] = pc
                 self.offset += 1
-                if instr.source.name == "main":
+                if instr.source.value == "main":
                     self.start = pc
             # store label address
             elif isinstance(instr, LabelInstr):
                 name, start = current_function
                 label = LabelName(instr.label)
-                offset = pc + 1 - start
+                offset = pc - start
                 self.labels[name].append((label, offset))
 
         return pc + 1
@@ -573,9 +573,12 @@ class Interpreter:
     def run_cbranch(self, branch: CBranchInstr) -> None:
         expr = self._alloc_reg(branch.expr_test)
         if self.registers[expr]:
-            self.pc = self._get_address(branch.true_target)
+            target = branch.true_target
         else:
-            self.pc = self._get_address(branch.false_target)
+            target = branch.false_target
+        # branch if target is defined
+        if target is not None:
+            self.pc = self._get_address(target)
 
     def run_copy(self, copy: CopyInstr) -> None:
         source = self.registers[self._alloc_reg(copy.source)]
@@ -630,8 +633,7 @@ class Interpreter:
             print(flush=True)
         else:
             source = self._alloc_reg(op.source)
-            data = self._get_multiple(self.registers[source], op.type)
-            print(*data, sep="", end="", flush=True)
+            print(self.registers[source], sep="", end="", flush=True)
 
     def run_read(self, read: ReadInstr) -> None:
         try:
