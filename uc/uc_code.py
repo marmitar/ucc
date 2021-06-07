@@ -6,6 +6,7 @@ from typing import Any, Literal, Optional, TextIO, Tuple, Type, Union, overload
 from uc.uc_ast import (
     ID,
     AddressOp,
+    ArrayDecl,
     ArrayRef,
     Assignment,
     BinaryOp,
@@ -15,6 +16,7 @@ from uc.uc_ast import (
     Decl,
     FloatConstant,
     FuncCall,
+    FuncDecl,
     FuncDef,
     IntConstant,
     Node,
@@ -24,6 +26,7 @@ from uc.uc_ast import (
     RelationOp,
     StringConstant,
     UnaryOp,
+    VarDecl,
 )
 from uc.uc_block import (
     CFG,
@@ -40,6 +43,7 @@ from uc.uc_ir import (
     AndInstr,
     BinaryOpInstruction,
     CallInstr,
+    CopyInstr,
     DivInstr,
     ElemInstr,
     EqInstr,
@@ -59,6 +63,7 @@ from uc.uc_ir import (
     NotInstr,
     OrInstr,
     ParamInstr,
+    PrintInstr,
     StoreInstr,
     SubInstr,
     TempVariable,
@@ -134,25 +139,34 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
             dot = CFG(node.name)
             dot.view(node)
 
-    def _evaluate_init(self, node: Optional[Node]) -> Any:
-        raise NotImplementedError("# TODO")
+    def visit_Decl(self, node: Decl) -> None:
+        self.visit(node.type, node.init)
 
-    def visit_Decl(self, node: Decl, source: Optional[TempVariable] = None) -> None:
-        uctype = node.type.uc_type
-        varname = self._varname(node.name)
-        # insert globals on '.data' section
-        if isinstance(varname, GlobalVariable):
-            self.glob.new_global(uctype, varname, self._evaluate_init(node.init))
-            return
-        # local variables are allocated on the function stack
-        instr = AllocInstr(uctype, varname)
-        self.current.append(instr)
-        # if a value is given, initialize it
-        if source is None and node.init is not None:
-            source = self.visit(node.init)
-        if source is not None:
-            instr = StoreInstr(uctype, source, varname)
-            self.current.append(instr)
+    def visit_ArrayDecl(self, node: ArrayDecl, init: Optional[Node]) -> None:
+        # space for pointer / reference
+        varname = self._varname(node.declname)
+        self.current.append(AllocInstr(IntType, varname))
+        # space for data
+        data = NamedVariable(f".{varname.value}.content")
+        self.current.append(AllocInstr(node.uc_type, data))
+        # store pointer in variable
+        pointer = self.current.new_temp()
+        self.current.append(GetInstr(node.uc_type, data, pointer))
+        self.current.append(StoreInstr(IntType, pointer, varname))
+        # copy initialization data
+        if init is not None:
+            value = self.visit(init)
+            self.current.append(CopyInstr(node.uc_type, value, pointer))
+
+    def visit_VarDecl(self, node: VarDecl, init: Optional[Node]) -> None:
+        varname = self._varname(node.declname)
+        alloc = AllocInstr(node.uc_type, varname)
+        self.current.append(alloc)
+
+        if init is not None:
+            value = self.visit(init)
+            store = StoreInstr(node.uc_type, value, varname)
+            self.current.append(store)
 
     def visit_FuncDef(self, node: FuncDef) -> None:
         decl = node.declaration.type
@@ -161,30 +175,35 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
         # create entry block and populate it
         self.current = block.entry
         self.visit(decl.param_list)
-        # visit body
         self.visit(node.decl_list)
+        # visit body
         self.visit(node.implementation)
         # remove from block list
         self.current = None
 
     def visit_ParamList(self, node: ParamList) -> None:
-        for decl, (_, _, varname) in zip(node.params, self.current.function.params):
-            self.visit_Decl(decl, varname)
+        for decl, (_, _, tempvar) in zip(node.params, self.current.function.params):
+            varname = self._varname(decl.name)
+            alloc = AllocInstr(decl.type.uc_type, varname)
+            store = StoreInstr(decl.type.uc_type, tempvar, varname)
+
+            self.current.append(alloc)
+            self.current.append(store)
 
     # # # # # # # #
     # STATEMENTS  #
 
     def visit_Print(self, node: Print) -> None:
-        # Visit the expression
-        self.visit(node.param)
+        # empty
+        if node.param is None:
+            instr = PrintInstr()
+            self.current.append(instr)
+            return
 
-        # TODO: Load the location containing the expression
-
-        # Create the opcode and append to list
-        inst = (f"print_{node.param.uc_type.ir()}", node.param.gen_location)
-        self.current_block.append(inst)
-
-        # TODO: Handle the cases when node.expr is None or ExprList
+        for param in node.param.expr:
+            value = self.visit(param)
+            instr = PrintInstr(param.uc_type, value)
+            self.current.append(instr)
 
     # # # # # # # #
     # EXPRESSIONS #
