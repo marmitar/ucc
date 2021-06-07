@@ -203,13 +203,15 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
         # create 'puts' function
         if not isinstance(self.glob.functions[0], PutsBlock):
             PutsBlock(self.glob)
-        puts = self.glob.functions[0].label
+        puts = self.glob.functions[0]
 
         # and call it
         pointer = self.visit(node)
         size = self._new_constant(IntType, sizeof(node))
         self.current.append(
-            ParamInstr(node.uc_type, pointer), ParamInstr(IntType, size), CallInstr(VoidType, puts)
+            ParamInstr(node.uc_type, pointer),
+            ParamInstr(IntType, size),
+            CallInstr(VoidType, puts.label),
         )
 
     def visit_Print(self, node: Print) -> None:
@@ -316,18 +318,19 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
             self.current.append(instr)
             return value
 
-    def visit_FuncCall(self, node: FuncCall) -> TempVariable:
+    def visit_FuncCall(self, node: FuncCall) -> Optional[TempVariable]:
         # get function address
-        source = self.visit(node.callable)
+        source = self._varname(node.callable)
         # load parameters
         for param in node.parameters():
             varname = self.visit(param)
-            instr = ParamInstr(param.uc_type, varname)
-            self.current.append(instr)
-        # then call function
-        target = self.current.new_temp()
-        isntr = CallInstr(node.uc_type, source, target)
-        self.current.append(instr)
+            self.current.append(ParamInstr(param.uc_type, varname))
+        # then call the function
+        if node.uc_type is VoidType:
+            target = None
+        else:
+            target = self.current.new_temp()
+        self.current.append(CallInstr(node.uc_type, source, target))
         return target
 
     # # # # # # # # #

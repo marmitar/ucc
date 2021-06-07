@@ -261,7 +261,7 @@ class FunctionType(uCType):
             return f"{self.rettype!r}({params})"
 
     def ir(self) -> str:
-        params = ",".join(p.ir() for p in self.params)
+        params = ",".join(ty.ir() for _, ty in self.params)
         return self.rettype.ir() + "_(" + params + ")"
 
     def sizeof(self) -> int:

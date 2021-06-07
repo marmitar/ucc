@@ -697,7 +697,7 @@ class CharConstant(Constant):
 
     def __init__(self, value: str, coord: Coord):
         super().__init__(coord)
-        self.value = value
+        self.value = value.strip("'")
 
 
 class BoolConstant(Constant):

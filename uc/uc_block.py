@@ -142,10 +142,10 @@ class FunctionBlock(CountedBlock):
 class PutsBlock(FunctionBlock):
     def __init__(self, program: GlobalBlock):
         # insert as first function in program
-        uctype = FunctionType(
+        self.uctype = FunctionType(
             ".puts", VoidType, [("str", ArrayType(CharType, None)), ("len", IntType)]
         )
-        super().__init__(program, uctype)
+        super().__init__(program, self.uctype)
         program.functions.insert(0, program.functions.pop())
 
         # create loop index and constant 1
