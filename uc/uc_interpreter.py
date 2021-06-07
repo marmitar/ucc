@@ -53,7 +53,7 @@ from uc.uc_ir import (
     TempVariable,
     UnaryOpInstruction,
 )
-from uc.uc_type import CharType, FloatType, IntType, StringType, uCType
+from uc.uc_type import CharType, FloatType, IntType, uCType
 
 # def format_instruction(t: tuple[str, ...]) -> str:
 #     operand = t[0].split("_")
