@@ -30,7 +30,14 @@ from uc.uc_ast import (
     UnaryOp,
     VarDecl,
 )
-from uc.uc_block import CFG, BasicBlock, EmitBlocks, FunctionBlock, GlobalBlock
+from uc.uc_block import (
+    CFG,
+    BasicBlock,
+    EmitBlocks,
+    FunctionBlock,
+    GlobalBlock,
+    PutsBlock,
+)
 from uc.uc_interpreter import Interpreter
 from uc.uc_ir import (
     AddInstr,
@@ -68,7 +75,7 @@ from uc.uc_ir import (
 )
 from uc.uc_parser import UCParser
 from uc.uc_sema import NodeVisitor, Visitor
-from uc.uc_type import IntType, PrimaryType, VoidType, uCType
+from uc.uc_type import IntType, PrimaryType, VoidType
 
 # instructions for basic operations
 binary_op: dict[str, Type[BinaryOpInstruction]] = {
@@ -140,16 +147,18 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
         self.visit(node.type, node.init)
 
     def visit_ArrayDecl(self, node: ArrayDecl, init: Optional[Node]) -> None:
-        # space for pointer / reference
         varname = self._varname(node.declname)
-        self.current.append(AllocInstr(IntType, varname))
-        # space for data
         data = NamedVariable(f".{varname.value}.content")
-        self.current.append(AllocInstr(node.uc_type, data))
-        # store pointer in variable
         pointer = self.current.new_temp()
-        self.current.append(GetInstr(node.uc_type, data, pointer))
-        self.current.append(StoreInstr(IntType, pointer, varname))
+        self.current.append(
+            # space for pointer / reference
+            AllocInstr(IntType, varname),
+            # space for data
+            AllocInstr(node.uc_type, data),
+            # store pointer in variable
+            GetInstr(node.uc_type, data, pointer),
+            StoreInstr(IntType, pointer, varname),
+        )
         # copy initialization data
         if init is not None:
             value = self.visit(init)
@@ -181,26 +190,40 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
     def visit_ParamList(self, node: ParamList) -> None:
         for decl, (_, _, tempvar) in zip(node.params, self.current.function.params):
             varname = self._varname(decl.name)
-            alloc = AllocInstr(decl.type.uc_type, varname)
-            store = StoreInstr(decl.type.uc_type, tempvar, varname)
-
-            self.current.append(alloc)
-            self.current.append(store)
+            self.current.append(
+                AllocInstr(decl.type.uc_type, varname),
+                StoreInstr(decl.type.uc_type, tempvar, varname),
+            )
 
     # # # # # # # #
     # STATEMENTS  #
 
+    def _print_string(self, node: Node) -> None:
+        # create 'puts' function
+        if not isinstance(self.glob.functions[0], PutsBlock):
+            PutsBlock(self.glob)
+        puts = self.glob.functions[0].label
+
+        # and call it
+        pointer = self.visit(node)
+        size = self._new_constant(IntType, node.uc_type.sizeof())
+        self.current.append(
+            ParamInstr(node.uc_type, pointer), ParamInstr(IntType, size), CallInstr(VoidType, puts)
+        )
+
     def visit_Print(self, node: Print) -> None:
-        # empty
+        # empty print, terminate line
         if node.param is None:
             instr = PrintInstr()
             self.current.append(instr)
             return
-
+        # show data
         for param in node.param.expr:
-            value = self.visit(param)
-            instr = PrintInstr(param.uc_type, value)
-            self.current.append(instr)
+            if isinstance(param.uc_type, PrimaryType):
+                value = self.visit(param)
+                self.current.append(PrintInstr(param.uc_type, value))
+            else:
+                self._print_string(param)
 
     def visit_Return(self, node: Return) -> None:
         if node.result is not None:
@@ -320,20 +343,16 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
     def visit_Constant(self, node: Constant) -> TempVariable:
         return self._new_constant(node.uc_type, node.value)
 
-    def visit_IntConstant(self, node: IntConstant) -> TempVariable:
-        return self.visit_Constant(node)
-
-    def visit_FloatConstant(self, node: FloatConstant) -> TempVariable:
-        return self.visit_Constant(node)
-
-    def visit_BoolConstant(self, node: BoolConstant) -> TempVariable:
-        return self.visit_Constant(node)
-
-    def visit_CharConstant(self, node: CharConstant) -> TempVariable:
-        return self.visit_Constant(node)
+    visit_IntConstant = visit_Constant
+    visit_FloatConstant = visit_Constant
+    visit_CharConstant = visit_Constant
+    visit_BoolConstant = visit_Constant
 
     def visit_StringConstant(self, node: StringConstant) -> TextVariable:  # TODO
-        return self.glob.new_literal(node.uc_type, node.value)
+        literal = self.glob.new_literal(node.uc_type, node.value)
+        pointer = self.current.new_temp()
+        self.current.append(GetInstr(node.uc_type, literal, pointer))
+        return pointer
 
     def _varname(self, ident: ID) -> NamedVariable:
         """Get variable name for identifier"""

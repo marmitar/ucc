@@ -1,8 +1,7 @@
 from __future__ import annotations
 import inspect
 import sys
-from collections.abc import Sequence
-from typing import Any, Literal, Optional, Protocol, TextIO, Tuple, Union
+from typing import Any, Literal, Optional, Protocol, Sequence, TextIO, Tuple, Union
 from uc.uc_type import (
     ArrayType,
     BoolType,

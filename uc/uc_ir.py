@@ -85,7 +85,7 @@ class TextVariable(GlobalVariable[Tuple[str, int]]):
     """Variable that lives on the 'text' section."""
 
     __slots__ = ()
-    _format = ".const_{0}.{1}"
+    _format = ".const_{0[0]}.{0[1]}"
 
     @property
     def version(self) -> int:
@@ -97,8 +97,9 @@ class LabelName(Variable[str]):
 
     __slots__ = ()
 
+    @property
     def name(self) -> str:
-        return f"label {self.name}"
+        return f"label {self.value}"
 
 
 # variables that lives on memory
@@ -208,28 +209,28 @@ class AllocInstr(TypedInstruction):
 class GlobalInstr(AllocInstr):
     """Allocate on heap a global var of a given type. value is optional."""
 
-    __slots__ = ("_value",)
+    __slots__ = ("value",)
 
     opname = "global"
-    arguments = "varname", "value"
+    arguments = "varname", "_value"
     indent = False
 
     def __init__(
         self, type: uCType, varname: GlobalVariable, value: Union[Value, list[Value], None] = None
     ):
         super().__init__(type, varname)
-        self._value = value
+        self.value = value
 
     def as_tuple(self) -> tuple[str, ...]:
-        return self.operation, self.varname, self.value
+        return self.operation, self.varname, self._value
 
     @property
-    def value(self) -> Union[Value, list[Value]]:
+    def _value(self) -> Union[Value, list[Value]]:
         # format string as expected
         if isinstance(self.type, StringType):
-            return f"'{self._value}'"
+            return f"'{self.value}'"
         else:
-            return self._value
+            return self.value
 
 
 class LoadInstr(TargetInstruction):
@@ -288,10 +289,10 @@ class ElemInstr(TargetInstruction):
         self.index = index
 
 
-class GetInstr(TargetInstruction):
+class GetInstr(TypedInstruction):
     """Store into target the address of source."""
 
-    __slots__ = ("source",)
+    __slots__ = ("source", "target")
 
     opname = "get"
     arguments = "source", "target"
@@ -481,7 +482,12 @@ class CBranchInstr(Instruction):
     opname = "cbranch"
     arguments = "expr_test", "true_target", "false_target"
 
-    def __init__(self, expr_test: TempVariable, true_target: LabelName, false_target: LabelName):
+    def __init__(
+        self,
+        expr_test: TempVariable,
+        true_target: LabelName,
+        false_target: Optional[LabelName] = None,
+    ):
         super().__init__()
         self.expr_test = expr_test
         self.true_target = true_target
