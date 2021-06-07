@@ -139,7 +139,7 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
 
     def visit_Decl(self, node: Decl, source: Optional[TempVariable] = None) -> None:
         uctype = node.type.uc_type
-        varname = self.visit_ID(node.name)
+        varname = self._varname(node.name)
         # insert globals on '.data' section
         if isinstance(varname, GlobalVariable):
             self.glob.new_global(uctype, varname, self._evaluate_init(node.init))
@@ -190,9 +190,14 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
     # EXPRESSIONS #
 
     def visit_Assignment(self, node: Assignment) -> TempVariable:
-        source = self.visit(node.right, ref=True)
         value = self.visit(node.left)
-        instr = StoreInstr(node.uc_type, value, source)
+        if isinstance(node.right, ID):
+            target = self._varname(node.right)
+            instr = StoreInstr(node.uc_type, value, target)
+        else:
+            target = self.visit(node.right, ref=True)
+            zero = self._new_constant(IntType, 0)
+            instr = ElemInstr(node.uc_type, value, zero, target)
         self.current.append(instr)
         return value
 

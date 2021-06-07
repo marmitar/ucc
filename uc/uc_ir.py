@@ -1,84 +1,108 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any, Iterable, Iterator, NamedTuple, Optional, Union
+from typing import (
+    ClassVar,
+    Generic,
+    Hashable,
+    Iterable,
+    Iterator,
+    NamedTuple,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+)
 from uc.uc_type import StringType, VoidType, uCType
 
 # # # # # # # # # #
 # Variable Types  #
 
 
+T = TypeVar("T", bound=Hashable)
+
+
 @dataclass(frozen=True)
-class Variable:
-    name: Union[str, int]
+class Variable(Generic[T]):
+    """ABC for variables."""
 
-    def __str__(self) -> str:
-        return f"%{self.name}"
+    value: T
 
-    def __repr__(self) -> str:
-        return str(self.name)
+    @property
+    def name(self) -> str:
+        raise NotImplementedError()
+
+    def __eq__(self, other) -> bool:
+        return self.__class__ is other.__class__ and self.value == other.value
 
     def __hash__(self) -> int:
-        return hash(self.name)
+        return hash(self.value)
 
-    def __eq__(self, other: Variable) -> bool:
-        return str(self) == str(other)
+    def __str__(self) -> str:
+        return self.name
 
 
-class NamedVariable(Variable):
+class LocalVariable(Generic[T], Variable[T]):
+    """ABC for variables (numbered or named) with local scope."""
+
+    __slots__ = ()
+
+    @property
+    def name(self) -> str:
+        return f"%{self.value}"
+
+
+class GlobalVariable(Variable[T]):
+    """ABC for variables with global scope."""
+
+    __slots__ = ()
+    _format: ClassVar[str]
+
+    @property
+    def name(self) -> str:
+        return "@" + self._format.format(self.value)
+
+
+class NamedVariable(LocalVariable[str]):
     """Variable referenced by name."""
 
     __slots__ = ()
 
-    name: str
 
-    def __init__(self, name: str):
-        super().__init__(name)
-
-
-class TempVariable(Variable):
+class TempVariable(LocalVariable[int]):
     """Variable referenced by a temporary number."""
 
     __slots__ = ()
 
-    name: int
 
-    def __init__(self, version: int):
-        super().__init__(version)
-
-
-class GlobalVariable(NamedVariable):
+class DataVariable(GlobalVariable[str]):
     """Variable that lives on the 'data' section."""
 
     __slots__ = ()
-
-    def __str__(self) -> str:
-        return f"@{self.name}"
+    _format = "{}"
 
 
-class TextVariable(GlobalVariable):
+class TextVariable(GlobalVariable[Tuple[str, int]]):
     """Variable that lives on the 'text' section."""
 
-    __slots__ = ("version",)
+    __slots__ = ()
+    _format = ".const_{0}.{1}"
 
-    def __init__(self, typename: str, version: int):
-        super().__init__(typename)
-        self.version = version
-
-    def __str__(self) -> str:
-        return f"@.const_{self.name}.{self.version}"
-
-    def __repr__(self) -> str:
-        return f"{self.name}.{self.version}"
+    @property
+    def version(self) -> int:
+        return self.value[1]
 
 
-class LabelName(NamedVariable):
+class LabelName(Variable[str]):
     """Special variable for block labels."""
 
     __slots__ = ()
 
-    def __str__(self) -> str:
+    def name(self) -> str:
         return f"label {self.name}"
 
+
+# variables that lives on memory
+MemoryVariable = Union[NamedVariable, GlobalVariable]
 
 # # # # # # # # # # #
 # INSTRUCTION TYPES #
@@ -109,7 +133,7 @@ class Instruction:
         if value is not None:
             return str(value)
 
-    def values(self) -> Iterator[Value]:
+    def values(self) -> Iterator[Union[Value, Variable]]:
         for attr in self.arguments:
             value = getattr(self, attr, None)
             if value is not None:
@@ -216,7 +240,7 @@ class LoadInstr(TargetInstruction):
     opname = "load"
     arguments = "varname", "target"
 
-    def __init__(self, type: uCType, varname: NamedVariable, target: TempVariable):
+    def __init__(self, type: uCType, varname: MemoryVariable, target: TempVariable):
         super().__init__(type, target)
         self.varname = varname
 
@@ -229,7 +253,7 @@ class StoreInstr(TypedInstruction):
     opname = "store"
     arguments = "source", "target"
 
-    def __init__(self, type: uCType, source: TempVariable, target: TempVariable):
+    def __init__(self, type: uCType, source: TempVariable, target: MemoryVariable):
         super().__init__(type)
         self.source = source
         self.target = target
@@ -243,7 +267,7 @@ class LiteralInstr(TargetInstruction):
     opname = "literal"
     arguments = "value", "target"
 
-    def __init__(self, type: uCType, value: Union[int, str], target: TempVariable):
+    def __init__(self, type: uCType, value: Value, target: TempVariable):
         super().__init__(type, target)
         self.value = value
 
@@ -272,7 +296,21 @@ class GetInstr(TargetInstruction):
     opname = "get"
     arguments = "source", "target"
 
-    def __init__(self, type: uCType, source: NamedVariable, target: TempVariable):
+    def __init__(self, type: uCType, source: MemoryVariable, target: TempVariable):
+        super().__init__(type)
+        self.source = source
+        self.target = target
+
+
+class CopyInstr(TypedInstruction):
+    """Copy contents from a memory region."""
+
+    __slots__ = ("source", "target")
+
+    opname = "copy"
+    arguments = "source", "target"
+
+    def __init__(self, type: uCType, source: TempVariable, target: TempVariable):
         super().__init__(type)
         self.source = source
         self.target = target
@@ -548,9 +586,9 @@ class ReadInstr(ParamInstr):
     __slots__ = ()
     opname = "read"
 
-    source: NamedVariable
+    source: MemoryVariable
 
-    def __init__(self, type: uCType, source: NamedVariable):
+    def __init__(self, type: uCType, source: MemoryVariable):
         super().__init__(type, source)
 
 
@@ -560,7 +598,7 @@ class PrintInstr(ParamInstr):
     __slots__ = ()
     opname = "print"
 
-    source: Optional[Variable]
+    source: Optional[TempVariable]
 
-    def __init__(self, type: uCType = VoidType, source: Optional[Variable] = None):
+    def __init__(self, type: uCType = VoidType, source: Optional[TempVariable] = None):
         super().__init__(type, source)
