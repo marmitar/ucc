@@ -14,6 +14,7 @@ from __future__ import annotations
 import re
 import sys
 from typing import Callable, Dict, Iterator, Optional, Union
+from uc.uc_ast import sizeof
 from uc.uc_ir import (
     AddInstr,
     AllocInstr,
@@ -364,7 +365,7 @@ class Interpreter:
 
     def _alloc_data(self, size: Size, target: NamedVariable) -> int:
         if not isinstance(size, int):
-            size = size.sizeof()
+            size = sizeof(size)
         # Alloc space in memory and save the offset in the dictionary
         # for new vars or temporaries, only.
         self.vars[target] = self.offset
@@ -388,7 +389,7 @@ class Interpreter:
 
     def _get_multiple(self, source: Address, size: Size) -> list[Value]:
         if not isinstance(size, int):
-            size = size.sizeof()
+            size = sizeof(size)
         if size <= 0:
             return []
         if not isinstance(source, int):
@@ -400,7 +401,7 @@ class Interpreter:
 
     def _mem_copy(self, dest: Address, source: Address, size: Size) -> None:
         if not isinstance(size, int):
-            size = size.sizeof()
+            size = sizeof(size)
         # extract addresses
         if not isinstance(source, int):
             source = self._get_address(source)
@@ -499,7 +500,7 @@ class Interpreter:
                 if instr.value != None:
                     value = self._split_str(instr.value)
                     self._store_value(self.offset, value)
-                self.offset += instr.type.sizeof()
+                self.offset += sizeof(instr.type)
             # allocate function reference
             elif isinstance(instr, DefineInstr):
                 current_function = instr.source, pc

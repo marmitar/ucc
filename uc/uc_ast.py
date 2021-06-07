@@ -174,6 +174,13 @@ class Node:
         return None  # default
 
 
+def sizeof(item: Union[Node, uCType]) -> int:
+    """Size of type or object in memory."""
+    if isinstance(item, Node):
+        item = item.uc_type
+    return item.__ucsize__()
+
+
 # # # # # # # # #
 # DECLARATIONS  #
 

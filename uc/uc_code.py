@@ -29,6 +29,7 @@ from uc.uc_ast import (
     StringConstant,
     UnaryOp,
     VarDecl,
+    sizeof,
 )
 from uc.uc_block import (
     CFG,
@@ -206,7 +207,7 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
 
         # and call it
         pointer = self.visit(node)
-        size = self._new_constant(IntType, node.uc_type.sizeof())
+        size = self._new_constant(IntType, sizeof(node))
         self.current.append(
             ParamInstr(node.uc_type, pointer), ParamInstr(IntType, size), CallInstr(VoidType, puts)
         )
@@ -295,9 +296,9 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
         source = self.visit(node.array)
         index = self.visit(node.index)
         # calculate offset, if needed
-        if node.uc_type.sizeof() != 1:
+        if sizeof(node) != 1:
             offset = self.current.new_temp()
-            size = self._new_constant(IntType, node.uc_type.sizeof())
+            size = self._new_constant(IntType, sizeof(node))
             instr = MulInstr(IntType, size, index, offset)
             self.current.append(instr)
         else:
