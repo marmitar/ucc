@@ -13,7 +13,7 @@
 from __future__ import annotations
 import re
 import sys
-from typing import Callable, Iterator, Optional, Union
+from typing import Callable, Dict, Iterator, Optional, Union
 from uc.uc_ir import (
     AddInstr,
     AllocInstr,
@@ -21,6 +21,7 @@ from uc.uc_ir import (
     BinaryOpInstruction,
     CallInstr,
     CBranchInstr,
+    CopyInstr,
     DefineInstr,
     ElemInstr,
     EqInstr,
@@ -52,7 +53,7 @@ from uc.uc_ir import (
     TempVariable,
     UnaryOpInstruction,
 )
-from uc.uc_type import CharType, FloatType, IntType, uCType
+from uc.uc_type import CharType, FloatType, IntType, StringType, uCType
 
 # def format_instruction(t: tuple[str, ...]) -> str:
 #     operand = t[0].split("_")
@@ -148,9 +149,10 @@ class Uninitilized:
 
 Uninit = Uninitilized()
 
-Value = Union[int, float, Uninitilized]
+Value = Union[str, int, float, Uninitilized]
 Size = Union[int, uCType]
-Address = Union[int, NamedVariable]
+Scope = Dict[Union[NamedVariable, LabelName], int]
+Address = Union[int, NamedVariable, GlobalVariable]
 Register = Union[int, TempVariable]
 
 # Data memory
@@ -189,24 +191,29 @@ class Interpreter:
         self.input: Optional[str] = None
         M = 10000 * [Uninit]  # Memory for global & local vars
 
-        self.globals: dict[
-            GlobalVariable, int
-        ] = {}  # Dictionary of address of global vars & constants
-        self.vars: dict[
-            NamedVariable, int
-        ] = {}  # Dictionary of address of local vars relative to sp
+        # Dictionary of address of global vars & constants
+        self.globals: dict[GlobalVariable, int] = {}
+        # Dictionary of address of local vars relative to sp
+        self.vars: Scope = {}
+        # register bank as a smaller memory
         self.registers: list[Value] = [Uninit]
+        # offset for all labels in each function
+        self.labels: dict[GlobalVariable, list[tuple[LabelName, int]]]
 
-        self.offset = 0  # offset (index) of local & global vars. Note that
+        # offset (index) of local & global vars. Note that
         # each instance of var has absolute address in Memory
-        self.stack: list[
-            tuple[dict[NamedVariable, int], list[Value]]
-        ] = []  # Stack to save address of vars between calls
-        self.sp: list[int] = []  # Stack to save & restore the last offset
+        self.offset = 0
+        # Stack to save address of vars between calls
+        self.stack: list[tuple[Scope, list[Value]]] = []
+        # Stack to save & restore the last offset
+        self.sp: list[int] = []
 
-        self.params: list[Value] = []  # List of parameters from caller (value)
-        self.retval: list[int] = []  # list of register to store result from call instruction
-        self.returns: list[int] = []  # Stack of return addresses (program counters)
+        # List of parameters from caller (value)
+        self.params: list[Value] = []
+        # list of register to store result from call instruction
+        self.retval: list[int] = []
+        # Stack of return addresses (program counters)
+        self.returns: list[int] = []
 
         self.pc: int = 0  # Program Counter
         self.lastpc: int = 0  # last pc
@@ -350,16 +357,10 @@ class Interpreter:
     # # # # # # # #
     # MEMORY & IO #
 
-    def _alloc_labels(self) -> None:
-        # Alloc labels for current function definition. Due to the uCIR and due to
-        # the chosen memory model, this is done every time we enter a function.
-        for lpc, instr in enumerate(self.code[self.pc :], self.pc):
-            if isinstance(instr, DefineInstr):
-                break
-            elif isinstance(instr, LabelInstr):
-                # labels don't go to memory, just store the pc on dictionary
-                # labels appears as name:, so we need to extract just the name
-                self.vars[LabelName(instr.label)] = lpc + 1
+    def _alloc_labels(self, funcname: GlobalVariable) -> None:
+        # Alloc labels for current function definition
+        for label, offset in self.labels[funcname]:
+            self.vars[label] = self.pc + offset
 
     def _alloc_data(self, size: Size, target: NamedVariable) -> int:
         if not isinstance(size, int):
@@ -373,13 +374,13 @@ class Interpreter:
 
     def _alloc_reg(self, target: Register) -> int:
         if not isinstance(target, int):
-            target = target.name
+            target = target.value
         if len(self.registers) <= target:
             size = target + 1 - len(self.registers)
             self.registers.extend([Uninit] * size)
         return target
 
-    def _get_address(self, source: NamedVariable) -> int:
+    def _get_address(self, source: Union[NamedVariable, GlobalVariable, LabelName]) -> int:
         if isinstance(source, GlobalVariable):
             return self.globals[source]
         else:
@@ -421,7 +422,7 @@ class Interpreter:
         def flatten(value: Union[str, Value, list[str, Value], None]) -> Iterator[Value]:
             if isinstance(value, str):
                 for ch in value:
-                    yield ord(ch)
+                    yield ch
             elif isinstance(value, list):
                 for val in flatten(value):
                     yield val
@@ -486,6 +487,38 @@ class Interpreter:
     # # # # # # #
     # EXECUTION #
 
+    def _prepare_globals(self) -> int:
+        """Allocate global variables and find label offsets."""
+
+        # name and pc for current function
+        current_function: Optional[tuple[GlobalVariable, int]] = None
+        for pc, instr in enumerate(self.code):
+            # allocate global variables
+            if isinstance(instr, GlobalInstr):
+                self.globals[instr.varname] = self.offset
+                if instr.value != None:
+                    value = self._split_str(instr.value)
+                    self._store_value(self.offset, value)
+                self.offset += instr.type.sizeof()
+            # allocate function reference
+            elif isinstance(instr, DefineInstr):
+                current_function = instr.source, pc
+                self.globals[current_function] = self.offset
+                self.labels[current_function] = []
+
+                M[self.offset] = pc
+                self.offset += 1
+                if instr.source.name == "main":
+                    self.start = pc
+            # store label address
+            elif isinstance(instr, LabelInstr):
+                name, start = current_function
+                label = LabelName(instr.value)
+                offset = pc + 1 - start
+                self.labels[name].append((label, offset))
+
+        return pc + 1
+
     def run(self, ircode: list[Instruction]) -> None:
         """
         Run intermediate code in the interpreter.  ircode is a list
@@ -496,28 +529,13 @@ class Interpreter:
         # Also, set the start pc to the main function entry
         self.code = ircode
         self.offset = 0
-
-        for pc, instr in enumerate(self.code):
-            # only instructions, not labels
-            if isinstance(instr, GlobalInstr):
-                self.globals[instr.varname] = self.offset
-                if instr.value != None:
-                    value = self._split_str(instr.value)
-                    self._store_value(self.offset, value)
-                self.offset += instr.type.sizeof()
-            elif isinstance(instr, DefineInstr):
-                self.globals[instr.source] = self.offset
-                M[self.offset] = pc
-                self.offset += 1
-                if instr.source.name == "main":
-                    self.start = pc
+        self.lastpc = self._prepare_globals()
 
         # Now, running the program starting from the main function
         # If run in debug mode, show the available command lines.
         if self.debug:
             printerr("Interpreter running in debug mode:")
             self._show_idb_help()
-        self.lastpc = pc
         self.pc = self.start
         _breakpoint: Optional[int] = None
         while True:
@@ -537,14 +555,14 @@ class Interpreter:
             executor = getattr(self, f"run_{instr.opname}", None)
             if executor is not None:
                 executor(instr)
-            else:
+            elif not isinstance(instr, LabelInstr):
                 printerr(f"Warning: No run_{instr.opname}() method")
 
     #
     # Run Operations, except Binary, Relational & Cast
     #
     def run_alloc(self, alloc: AllocInstr) -> None:
-        self._alloc_data(alloc.varname)
+        self._alloc_data(alloc.type, alloc.varname)
 
     def run_call(self, call: CallInstr) -> None:
         # save the return pc in the return stack
@@ -559,6 +577,11 @@ class Interpreter:
         else:
             self.pc = self._get_address(branch.false_target)
 
+    def run_copy(self, copy: CopyInstr) -> None:
+        source = self.registers[self._alloc_reg(copy.source)]
+        target = self.registers[self._alloc_reg(copy.target)]
+        self._mem_copy(source, target, copy.type)
+
     # Enter the function
     def run_define(self, define: DefineInstr) -> None:
         # load parameters in register bank
@@ -569,10 +592,10 @@ class Interpreter:
                 self.registers[reg] = self.params.pop()
 
         self.params = []
-        # prepare function
-        self._alloc_labels()
         # clear the dictionary of caller local vars and their offsets in memory
         self.vars = {}
+        # prepare function
+        self._alloc_labels(define.source)
 
     def run_elem(self, elem: ElemInstr) -> None:
         target = self._alloc_reg(elem.target)
@@ -602,23 +625,21 @@ class Interpreter:
         source = self._alloc_reg(param.source)
         self.params.append(self.registers[source])
 
-    def run_print(self, op: PrintInstr) -> None:  # TODO
+    def run_print(self, op: PrintInstr) -> None:
         data = self._get_multiple(op.source, op.type)
-        print(*data, end="", flush=True)
+        print(*data, sep="", end="", flush=True)
 
-    def _scan_int(
-        self,
-    ) -> int:
+    def _scan_int(self) -> int:
         return int(self._read_word())
 
     def _scan_float(self) -> float:
         return float(self._read_word())
 
-    def _scan_char(self) -> int:
-        return ord(self._read_char())
+    def _scan_char(self) -> str:
+        return self._read_char()
 
-    def _scan_string(self) -> list[int]:
-        return [ord(ch) for ch in self._read_line()]
+    def _scan_string(self) -> list[str]:
+        return list(self._read_line())
 
     def run_read(self, read: ReadInstr) -> None:
         scanner: dict[uCType, Callable[[], Union[Value, list[Value]]]] = {
@@ -646,8 +667,8 @@ class Interpreter:
 
     def run_store(self, store: StoreInstr) -> None:
         source = self._alloc_reg(store.source)
-        target = self._alloc_reg(store.target)
-        M[self.registers[target]] = self.registers[source]
+        target = self._get_address(store.target)
+        M[target] = self.registers[source]
 
     #
     # perform binary, relational & cast operations
