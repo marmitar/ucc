@@ -39,12 +39,12 @@ from uc.uc_ir import (
     BinaryOpInstruction,
     CallInstr,
     CopyInstr,
+    DataVariable,
     DivInstr,
     ElemInstr,
     EqInstr,
     GeInstr,
     GetInstr,
-    GlobalVariable,
     GtInstr,
     Instruction,
     LeInstr,
@@ -104,17 +104,18 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
         # TODO: Complete if needed.
 
     def show(self, buf: TextIO = sys.stdout) -> None:
-        text = ""
         for code in self.code:
-            text += code.format() + "\n"
-        buf.write(text)
+            print(code.format(), file=buf)
 
     @property
     def code(self) -> list[Instruction]:
         """
         The generated code (can be mapped to a list of tuples)
         """
-        return EmitBlocks().visit(self.glob)
+        if not hasattr(self, "_code"):
+            bb = EmitBlocks()
+            self._code = bb.visit(self.glob)
+        return self._code
 
     # You must implement visit_Nodename methods for all of the other
     # AST nodes.  In your code, you will need to make instructions
@@ -337,7 +338,7 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
     def _varname(self, ident: ID) -> NamedVariable:
         """Get variable name for identifier"""
         if ident.is_global:
-            return GlobalVariable(ident.name)
+            return DataVariable(ident.name)
         else:
             return NamedVariable(ident.name)
 

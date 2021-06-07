@@ -143,7 +143,7 @@ class Instruction:
         if self.indent:
             yield " "
 
-        if self.target is not None:
+        if self.target_attr is not None:
             yield self.get(self.target_attr)
             yield "="
 

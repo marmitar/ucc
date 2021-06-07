@@ -16,9 +16,9 @@ from typing import (
 )
 from graphviz import Digraph
 from uc.uc_ir import (
+    DataVariable,
     DefineInstr,
     GlobalInstr,
-    GlobalVariable,
     Instruction,
     LabelInstr,
     LabelName,
@@ -88,7 +88,7 @@ class GlobalBlock(CountedBlock):
         self.consts[ty, str(value)] = varname
         return varname
 
-    def new_global(self, uctype: uCType, varname: GlobalVariable, value: Optional[Any]) -> None:
+    def new_global(self, uctype: uCType, varname: DataVariable, value: Optional[Any]) -> None:
         self.data.append(GlobalInstr(uctype, varname, value))
 
     def instructions(self) -> Iterator[Instruction]:
@@ -111,7 +111,7 @@ class FunctionBlock(CountedBlock):
         self.params = [(name, ty, self.new_temp()) for name, ty in function.params]
         # function definition
         self.define = DefineInstr(
-            function.rettype, GlobalVariable(self.name), ((ty, var) for _, ty, var in self.params)
+            function.rettype, DataVariable(self.name), ((ty, var) for _, ty, var in self.params)
         )
         self.entry = BasicBlock(self, "entry")
 
@@ -217,12 +217,16 @@ class EmitBlocks(BlockVisitor[List[Instruction]]):
     def generic_visit(self, block: Block, total: list[Instruction]) -> None:
         total.extend(block.instructions())
         if block.next is not None:
-            self.visit(block.next)
+            self.visit(block.next, total)
 
     def visit_GlobalBlock(self, block: GlobalBlock, total: list[Instruction]) -> None:
         total.extend(block.instructions())
         for subblock in block.functions:
-            self.visit(subblock)
+            self.visit(subblock, total)
+
+    def visit_FunctionBlock(self, block: FunctionBlock, total: list[Instruction]) -> None:
+        total.extend(block.instructions())
+        self.visit(block.entry, total)
 
 
 # # # # # # # # # # # #

@@ -198,7 +198,7 @@ class Interpreter:
         # register bank as a smaller memory
         self.registers: list[Value] = [Uninit]
         # offset for all labels in each function
-        self.labels: dict[GlobalVariable, list[tuple[LabelName, int]]]
+        self.labels: dict[GlobalVariable, list[tuple[LabelName, int]]] = {}
 
         # offset (index) of local & global vars. Note that
         # each instance of var has absolute address in Memory
@@ -445,7 +445,7 @@ class Interpreter:
         if not self.returns:
             # We reach the end of main function, so return to system
             # with the code returned by main in the return register.
-            printerr(end="", flush=True)
+            print(end="", flush=True)
             # exit with return value
             sys.exit(self.registers[0])
 
@@ -504,7 +504,7 @@ class Interpreter:
             elif isinstance(instr, DefineInstr):
                 current_function = instr.source, pc
                 self.globals[current_function] = self.offset
-                self.labels[current_function] = []
+                self.labels[instr.source] = []
 
                 M[self.offset] = pc
                 self.offset += 1
@@ -513,7 +513,7 @@ class Interpreter:
             # store label address
             elif isinstance(instr, LabelInstr):
                 name, start = current_function
-                label = LabelName(instr.value)
+                label = LabelName(instr.label)
                 offset = pc + 1 - start
                 self.labels[name].append((label, offset))
 
@@ -649,7 +649,7 @@ class Interpreter:
             self._store_value(self.registers[source], value)
         # may evoke parsing errors
         except ValueError:
-            printerr("Illegal input value.", flush=True)
+            printerr("Illegal input value.")
 
     def run_return(self, ret: ReturnInstr) -> None:
         # set return value
