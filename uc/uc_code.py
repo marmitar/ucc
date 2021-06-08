@@ -2,7 +2,17 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
-from typing import Any, Literal, Optional, TextIO, Tuple, Type, Union, overload
+from typing import (
+    Any,
+    Callable,
+    Literal,
+    Optional,
+    TextIO,
+    Tuple,
+    Type,
+    Union,
+    overload,
+)
 from uc.uc_ast import (
     ID,
     AddressOp,
@@ -12,6 +22,7 @@ from uc.uc_ast import (
     BinaryOp,
     BoolConstant,
     CharConstant,
+    Compound,
     Constant,
     Decl,
     ExprList,
@@ -76,25 +87,7 @@ from uc.uc_ir import (
 )
 from uc.uc_parser import UCParser
 from uc.uc_sema import NodeVisitor, Visitor
-from uc.uc_type import IntType, PrimaryType, VoidType
-
-# instructions for basic operations
-binary_op: dict[str, Type[BinaryOpInstruction]] = {
-    "+": AddInstr,
-    "-": SubInstr,
-    "*": MulInstr,
-    "/": DivInstr,
-    "%": ModInstr,
-    "<": LtInstr,
-    "<=": LeInstr,
-    ">": GtInstr,
-    ">=": GeInstr,
-    "==": EqInstr,
-    "!=": NeInstr,
-    "&&": AndInstr,
-    "||": OrInstr,
-}
-unary_op: dict[str, Type[UnaryOpInstruction]] = {"!": NotInstr}
+from uc.uc_type import IntType, PrimaryType, VoidType, uCType
 
 
 class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
@@ -245,16 +238,33 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
     # EXPRESSIONS #
 
     def visit_Assignment(self, node: Assignment) -> TempVariable:
-        value = self.visit(node.left)
-        if isinstance(node.right, ID):
-            target = self._varname(node.right)
+        value = self.visit(node.right)
+        if isinstance(node.left, ID):
+            target = self._varname(node.left)
             instr = StoreInstr(node.uc_type, value, target)
         else:
-            target = self.visit(node.right, ref=True)
+            target = self.visit(node.left, ref=True)
             zero = self._new_constant(IntType, 0)
             instr = ElemInstr(node.uc_type, value, zero, target)
         self.current.append(instr)
         return value
+
+    # instructions for basic operations
+    binary_op: dict[str, Type[BinaryOpInstruction]] = {
+        "+": AddInstr,
+        "-": SubInstr,
+        "*": MulInstr,
+        "/": DivInstr,
+        "%": ModInstr,
+        "<": LtInstr,
+        "<=": LeInstr,
+        ">": GtInstr,
+        ">=": GeInstr,
+        "==": EqInstr,
+        "!=": NeInstr,
+        "&&": AndInstr,
+        "||": OrInstr,
+    }
 
     def visit_BinaryOp(self, node: BinaryOp) -> TempVariable:
         # Visit the left and right expressions
@@ -264,35 +274,51 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
         target = self.current.new_temp()
 
         # Create the opcode and append to list
-        instr = binary_op[node.op](node.uc_type, left, right, target)
-        self.current.append(instr)
+        self.current.append(self.binary_op[node.op](node.uc_type, left, right, target))
         return target
 
-    def visit_RelationOp(self, node: RelationOp) -> TempVariable:
-        return self.visit_BinaryOp(node)
+    visit_RelationOp = visit_BinaryOp
+
+    # implementations for unary operators
+    def _unary_minus(self, type: uCType, source: TempVariable) -> TempVariable:
+        zero = self._new_constant(type, 0)
+        out = self.current.new_temp()
+        # negation is: 0 - value
+        self.current.append(SubInstr(type, zero, source, out))
+        return out
+
+    def _unary_not(self, type: uCType, source: TempVariable) -> TempVariable:
+        out = self.current.new_temp()
+        self.current.append(NotInstr(type, source, out))
+        return out
+
+    def _unary_star(self, type: uCType, source: TempVariable) -> TempVariable:
+        index = self._new_constant(IntType, 0)
+        target = self.current.new_temp()
+        self.current.append(ElemInstr(type, source, index, target))
+        return target
+
+    unary_op: dict[str, Callable[[CodeGenerator, uCType, TempVariable], TempVariable]] = {
+        "!": _unary_not,
+        "-": _unary_minus,
+        "+": lambda _self, _type, source: source,
+        "&": lambda _self, _type, source: source,
+        "*": _unary_star,
+    }
 
     def visit_UnaryOp(self, node: UnaryOp) -> TempVariable:
-        # get source and target registers
+        # get source register
         source = self.visit(node.expr)
-        target = self.current.new_temp()
-
-        # Create the opcode and append to list
-        instr = unary_op[node.op](node.uc_type, source, target)
-        self.current.append(instr)
-        return target
+        # and do the necessary transformation
+        return self.unary_op[node.op](self, node.uc_type, source)
 
     def visit_AddressOp(self, node: AddressOp, ref: bool = False) -> TempVariable:
         source = self.visit(node.expr, ref=True)
         # get address
-        if node.op == "&" or ref:
+        if ref:
             return source
-        # or element
-        else:
-            index = self._new_constant(IntType, 0)
-            target = self.current.new_temp()
-            instr = ElemInstr(node.uc_type, source, index, target)
-            self.current.append(instr)
-            return target
+        # or apply op
+        return self.unary_op[node.op](self, node.uc_type, source)
 
     def visit_ArrayRef(self, node: ArrayRef, ref: bool = False) -> TempVariable:
         source = self.visit(node.array)
@@ -301,21 +327,18 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
         if sizeof(node) != 1:
             offset = self.current.new_temp()
             size = self._new_constant(IntType, sizeof(node))
-            instr = MulInstr(IntType, size, index, offset)
-            self.current.append(instr)
+            self.current.append(MulInstr(IntType, size, index, offset))
         else:
             offset = index
         # return reference for compound types
         if ref or not isinstance(node.uc_type, PrimaryType):
             address = self.current.new_temp()
-            instr = AddInstr(node.uc_type, source, offset, address)
-            self.current.append(instr)
+            self.current.append(AddInstr(node.uc_type, source, offset, address))
             return address
         # and value for primaries
         else:
             value = self.current.new_temp()
-            instr = ElemInstr(node.uc_type, source, offset, value)
-            self.current.append(instr)
+            self.current.append(ElemInstr(node.uc_type, source, offset, value))
             return value
 
     def visit_FuncCall(self, node: FuncCall) -> Optional[TempVariable]:
@@ -340,8 +363,7 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
         # Create a new temporary variable name
         target = self.current.new_temp()
         # Make the SSA opcode and append to list of generated instructions
-        instr = LiteralInstr(uctype, value, target)
-        self.current.append(instr)
+        self.current.append(LiteralInstr(uctype, value, target))
         return target
 
     def visit_Constant(self, node: Constant) -> TempVariable:

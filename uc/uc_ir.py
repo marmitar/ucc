@@ -197,7 +197,7 @@ class AllocInstr(TypedInstruction):
 
     __slots__ = ("varname",)
 
-    opename = "alloc"
+    opname = "alloc"
     arguments = ("varname",)
     target_attr = "varname"
 
@@ -249,7 +249,7 @@ class LoadInstr(TargetInstruction):
 class StoreInstr(TypedInstruction):
     """Store the source/register into target/varname."""
 
-    __slots__ = "varname", "target"
+    __slots__ = "source", "target"
 
     opname = "store"
     arguments = "source", "target"
