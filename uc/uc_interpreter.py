@@ -445,6 +445,7 @@ class Interpreter:
 
         # save the addresses of the vars from caller & their last offset
         self.stack.append((self.vars, self.registers))
+        self.registers = []
         self.sp.append(self.offset)
         self.retval.append(reg)
         self.returns.append(self.pc)
@@ -459,12 +460,10 @@ class Interpreter:
 
         # get return value
         retval = self.registers[0]
-        register = self.retval.pop()
         # restore the vars of the caller
-        self.vars, regbank = self.stack.pop()
-        # restore registers
-        self.registers[: len(regbank)] = regbank
+        self.vars, self.registers = self.stack.pop()
         # set the return value
+        register = self.retval.pop()
         self.registers[register] = retval
         # restore the last offset from the caller
         self.offset = self.sp.pop()
@@ -613,7 +612,7 @@ class Interpreter:
         base = self._alloc_reg(elem.source)
         idx = self._alloc_reg(elem.index)
         # calculate and access address
-        address = self.registers[base] + self.registers[idx]
+        address = self.registers[base] + self.registers[idx] * sizeof(elem.type)
         self.registers[target] = M[address]
 
     def run_get(self, get: GetInstr) -> None:
@@ -671,8 +670,8 @@ class Interpreter:
 
     def run_store(self, store: StoreInstr) -> None:
         source = self._alloc_reg(store.source)
-        target = self._get_address(store.target)
-        M[target] = self.registers[source]
+        target = self._alloc_reg(store.target)
+        M[self.registers[target]] = self.registers[source]
 
     #
     # perform binary, relational & cast operations

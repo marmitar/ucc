@@ -475,9 +475,9 @@ class UCParser:
         ("left", "EQUALS"),
         ("left", "OR"),
         ("left", "AND"),
-        ("left", "EQ", "NE"),
-        ("left", "LE", "LT", "GE", "GT"),
-        ("left", "PLUS", "MINUS", "TIMES", "ADDRESS"),
+        ("nonassoc", "EQ", "NE"),
+        ("nonassoc", "LE", "LT", "GE", "GT"),
+        ("left", "PLUS", "MINUS", "ADDRESS"),
         ("left", "TIMES", "DIVIDE", "MOD"),
         ("right", "NOT"),
     )
