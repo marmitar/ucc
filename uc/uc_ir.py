@@ -63,26 +63,26 @@ class GlobalVariable(Variable[T]):
 
 
 class NamedVariable(LocalVariable[str]):
-    """Variable referenced by name."""
+    """Local variable referenced by name."""
 
     __slots__ = ()
 
 
 class TempVariable(LocalVariable[int]):
-    """Variable referenced by a temporary number."""
+    """Local variable referenced by a temporary number."""
 
     __slots__ = ()
 
 
 class DataVariable(GlobalVariable[str]):
-    """Variable that lives on the 'data' section."""
+    """Global variable that lives on the 'data' section."""
 
     __slots__ = ()
     _format = "{}"
 
 
 class TextVariable(GlobalVariable[Tuple[str, int]]):
-    """Variable that lives on the 'text' section."""
+    """Global variable that lives on the 'text' section."""
 
     __slots__ = ()
     _format = ".const_{0[0]}.{0[1]}"
@@ -104,6 +104,7 @@ class LabelName(Variable[str]):
 
 # variables that lives on memory
 MemoryVariable = Union[NamedVariable, GlobalVariable]
+AnyVariable = Union[MemoryVariable, TempVariable]
 
 # # # # # # # # # # #
 # INSTRUCTION TYPES #
@@ -216,7 +217,10 @@ class GlobalInstr(AllocInstr):
     indent = False
 
     def __init__(
-        self, type: uCType, varname: GlobalVariable, value: Union[Value, list[Value], None] = None
+        self,
+        type: uCType,
+        varname: GlobalVariable,
+        value: Union[GlobalVariable, Value, list[Value], None] = None,
     ):
         super().__init__(type, varname)
         self.value = value
@@ -225,7 +229,7 @@ class GlobalInstr(AllocInstr):
         return self.operation, self.varname, self._value
 
     @property
-    def _value(self) -> Union[Value, list[Value]]:
+    def _value(self) -> Union[GlobalVariable, Value, list[Value]]:
         # format string as expected
         if isinstance(self.type, StringType):
             return f"'{self.value}'"
@@ -241,7 +245,7 @@ class LoadInstr(TargetInstruction):
     opname = "load"
     arguments = "varname", "target"
 
-    def __init__(self, type: uCType, varname: MemoryVariable, target: TempVariable):
+    def __init__(self, type: uCType, varname: AnyVariable, target: TempVariable):
         super().__init__(type, target)
         self.varname = varname
 
@@ -254,7 +258,7 @@ class StoreInstr(TypedInstruction):
     opname = "store"
     arguments = "source", "target"
 
-    def __init__(self, type: uCType, source: TempVariable, target: TempVariable):
+    def __init__(self, type: uCType, source: TempVariable, target: AnyVariable):
         super().__init__(type)
         self.source = source
         self.target = target
@@ -282,7 +286,7 @@ class ElemInstr(TargetInstruction):
     arguments = "source", "index", "target"
 
     def __init__(
-        self, type: uCType, source: TempVariable, index: TempVariable, target: TempVariable
+        self, type: uCType, source: AnyVariable, index: TempVariable, target: TempVariable
     ):
         super().__init__(type, target)
         self.source = source
@@ -303,20 +307,6 @@ class GetInstr(TypedInstruction):
         self.target = target
 
 
-class CopyInstr(TypedInstruction):
-    """Copy contents from a memory region."""
-
-    __slots__ = ("source", "target")
-
-    opname = "copy"
-    arguments = "source", "target"
-
-    def __init__(self, type: uCType, source: TempVariable, target: TempVariable):
-        super().__init__(type)
-        self.source = source
-        self.target = target
-
-
 # # # # # # # # # # #
 # Binary Operations #
 
@@ -326,9 +316,7 @@ class BinaryOpInstruction(TargetInstruction):
 
     arguments = "left", "right", "target"
 
-    def __init__(
-        self, type: uCType, left: TempVariable, right: TempVariable, target: TempVariable
-    ):
+    def __init__(self, type: uCType, left: AnyVariable, right: AnyVariable, target: TempVariable):
         super().__init__(type, target)
         self.left = left
         self.right = right
@@ -526,7 +514,7 @@ class DefineInstr(TypedInstruction):
     def __init__(
         self,
         type: uCType,
-        source: GlobalVariable,
+        source: DataVariable,
         args: Iterable[tuple[uCType, TempVariable]] = (),
     ):
         super().__init__(type)
@@ -568,7 +556,7 @@ class ReturnInstr(TypedInstruction):
     opname = "return"
     arguments = ("target",)
 
-    def __init__(self, type: uCType, target: Optional[TempVariable] = None):
+    def __init__(self, type: uCType, target: Optional[AnyVariable] = None):
         super().__init__(type)
         self.target = target
 
@@ -581,7 +569,7 @@ class ParamInstr(TypedInstruction):
     opname = "param"
     arguments = ("source",)
 
-    def __init__(self, type: uCType, source: TempVariable):
+    def __init__(self, type: uCType, source: AnyVariable):
         super().__init__(type)
         self.source = source
 
@@ -592,7 +580,7 @@ class ReadInstr(ParamInstr):
     __slots__ = ()
     opname = "read"
 
-    def __init__(self, type: uCType, source: TempVariable):
+    def __init__(self, type: uCType, source: AnyVariable):
         super().__init__(type, source)
 
 

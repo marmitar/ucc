@@ -2,7 +2,7 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
-from typing import Any, Callable, Literal, Optional, TextIO, Tuple, Type, Union
+from typing import Any, Callable, Optional, TextIO, Type, Union
 from uc.uc_ast import (
     ID,
     AddressOp,
@@ -41,7 +41,6 @@ from uc.uc_ir import (
     AndInstr,
     BinaryOpInstruction,
     CallInstr,
-    CopyInstr,
     DataVariable,
     DivInstr,
     ElemInstr,
@@ -143,7 +142,7 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
         # copy initialization data
         if init is not None:
             value = self.visit(init)
-            self.current.append(CopyInstr(node.uc_type, value, pointer))
+            # self.current.append(CopyInstr(node.uc_type, value, pointer))
 
     def visit_VarDecl(self, node: VarDecl, init: Optional[Node]) -> None:
         varname = self._varname(node.declname)
@@ -159,7 +158,7 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
     def visit_FuncDef(self, node: FuncDef) -> None:
         decl = node.declaration.type
         # create function block
-        block = FunctionBlock(self.glob, decl.uc_type)
+        block = self.glob.new_function(decl.uc_type)
         # create entry block and populate it
         self.current = block.entry
         self.visit(decl.param_list)
@@ -182,21 +181,6 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
     # # # # # # # #
     # STATEMENTS  #
 
-    def _print_string(self, node: Node) -> None:
-        # create 'puts' function
-        if not isinstance(self.glob.functions[0], PutsBlock):
-            PutsBlock(self.glob)
-        puts = self.glob.functions[0]
-
-        # and call it
-        pointer = self.visit(node)
-        size = self._new_constant(IntType, sizeof(node))
-        self.current.append(
-            ParamInstr(node.uc_type, pointer),
-            ParamInstr(IntType, size),
-            CallInstr(VoidType, puts.label),
-        )
-
     def visit_Print(self, node: Print) -> None:
         # empty print, terminate line
         if node.param is None:
@@ -209,7 +193,14 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
                 value = self.visit(param)
                 self.current.append(PrintInstr(param.uc_type, value))
             else:
-                self._print_string(param)
+                # call puts function
+                pointer = self.visit(node)
+                size = self._new_constant(IntType, sizeof(node))
+                self.current.append(
+                    ParamInstr(node.uc_type, pointer),
+                    ParamInstr(IntType, size),
+                    CallInstr(VoidType, self.glob.puts),
+                )
 
     def visit_Return(self, node: Return) -> None:
         if node.result is not None:
@@ -372,7 +363,7 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
     visit_BoolConstant = visit_Constant
 
     def visit_StringConstant(self, node: StringConstant) -> TextVariable:  # TODO
-        literal = self.glob.new_literal(node.uc_type, node.value)
+        literal = self.glob.new_text(node.uc_type, node.value)
         pointer = self.current.new_temp()
         self.current.append(GetInstr(node.uc_type, literal, pointer))
         return pointer

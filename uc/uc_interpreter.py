@@ -20,10 +20,11 @@ from uc.uc_ir import (
     AddInstr,
     AllocInstr,
     AndInstr,
+    AnyVariable,
     BinaryOpInstruction,
     CallInstr,
     CBranchInstr,
-    CopyInstr,
+    DataVariable,
     DefineInstr,
     ElemInstr,
     EqInstr,
@@ -40,6 +41,7 @@ from uc.uc_ir import (
     LiteralInstr,
     LoadInstr,
     LtInstr,
+    MemoryVariable,
     ModInstr,
     MulInstr,
     NamedVariable,
@@ -225,7 +227,7 @@ class Interpreter:
 
         self.pc: int = 0  # Program Counter
         self.lastpc: int = 0  # last pc
-        self.start: int = 0  # PC of the main function
+        self.start: Optional[int] = None  # PC of the main function
         self.debug: bool = debug  # Set the debug mode
 
     # # # # # # #
@@ -388,34 +390,30 @@ class Interpreter:
             self.registers.extend([Uninit] * size)
         return target
 
-    def _get_address(self, source: Union[NamedVariable, GlobalVariable, LabelName]) -> int:
+    def _get_label(self, source: Union[MemoryVariable, LabelName]) -> int:
         if isinstance(source, GlobalVariable):
             return self.globals[source]
         else:
             return self.vars[source]
 
-    def _get_multiple(self, source: Address, size: Size) -> list[Value]:
+    def _load_multiple(self, source: Address, size: Size) -> list[Value]:
         if not isinstance(size, int):
             size = sizeof(size)
         if size <= 0:
             return []
         if not isinstance(source, int):
-            source = self._get_address(source)
+            source = self._get_label(source)
         return M[source : source + size]
 
-    def _get_value(self, source: Address) -> Value:
-        return self._get_multiple(source, 1)[0]
+    def _load_value(self, source: Address) -> Value:
+        return self._load_multiple(source, 1)[0]
 
-    def _mem_copy(self, dest: Address, source: Address, size: Size) -> None:
-        if not isinstance(size, int):
-            size = sizeof(size)
-        # extract addresses
-        if not isinstance(source, int):
-            source = self._get_address(source)
-        if not isinstance(dest, int):
-            dest = self._get_address(dest)
-
-        M[dest : dest + size] = M[source : source + size]
+    def _get_value(self, source: AnyVariable) -> Value:
+        if isinstance(source, TempVariable):
+            reg = self._alloc_reg(source)
+            return self.registers[reg]
+        else:
+            return self._get_label(source)
 
     def _store_value(self, address: Address, value: Union[Value, list[Value]]) -> None:
         if not isinstance(address, int):
@@ -426,7 +424,9 @@ class Interpreter:
         else:
             M[address] = value
 
-    def _split_str(self, literal: Union[str, Value, list[str, Value], None]) -> list[Value]:
+    def _split_data(
+        self, literal: Union[GlobalVariable, str, Value, list[str, Value], None]
+    ) -> list[Value]:
         def flatten(value: Union[str, Value, list[str, Value], None]) -> Iterator[Value]:
             if isinstance(value, str):
                 for ch in value:
@@ -437,7 +437,12 @@ class Interpreter:
             elif value is not None:
                 yield value
 
-        return list(flatten(literal))
+        # map variable to address
+        if isinstance(literal, GlobalVariable):
+            return [self.globals[literal]]
+        # and value to lists
+        else:
+            return list(flatten(literal))
 
     def _push(self, target: Optional[Register] = None) -> None:
         # prepare register for return value
@@ -498,13 +503,13 @@ class Interpreter:
         """Allocate global variables and find label offsets."""
 
         # name and pc for current function
-        current_function: Optional[tuple[GlobalVariable, int]] = None
+        current_function: Optional[tuple[DataVariable, int]] = None
         for pc, instr in enumerate(self.code):
             # allocate global variables
             if isinstance(instr, GlobalInstr):
                 self.globals[instr.varname] = self.offset
                 if instr.value != None:
-                    value = self._split_str(instr.value)
+                    value = self._split_data(instr.value)
                     self._store_value(self.offset, value)
                 self.offset += sizeof(instr.type)
             # allocate function reference
@@ -536,6 +541,7 @@ class Interpreter:
         # Also, set the start pc to the main function entry
         self.code = ircode
         self.offset = 0
+        self.start = None
         self.lastpc = self._prepare_globals()
 
         # Now, running the program starting from the main function
@@ -543,7 +549,7 @@ class Interpreter:
         if self.debug:
             printerr("Interpreter running in debug mode:")
             self._show_idb_help()
-        self.pc = self.start
+        self.pc = self.start or self.lastpc
         _breakpoint: Optional[int] = None
         while True:
             try:
@@ -575,22 +581,16 @@ class Interpreter:
         # save the return pc in the return stack
         self._push(call.target)
         # jump to the calle function
-        self.pc = self._get_value(call.source)
+        self.pc = self._load_value(call.source)
 
     def run_cbranch(self, branch: CBranchInstr) -> None:
-        expr = self._alloc_reg(branch.expr_test)
-        if self.registers[expr]:
+        if self._get_value(branch.expr_test):
             target = branch.true_target
         else:
             target = branch.false_target
         # branch if target is defined
         if target is not None:
-            self.pc = self._get_address(target)
-
-    def run_copy(self, copy: CopyInstr) -> None:
-        source = self.registers[self._alloc_reg(copy.source)]
-        target = self.registers[self._alloc_reg(copy.target)]
-        self._mem_copy(source, target, copy.type)
+            self.pc = self._get_label(target)
 
     # Enter the function
     def run_define(self, define: DefineInstr) -> None:
@@ -609,15 +609,14 @@ class Interpreter:
 
     def run_elem(self, elem: ElemInstr) -> None:
         target = self._alloc_reg(elem.target)
-        base = self._alloc_reg(elem.source)
-        idx = self._alloc_reg(elem.index)
+        base = self._get_value(elem.source)
+        idx = self._get_value(elem.index)
         # calculate and access address
-        address = self.registers[base] + self.registers[idx] * sizeof(elem.type)
-        self.registers[target] = M[address]
+        self.registers[target] = M[base + idx]
 
     def run_get(self, get: GetInstr) -> None:
         target = self._alloc_reg(get.target)
-        self.registers[target] = self._get_address(get.source)
+        self.registers[target] = self._get_label(get.source)
 
     def run_jump(self, jump: JumpInstr) -> None:
         self.pc = self.vars[jump.target]
@@ -629,18 +628,19 @@ class Interpreter:
 
     def run_load(self, load: LoadInstr) -> None:
         target = self._alloc_reg(load.target)
-        self.registers[target] = self._get_value(load.varname)
+        address = self._get_value(load.varname)
+        self.registers[target] = self._load_value(address)
 
     def run_param(self, param: ParamInstr) -> None:
-        source = self._alloc_reg(param.source)
-        self.params.append(self.registers[source])
+        source = self._get_value(param.source)
+        self.params.append(source)
 
     def run_print(self, op: PrintInstr) -> None:
         if op.source is None:
             print(flush=True)
         else:
-            source = self._alloc_reg(op.source)
-            print(self.registers[source], sep="", end="", flush=True)
+            source = self._get_value(op.source)
+            print(source, sep="", end="", flush=True)
 
     def run_read(self, read: ReadInstr) -> None:
         try:
@@ -654,8 +654,8 @@ class Interpreter:
             else:
                 value = list(self._read_line())
             # and store in variable
-            source = self._alloc_reg(read.source)
-            self._store_value(self.registers[source], value)
+            source = self._get_value(read.source)
+            self._store_value(source, value)
         # may evoke parsing errors
         except ValueError:
             printerr("Illegal input value.")
@@ -663,24 +663,24 @@ class Interpreter:
     def run_return(self, ret: ReturnInstr) -> None:
         # set return value
         if ret.target:
-            target = self._alloc_reg(ret.target)
-            self.registers[0] = self.registers[target]
+            value = self._get_value(ret.target)
+            self.registers[0] = value
         # and return pc
         self._pop()
 
     def run_store(self, store: StoreInstr) -> None:
-        source = self._alloc_reg(store.source)
-        target = self._alloc_reg(store.target)
-        M[self.registers[target]] = self.registers[source]
+        value = self._get_value(store.source)
+        target = self._get_value(store.target)
+        M[target] = value
 
     #
     # perform binary, relational & cast operations
     #
     def _run_binop(self, instr: BinaryOpInstruction, op: Callable[[Value, Value], Value]) -> None:
-        left = self._alloc_reg(instr.left)
-        right = self._alloc_reg(instr.right)
+        left = self._get_value(instr.left)
+        right = self._get_value(instr.right)
         target = self._alloc_reg(instr.target)
-        self.registers[target] = op(self.registers[left], self.registers[right])
+        self.registers[target] = op(left, right)
 
     def run_add(self, instr: AddInstr) -> None:
         self._run_binop(instr, lambda x, y: x + y)
@@ -729,9 +729,9 @@ class Interpreter:
     # Unary ops
 
     def _run_unop(self, instr: UnaryOpInstruction, op: Callable[[Value], Value]) -> None:
-        expr = self._alloc_reg(instr.expr)
+        expr = self._get_value(instr.expr)
         target = self._alloc_reg(instr.target)
-        self.registers[target] = op(self.registers[expr])
+        self.registers[target] = op(expr)
 
     def run_not(self, instr: NotInstr) -> None:
         self._run_unop(instr, lambda x: not x)
