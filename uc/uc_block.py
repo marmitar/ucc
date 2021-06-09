@@ -15,6 +15,7 @@ from typing import (
     Union,
 )
 from graphviz import Digraph
+from uc.uc_interpreter import Value
 from uc.uc_ir import (
     AddInstr,
     CBranchInstr,
@@ -30,6 +31,7 @@ from uc.uc_ir import (
     LiteralInstr,
     PrintInstr,
     ReturnInstr,
+    StoreInstr,
     TempVariable,
     TextVariable,
 )
@@ -91,6 +93,7 @@ class GlobalBlock(CountedBlock):
         # cache of defined constants, to avoid repeated values
         self.consts: dict[tuple[str, str], TextVariable] = {}
         # all functions in the program
+        self._memcpy: Optional[MemCopy] = None
         self._puts: Optional[PutsBlock] = None
         self.functions: list[FunctionBlock] = []
 
@@ -116,6 +119,12 @@ class GlobalBlock(CountedBlock):
         return block
 
     @property
+    def memcpy(self) -> DataVariable:
+        if self._memcpy is None:
+            self._memcpy = MemCopy(self)
+        return self._memcpy.label
+
+    @property
     def puts(self) -> DataVariable:
         if self._puts is None:
             self._puts = PutsBlock(self)
@@ -126,6 +135,8 @@ class GlobalBlock(CountedBlock):
         return chain(self.text, self.data)
 
     def subblocks(self) -> Iterator[Block]:
+        if self._memcpy:
+            yield self._memcpy
         if self._puts:
             yield self._puts
         for function in self.functions:
@@ -184,8 +195,8 @@ class PutsBlock(FunctionBlock):
         super().__init__(program, self.uctype)
 
         # create loop index and constant 1
-        index, one = self.new_temp(), self.new_temp()
-        self.entry.append(LiteralInstr(IntType, 0, index), LiteralInstr(IntType, 1, one))
+        index = self.entry.new_literal(0)
+        one = self.entry.new_literal(1)
 
         self.entry.next = loop = BasicBlock(self)  # TODO: loop block
         string, length = (var for _, _, var in self.params)
@@ -202,6 +213,39 @@ class PutsBlock(FunctionBlock):
         # then exit
         loop.next = BasicBlock(self, "exit")
         loop.next.append(ReturnInstr(VoidType))
+
+
+class MemCopy(FunctionBlock):
+    def __init__(self, program: GlobalBlock):
+        # build definition
+        ptr = PointerType(VoidType)
+        self.uctype = FunctionType(".memcpy", ptr, [("src", ptr), ("dest", ptr), ("len", IntType)])
+        super().__init__(program, self.uctype)
+
+        # create loop index and constant 1
+        index = self.entry.new_literal(0)
+        one = self.entry.new_literal(1)
+
+        self.entry.next = loop = BasicBlock(self)  # TODO: loop block
+        src, dest, length = (var for _, _, var in self.params)
+        result = loop.new_temp()
+        # iterate over caracters
+        loop.append(
+            GeInstr(IntType, index, length, result),
+            CBranchInstr(result, true_target=LabelName("exit")),
+            ElemInstr(IntType, src, index, result),
+            StoreInstr(IntType, result, dest),
+            AddInstr(IntType, index, one, index),
+            AddInstr(ptr, dest, one, dest),
+            JumpInstr(loop.label),
+        )
+        # then exit
+        loop.next = BasicBlock(self, "exit")
+        loop.next.append(ReturnInstr(VoidType))
+
+
+# # # # # # # #
+# CODE BLOCKS #
 
 
 class BasicBlock(Block):
@@ -225,6 +269,11 @@ class BasicBlock(Block):
 
     def new_temp(self) -> TempVariable:
         return self.function.new_temp()
+
+    def new_literal(self, value: Value, uctype: uCType = IntType) -> TempVariable:
+        target = self.new_temp()
+        self.append(LiteralInstr(uctype, value, target))
+        return target
 
     @property
     def label(self) -> LabelName:

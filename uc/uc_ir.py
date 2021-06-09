@@ -225,13 +225,10 @@ class GlobalInstr(AllocInstr):
         super().__init__(type, varname)
         self.value = value
 
-    def as_tuple(self) -> tuple[str, ...]:
-        return self.operation, self.varname, self._value
-
     @property
     def _value(self) -> Union[GlobalVariable, Value, list[Value]]:
         # format string as expected
-        if isinstance(self.type, StringType):
+        if isinstance(self.value, str):
             return f"'{self.value}'"
         else:
             return self.value
@@ -270,11 +267,19 @@ class LiteralInstr(TargetInstruction):
     __slots__ = ("value",)
 
     opname = "literal"
-    arguments = "value", "target"
+    arguments = "_value", "target"
 
     def __init__(self, type: uCType, value: Value, target: TempVariable):
         super().__init__(type, target)
         self.value = value
+
+    @property
+    def _value(self) -> Value:
+        # format string as expected
+        if isinstance(self.value, str):
+            return f"'{self.value}'"
+        else:
+            return self.value
 
 
 class ElemInstr(TargetInstruction):
