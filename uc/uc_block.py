@@ -60,6 +60,10 @@ class Block:
     def instructions(self) -> Iterator[Instruction]:
         raise NotImplementedError()
 
+    def subblocks(self) -> Iterator[Block]:
+        if self.next is not None:
+            yield self.next
+
 
 class CountedBlock(Block):
     __slots__ = ("_count",)
@@ -87,9 +91,10 @@ class GlobalBlock(CountedBlock):
         # cache of defined constants, to avoid repeated values
         self.consts: dict[tuple[str, str], TextVariable] = {}
         # all functions in the program
+        self._puts: Optional[PutsBlock] = None
         self.functions: list[FunctionBlock] = []
 
-    def new_literal(self, ty: uCType, value: Any) -> TextVariable:
+    def new_text(self, ty: uCType, value: Any) -> TextVariable:
         """Create a new literal constant on the 'text' section."""
         # avoid repeated constants
         varname = self.consts.get((ty, str(value)))
@@ -105,9 +110,30 @@ class GlobalBlock(CountedBlock):
     def new_global(self, uctype: uCType, varname: DataVariable, value: Optional[Any]) -> None:
         self.data.append(GlobalInstr(uctype, varname, value))
 
+    def new_function(self, function: FunctionType) -> FunctionBlock:
+        block = FunctionBlock(self, function)
+        self.functions.append(block)
+        return block
+
+    @property
+    def puts(self) -> DataVariable:
+        if self._puts is None:
+            self._puts = PutsBlock(self)
+        return self._puts.label
+
     def instructions(self) -> Iterator[Instruction]:
         # show text variables, then data
         return chain(self.text, self.data)
+
+    def subblocks(self) -> Iterator[Block]:
+        if self._puts:
+            yield self._puts
+        for function in self.functions:
+            yield function
+
+
+# # # # # # # # # #
+# FUNCTION BLOCKS #
 
 
 class FunctionBlock(CountedBlock):
@@ -116,7 +142,6 @@ class FunctionBlock(CountedBlock):
     def __init__(self, program: GlobalBlock, function: FunctionType):
         super().__init__()
         self.program = program
-        program.functions.append(self)
         # initialize register count on 1
         self._count["%temp%"] = 1
 
@@ -146,15 +171,17 @@ class FunctionBlock(CountedBlock):
     def instructions(self) -> Iterator[DefineInstr]:
         yield self.define
 
+    def subblocks(self) -> Iterator[Block]:
+        yield self.entry
+
 
 class PutsBlock(FunctionBlock):
     def __init__(self, program: GlobalBlock):
-        # insert as first function in program
+        # build definition
         self.uctype = FunctionType(
             ".puts", VoidType, [("str", ArrayType(CharType, None)), ("len", IntType)]
         )
         super().__init__(program, self.uctype)
-        program.functions.insert(0, program.functions.pop())
 
         # create loop index and constant 1
         index, one = self.new_temp(), self.new_temp()
@@ -264,19 +291,8 @@ class EmitBlocks(BlockVisitor[List[Instruction]]):
 
     def generic_visit(self, block: Block, total: list[Instruction]) -> None:
         total.extend(block.instructions())
-        if block.next is not None:
-            self.visit(block.next, total)
-
-    def visit_GlobalBlock(self, block: GlobalBlock, total: list[Instruction]) -> None:
-        total.extend(block.instructions())
-        for subblock in block.functions:
+        for subblock in block.subblocks():
             self.visit(subblock, total)
-
-    def visit_FunctionBlock(self, block: FunctionBlock, total: list[Instruction]) -> None:
-        total.extend(block.instructions())
-        self.visit(block.entry, total)
-
-    visit_PutsBlock = visit_FunctionBlock
 
 
 # # # # # # # # # # # #
