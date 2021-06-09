@@ -2,17 +2,7 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
-from typing import (
-    Any,
-    Callable,
-    Literal,
-    Optional,
-    TextIO,
-    Tuple,
-    Type,
-    Union,
-    overload,
-)
+from typing import Any, Callable, Literal, Optional, TextIO, Tuple, Type, Union
 from uc.uc_ast import (
     ID,
     AddressOp,
@@ -20,22 +10,16 @@ from uc.uc_ast import (
     ArrayRef,
     Assignment,
     BinaryOp,
-    BoolConstant,
-    CharConstant,
-    Compound,
     Constant,
     Decl,
     ExprList,
-    FloatConstant,
     FuncCall,
-    FuncDecl,
     FuncDef,
     IntConstant,
     Node,
     ParamList,
     Print,
     Program,
-    RelationOp,
     Return,
     StringConstant,
     UnaryOp,
@@ -70,6 +54,7 @@ from uc.uc_ir import (
     LiteralInstr,
     LoadInstr,
     LtInstr,
+    MemoryVariable,
     ModInstr,
     MulInstr,
     NamedVariable,
@@ -142,16 +127,18 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
 
     def visit_ArrayDecl(self, node: ArrayDecl, init: Optional[Node]) -> None:
         varname = self._varname(node.declname)
-        data = NamedVariable(f".{varname.value}.content")
+        data = NamedVariable(f".{node.declname.name}.content")
         pointer = self.current.new_temp()
+
+        pointer_ty = node.uc_type.as_pointer()
         self.current.append(
             # space for pointer / reference
-            AllocInstr(IntType, varname),
+            AllocInstr(pointer_ty, varname),
             # space for data
             AllocInstr(node.uc_type, data),
             # store pointer in variable
-            GetInstr(node.uc_type, data, pointer),
-            StoreInstr(IntType, pointer, varname),
+            GetInstr(pointer_ty, data, pointer),
+            StoreInstr(pointer_ty, pointer, varname),
         )
         # copy initialization data
         if init is not None:
@@ -160,13 +147,14 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
 
     def visit_VarDecl(self, node: VarDecl, init: Optional[Node]) -> None:
         varname = self._varname(node.declname)
-        alloc = AllocInstr(node.uc_type, varname)
-        self.current.append(alloc)
+        self.current.append(AllocInstr(node.uc_type, varname))
 
         if init is not None:
+            loc = self.visit_ID(node.declname, ref=True)
             value = self.visit(init)
-            store = StoreInstr(node.uc_type, value, varname)
-            self.current.append(store)
+            self.current.append(StoreInstr(node.uc_type, value, loc))
+
+    visit_PointerDecl = visit_VarDecl
 
     def visit_FuncDef(self, node: FuncDef) -> None:
         decl = node.declaration.type
@@ -188,6 +176,8 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
                 AllocInstr(decl.type.uc_type, varname),
                 StoreInstr(decl.type.uc_type, tempvar, varname),
             )
+
+    # def visit_InitList(self, node: InitList) -> TempVariable:
 
     # # # # # # # #
     # STATEMENTS  #
@@ -239,14 +229,8 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
 
     def visit_Assignment(self, node: Assignment) -> TempVariable:
         value = self.visit(node.right)
-        if isinstance(node.left, ID):
-            target = self._varname(node.left)
-            instr = StoreInstr(node.uc_type, value, target)
-        else:
-            target = self.visit(node.left, ref=True)
-            zero = self._new_constant(IntType, 0)
-            instr = ElemInstr(node.uc_type, value, zero, target)
-        self.current.append(instr)
+        target = self.visit(node.left, ref=True)
+        self.current.append(StoreInstr(node.uc_type, value, target))
         return value
 
     # instructions for basic operations
@@ -279,48 +263,61 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
 
     visit_RelationOp = visit_BinaryOp
 
+    def _unary_plus(self, uctype: uCType, node: Node) -> TempVariable:
+        return self.visit(node)
+
     # implementations for unary operators
-    def _unary_minus(self, type: uCType, source: TempVariable) -> TempVariable:
-        zero = self._new_constant(type, 0)
+    def _unary_minus(self, uctype: uCType, node: Node) -> TempVariable:
+        source = self.visit(node)
+        zero = self._new_constant(uctype, 0)
         out = self.current.new_temp()
         # negation is: 0 - value
-        self.current.append(SubInstr(type, zero, source, out))
+        self.current.append(SubInstr(uctype, zero, source, out))
         return out
 
-    def _unary_not(self, type: uCType, source: TempVariable) -> TempVariable:
+    def _unary_not(self, uctype: uCType, node: Node) -> TempVariable:
+        source = self.visit(node)
         out = self.current.new_temp()
-        self.current.append(NotInstr(type, source, out))
+        self.current.append(NotInstr(uctype, source, out))
         return out
 
-    def _unary_star(self, type: uCType, source: TempVariable) -> TempVariable:
+    def _unary_star(self, uctype: uCType, node: Node) -> TempVariable:
+        source = self.visit(node)
         index = self._new_constant(IntType, 0)
         target = self.current.new_temp()
-        self.current.append(ElemInstr(type, source, index, target))
+        self.current.append(ElemInstr(uctype, source, index, target))
         return target
 
-    unary_op: dict[str, Callable[[CodeGenerator, uCType, TempVariable], TempVariable]] = {
+    def _unary_star(self, uctype: uCType, node: Node, ref: bool = False) -> TempVariable:
+        # get reference to inner value
+        source = self.visit(node)
+        if ref:
+            return source
+        # and get value using reference
+        index = self._new_constant(IntType, 0)
+        target = self.current.new_temp()
+        self.current.append(ElemInstr(uctype, source, index, target))
+        return target
+
+    def _unary_ref(self, uctype: uCType, node: Node, ref: bool = False) -> TempVariable:
+        return self.visit(node, ref=True)
+
+    unary_op: dict[str, Callable[[CodeGenerator, uCType, Node], TempVariable]] = {
         "!": _unary_not,
         "-": _unary_minus,
-        "+": lambda _self, _type, source: source,
-        "&": lambda _self, _type, source: source,
+        "+": _unary_plus,
+        "&": _unary_ref,
         "*": _unary_star,
     }
 
     def visit_UnaryOp(self, node: UnaryOp) -> TempVariable:
-        # get source register
-        source = self.visit(node.expr)
-        # and do the necessary transformation
-        return self.unary_op[node.op](self, node.uc_type, source)
+        return self.unary_op[node.op](self, node.uc_type, node.expr)
 
     def visit_AddressOp(self, node: AddressOp, ref: bool = False) -> TempVariable:
-        source = self.visit(node.expr, ref=True)
-        # get address
-        if ref:
-            return source
-        # or apply op
-        return self.unary_op[node.op](self, node.uc_type, source)
+        return self.unary_op[node.op](self, node.uc_type, node.expr, ref=ref)
 
     def visit_ArrayRef(self, node: ArrayRef, ref: bool = False) -> TempVariable:
+        # TODO
         source = self.visit(node.array)
         index = self.visit(node.index)
         # calculate offset, if needed
@@ -380,7 +377,7 @@ class CodeGenerator(NodeVisitor[Optional[TempVariable]]):
         self.current.append(GetInstr(node.uc_type, literal, pointer))
         return pointer
 
-    def _varname(self, ident: ID) -> NamedVariable:
+    def _varname(self, ident: ID) -> MemoryVariable:
         """Get variable name for identifier"""
         if ident.is_global:
             return DataVariable(ident.name)

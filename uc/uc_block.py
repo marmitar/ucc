@@ -33,7 +33,15 @@ from uc.uc_ir import (
     TempVariable,
     TextVariable,
 )
-from uc.uc_type import ArrayType, CharType, FunctionType, IntType, VoidType, uCType
+from uc.uc_type import (
+    ArrayType,
+    CharType,
+    FunctionType,
+    IntType,
+    PointerType,
+    VoidType,
+    uCType,
+)
 
 # # # # # #
 # BLOCKS  #
@@ -161,7 +169,7 @@ class PutsBlock(FunctionBlock):
             CBranchInstr(result, true_target=LabelName("exit")),
             ElemInstr(CharType, string, index, result),
             PrintInstr(CharType, result),
-            AddInstr(IntType, index, one, index),
+            AddInstr(PointerType(CharType), index, one, index),
             JumpInstr(loop.label),
         )
         # then exit

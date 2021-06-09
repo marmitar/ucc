@@ -254,7 +254,7 @@ class StoreInstr(TypedInstruction):
     opname = "store"
     arguments = "source", "target"
 
-    def __init__(self, type: uCType, source: TempVariable, target: MemoryVariable):
+    def __init__(self, type: uCType, source: TempVariable, target: TempVariable):
         super().__init__(type)
         self.source = source
         self.target = target

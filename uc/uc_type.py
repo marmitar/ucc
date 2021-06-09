@@ -112,7 +112,7 @@ _UndefinedType = uCType("<undefined>")
 
 
 class ArrayType(uCType):
-    __slots__ = "elem_type", "size"
+    __slots__ = "elem_type", "size", "_basic_type"
 
     def __init__(self, element_type: uCType, size: Optional[int] = None):
         """
@@ -170,6 +170,20 @@ class ArrayType(uCType):
             return True
         # must be nonnegative and less than size, if known
         return value < 0 or (self.size is not None and value >= self.size)
+
+    def basic_type(self) -> uCType:
+        """Extract the innermost element type (i.e. int[2][3] -> int)"""
+        # cache value
+        if not hasattr(self, "_basic_type"):
+            if isinstance(self.elem_type, ArrayType):
+                self._basic_type = self.elem_type.basic_type()
+            else:
+                self._basic_type = self.elem_type
+        return self._basic_type
+
+    def as_pointer(self) -> PointerType:
+        """Equivalent pointer type."""
+        return PointerType(self.basic_type())
 
 
 class StringType(ArrayType):
