@@ -11,6 +11,7 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Type,
     TypeVar,
     Union,
 )
@@ -257,6 +258,9 @@ class MemCopy(FunctionBlock):
 # CODE BLOCKS #
 
 
+B = TypeVar("B", bound=Block)
+
+
 class BasicBlock(Block):
     """
     Class for a simple basic block.  Control flow unconditionally
@@ -304,13 +308,19 @@ class BasicBlock(Block):
         init = (LabelInstr(self.name),)
         return chain(init, self.instr)
 
-    def new_conditional(self) -> ConditionBlock:
-        self.next = ConditionBlock(self.function)
-        return self.next
+    def insert(self, block: B) -> B:
+        # insert new block in the linked list
+        block.next = self.next
+        self.next = block
+        return block
+
+    def insert_new(self, block_type: Type[B], *args) -> B:
+        # create and insert
+        return self.insert(block_type(self.function, *args))
 
 
 class EntryBlock(BasicBlock):
-    "Block specialized for stack allocations"
+    "Initial function block, used for stack allocations"
 
     next: BasicBlock
 
@@ -328,7 +338,7 @@ class EntryBlock(BasicBlock):
 class ConditionBlock(BasicBlock):
     """
     Class for a block representing an conditional statement.
-    There are two branches to handle each possibility.
+    There should be one branch and one jump for both cases.
     """
 
     next: BasicBlock
@@ -336,24 +346,25 @@ class ConditionBlock(BasicBlock):
     def __init__(self, function: FunctionBlock, name: Optional[str] = None):
         super().__init__(function, name)
         self.taken: Optional[BasicBlock] = None
-        self.next = BasicBlock(self.function, f"{self.name}.end")
+
+    def end_block(self) -> BasicBlock:
+        return BasicBlock(self.function, f"{self.name}.end")
 
     def taken_block(self) -> BasicBlock:
-        self.taken = BasicBlock(self.function, f"{self.name}.false")
-        self.taken.next = self.next
+        self.taken = BasicBlock(self.function, f"{self.name}.taken")
         return self.taken
 
-    def instructions(self) -> Iterator[Instruction]:
-        for instr in super().instructions():
-            yield instr
-        if self.taken is not None:
-            yield JumpInstr(self.taken.label)
 
-    def subblocks(self) -> Iterator[Block]:
-        if self.taken is not None:
-            yield self.taken
-        else:
-            yield self.next
+class LoopBlock(ConditionBlock):
+    """
+    Block for a loop statement, as a conditional
+    block, without taken branch.
+    """
+
+    taken: None
+
+    def taken_block(self) -> BasicBlock:
+        raise TypeError()
 
 
 # # # # # # # # #

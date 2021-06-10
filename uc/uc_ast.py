@@ -1,7 +1,17 @@
 from __future__ import annotations
 import inspect
 import sys
-from typing import Any, Literal, Optional, Protocol, Sequence, TextIO, Tuple, Union
+from typing import (
+    Any,
+    Iterator,
+    Literal,
+    Optional,
+    Protocol,
+    Sequence,
+    TextIO,
+    Tuple,
+    Union,
+)
 from uc.uc_type import (
     ArrayType,
     BoolType,
@@ -224,6 +234,12 @@ class DeclList(Node):
         if len(self.decls) > 0:
             super().show(*args, **kwargs)
 
+    def __len__(self) -> int:
+        return len(self.decls)
+
+    def __iter__(self) -> Iterator[Decl]:
+        return iter(self.decls)
+
 
 class GlobalDecl(DeclList):
     __slots__ = ()
@@ -266,6 +282,12 @@ class ParamList(Node):
     def append(self, node: Decl) -> None:
         self.params += (node,)
 
+    def __len__(self) -> int:
+        return len(self.params)
+
+    def __iter__(self) -> Iterator[Decl]:
+        return iter(self.params)
+
 
 class InitList(Node):
     __slots__ = ("init",)
@@ -286,6 +308,9 @@ class InitList(Node):
 
     def __len__(self) -> int:
         return len(self.init)
+
+    def __iter__(self) -> Iterator[Node]:
+        return iter(self.init)
 
 
 class Decl(Node):
@@ -419,55 +444,50 @@ class EmptyStatement(Node):
 
 
 class IterationStmt(Node):
-    __slots__ = "condition", "body", "break_locations"
+    __slots__ = "declaration", "condition", "update", "body", "break_locations", "end_label"
     attr_names = ()
-    special_attr = ("break_locations",)
+    special_attr = ("break_locations", "end_label")
 
-    child_order: Tuple[str, ...]
+    end_label: str
 
-    def __init__(self, condition: Optional[ExprList], body: Optional[Node], coord: Coord):
+    def __init__(
+        self,
+        condition: Optional[ExprList],
+        body: Optional[Node],
+        coord: Coord,
+        declaration: Union[DeclList, ExprList, None] = None,
+        update: Optional[ExprList] = None,
+    ):
         super().__init__(coord)
         self.condition = condition
         self.body = body
+        self.update = update
+        self.declaration = declaration
+
         self.break_locations: Tuple[Break, ...] = ()
 
     def add_break(self, node: Break) -> None:
         self.break_locations += (node,)
 
-    def children(self) -> Tuple[Tuple[str, Node], ...]:
-        child_list = []
-        # follow child order
-        for attr in self.child_order:
-            child = getattr(self, attr, None)
-            if child is not None:
-                child_list.append((attr, child))
-        return tuple(child_list)
-
 
 class For(IterationStmt):
-    __slots__ = "declaration", "update"
+    __slots__ = ()
     attr_names = ()
-
-    child_order = "declaration", "condition", "update", "body"
 
     def __init__(
         self,
-        declaration: Union[DeclList, Optional[ExprList]],
+        declaration: Union[DeclList, ExprList, None],
         condition: Optional[ExprList],
         update: Optional[ExprList],
         body: Optional[Node],
         coord: Coord,
     ):
-        super().__init__(condition, body, coord)
-        self.declaration = declaration
-        self.update = update
+        super().__init__(condition, body, coord, declaration, update)
 
 
 class While(IterationStmt):
     __slots__ = ()
     attr_names = ()
-
-    child_order = "condition", "body"
 
     condition: ExprList
 
@@ -583,6 +603,12 @@ class ExprList(Node):
 
     def lvalue_name(self) -> Optional[ID]:
         return self.as_comma_op().lvalue_name()
+
+    def __len__(self) -> int:
+        return len(self.expr)
+
+    def __iter__(self) -> Iterator[Node]:
+        return iter(self.expr)
 
 
 class FuncCall(Node):
