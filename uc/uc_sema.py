@@ -664,6 +664,7 @@ class SemanticVisitor(NodeVisitor[uCType]):
         if isinstance(ltype, ArrayType):
             if ltype.size is None:
                 ltype.size = rtype.size
+                node.name.uc_type = ltype
             elif ltype.size != rtype.size:
                 if isinstance(node.init, InitList):
                     raise ArrayListSizeMismatch(node)
