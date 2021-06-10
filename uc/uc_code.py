@@ -10,12 +10,14 @@ from uc.uc_ast import (
     ArrayRef,
     Assignment,
     BinaryOp,
+    Compound,
     Constant,
     Decl,
     ExprList,
     FuncCall,
     FuncDef,
     GlobalDecl,
+    If,
     InitList,
     Node,
     ParamList,
@@ -38,18 +40,16 @@ from uc.uc_block import (
 from uc.uc_interpreter import Interpreter
 from uc.uc_ir import (
     AddInstr,
-    AllocInstr,
     AndInstr,
     BinaryOpInstruction,
     CallInstr,
+    CBranchInstr,
     DataVariable,
     DivInstr,
     ElemInstr,
     EqInstr,
     GeInstr,
     GetInstr,
-    GlobalInstr,
-    GlobalVariable,
     GtInstr,
     Instruction,
     LeInstr,
@@ -74,7 +74,15 @@ from uc.uc_ir import (
 )
 from uc.uc_parser import UCParser
 from uc.uc_sema import NodeVisitor, Visitor
-from uc.uc_type import ArrayType, IntType, PointerType, PrimaryType, VoidType, uCType
+from uc.uc_type import (
+    ArrayType,
+    BoolType,
+    IntType,
+    PointerType,
+    PrimaryType,
+    VoidType,
+    uCType,
+)
 
 
 class CodeGenerator(NodeVisitor[Optional[Variable]]):
@@ -138,13 +146,14 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
         self.visit(node.type, node.init)
 
     def visit_ArrayDecl(self, node: ArrayDecl, init: Optional[Node]) -> None:
-        varname = self._varname(node.declname)
-        data = self.current.new_temp()
+        pointer = self.current.alloc(node.uc_type.as_pointer(), node.declname)
+        data = self.current.alloc(node.uc_type, node.declname, array_data=True)
+
+        data_ptr = self.current.new_temp()
         # alloc space for data and pointer
         self.current.append(
-            AllocInstr(node.uc_type.as_pointer(), varname),
-            AllocInstr(node.uc_type, data),
-            StoreInstr(node.uc_type, data, varname),
+            GetInstr(node.uc_type.as_pointer(), data, data_ptr),
+            StoreInstr(node.uc_type.as_pointer(), data_ptr, pointer),
         )
         if init is not None:
             value = self.visit(init)
@@ -158,8 +167,7 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
             )
 
     def visit_VarDecl(self, node: VarDecl, init: Optional[Node]) -> None:
-        varname = self._varname(node.declname)
-        self.current.append(AllocInstr(node.uc_type, varname))
+        varname = self.current.alloc(node.uc_type, node.declname)
 
         if init is not None:
             value = self.visit(init)
@@ -180,7 +188,7 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
         decl = node.declaration.type
         # create function block
         block = self.glob.new_function(decl.uc_type)
-        self.current = block.entry
+        self.current = block.entry.next
         # populate entry
         self.visit(decl.param_list)
         # visit body
@@ -190,15 +198,14 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
 
     def visit_ParamList(self, node: ParamList) -> None:
         for decl, (_, _, tempvar) in zip(node.params, self.current.function.params):
-            varname = self._varname(decl.name)
             # use arrays as pointer
             if isinstance(decl.type, ArrayDecl):
                 uctype = decl.type.uc_type.as_pointer()
             else:
                 uctype = decl.type
 
+            varname = self.current.alloc(uctype, decl.name)
             self.current.append(
-                AllocInstr(uctype, varname),
                 StoreInstr(uctype, tempvar, varname),
             )
 
@@ -229,6 +236,35 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
                     ParamInstr(IntType, size),
                     CallInstr(VoidType, self.glob.puts),
                 )
+
+    def visit_If(self, node: If) -> None:
+        self.current = self.current.new_conditional()
+        # evaluate condition (might have side effects)
+        condition = self.visit(node.condition)
+        if node.true_stmt is not None and node.false_stmt is not None:
+            taken = self.current.taken_block()
+            # else block, jump on true
+            self.current.append(CBranchInstr(condition, taken.label))
+            self.visit(node.false_stmt)
+            # true block
+            self.current = taken
+            self.visit(node.true_stmt)
+            # rest of function
+        elif node.false_stmt is None:
+            # invert condition, jump on false
+            self.current.append(
+                NotInstr(BoolType, condition, condition),
+                CBranchInstr(condition, self.current.next.label),
+            )
+            self.visit(node.true_stmt)
+        elif node.true_stmt is None:
+            # jump on true
+            self.current.append(CBranchInstr(condition, self.current.next.label))
+            self.visit(node.false_stmt)
+        # no statement, no jump
+
+        # analyze remaining nodes
+        self.current = self.current.next
 
     def visit_Return(self, node: Return) -> None:
         if node.result is not None:
@@ -390,15 +426,15 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
 
     def _varname(self, ident: ID) -> MemoryVariable:
         """Get variable name for identifier"""
-        if ident.is_global:
+        if ident.version == "global":
             return DataVariable(ident.name)
         else:
-            return NamedVariable(ident.name)
+            return NamedVariable((ident.name, ident.version))
 
     def visit_ID(self, node: ID, ref: bool = False) -> Variable:
         stackvar = self._varname(node)
         # load address
-        if ref or (node.is_global and isinstance(node.uc_type, ArrayType)):
+        if ref or (node.version == "global" and isinstance(node.uc_type, ArrayType)):
             return stackvar
         # or value
         register = self.current.new_temp()
