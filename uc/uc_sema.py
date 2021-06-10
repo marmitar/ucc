@@ -870,16 +870,20 @@ class SemanticVisitor(NodeVisitor[uCType]):
     def visit_IterationStmt(self, node: IterationStmt) -> None:
         # create new breakable scope
         with self.symtab.new(IterationScope(node)) as scope:
-            for _, child in node.children():
-                # reuse iteration scope
-                if isinstance(child, Compound):
-                    uctype = self.visit_Compound(child, scope)
-                else:
-                    uctype = self.visit(child)
-                # check if the conditional expression is of boolean type
-                if child is node.condition:
-                    if uctype != BoolType:
-                        raise InvalidLoopCondition(node.condition, coord=node.coord)
+            # declarations
+            if node.declaration is not None:
+                self.visit(node.declaration)
+            # condition
+            if node.condition is not None:
+                uctype = self.visit(node.condition)
+                if uctype != BoolType:
+                    raise InvalidLoopCondition(node.condition, coord=node.coord)
+            # update
+            if node.update is not None:
+                self.visit(node.update)
+            # reause iteration scope in body
+            if node.body is not None:
+                self.visit_Compound(node.body, scope)
 
     visit_For = visit_IterationStmt
     visit_While = visit_IterationStmt

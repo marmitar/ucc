@@ -19,6 +19,7 @@ from uc.uc_ast import (
     GlobalDecl,
     If,
     InitList,
+    IterationStmt,
     Node,
     ParamList,
     Print,
@@ -32,10 +33,10 @@ from uc.uc_ast import (
 from uc.uc_block import (
     CFG,
     BasicBlock,
+    ConditionBlock,
     EmitBlocks,
-    FunctionBlock,
     GlobalBlock,
-    PutsBlock,
+    LoopBlock,
 )
 from uc.uc_interpreter import Interpreter
 from uc.uc_ir import (
@@ -52,6 +53,7 @@ from uc.uc_ir import (
     GetInstr,
     GtInstr,
     Instruction,
+    JumpInstr,
     LeInstr,
     LiteralInstr,
     LoadInstr,
@@ -193,7 +195,7 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
         self.visit(decl.param_list)
         # visit body
         self.visit(node.implementation)
-        # remove from block list
+        # end block list
         self.current = None
 
     def visit_ParamList(self, node: ParamList) -> None:
@@ -238,7 +240,8 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
                 )
 
     def visit_If(self, node: If) -> None:
-        self.current = self.current.new_conditional()
+        self.current = self.current.insert_new(ConditionBlock)
+        end_block = self.current.end_block()
         # evaluate condition (might have side effects)
         condition = self.visit(node.condition)
         if node.true_stmt is not None and node.false_stmt is not None:
@@ -246,25 +249,28 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
             # else block, jump on true
             self.current.append(CBranchInstr(condition, taken.label))
             self.visit(node.false_stmt)
+            self.current.append(
+                # skip true block
+                JumpInstr(end_block.label)
+            )
             # true block
-            self.current = taken
+            self.current = self.current.insert(taken)
             self.visit(node.true_stmt)
-            # rest of function
         elif node.false_stmt is None:
             # invert condition, jump on false
             self.current.append(
                 NotInstr(BoolType, condition, condition),
-                CBranchInstr(condition, self.current.next.label),
+                CBranchInstr(condition, end_block.label),
             )
             self.visit(node.true_stmt)
         elif node.true_stmt is None:
             # jump on true
-            self.current.append(CBranchInstr(condition, self.current.next.label))
+            self.current.append(CBranchInstr(condition, end_block.label))
             self.visit(node.false_stmt)
         # no statement, no jump
 
         # analyze remaining nodes
-        self.current = self.current.next
+        self.current = self.current.insert(end_block)
 
     def visit_Return(self, node: Return) -> None:
         if node.result is not None:
@@ -278,6 +284,34 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
         for expr in node.expr:
             result = self.visit(expr)
         return result
+
+    def visit_IterationStmt(self, node: IterationStmt) -> None:
+        # declare variables
+        if node.declaration is not None:
+            self.visit(node.declaration)
+        # initialize loop block and end block
+        loop = self.current.insert_new(LoopBlock)
+        end_block = loop.end_block()
+        node.end_label = end_block.name
+        self.current = loop
+        # test condition
+        if node.condition is not None:
+            condition = self.visit(node.condition)
+            self.current.append(CBranchInstr(condition, end_block.label))
+        # run body
+        if node.body is not None:
+            self.visit(node.body)
+        # update vars
+        if node.update is not None:
+            self.visit(node.update)
+        # start new iteration
+        self.current.append(JumpInstr(loop.label))
+
+        # analyze remaining nodes
+        self.current = self.current.insert(end_block)
+
+    visit_For = visit_IterationStmt
+    visit_While = visit_IterationStmt
 
     # # # # # # # #
     # EXPRESSIONS #
