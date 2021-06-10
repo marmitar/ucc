@@ -59,13 +59,31 @@ class GlobalVariable(Variable[T]):
 
     @property
     def name(self) -> str:
-        return "@" + self._format.format(self.value)
+        return "@" + self._format.format(v=self.value)
 
 
-class NamedVariable(LocalVariable[str]):
+class NamedVariable(LocalVariable[Tuple[str, int]]):
     """Local variable referenced by name."""
 
     __slots__ = ()
+
+    @property
+    def name(self) -> str:
+        if self.version > 0:
+            return f"%{self.value[0]}.{self.value[1]}"
+        else:
+            return f"%{self.value[0]}"
+
+    @property
+    def version(self) -> int:
+        return self.value[1]
+
+
+class ArrayDataVaraible(NamedVariable):
+    """Variable that contains the actual data for an array."""
+
+    def __init__(self, value: tuple[str, int]):
+        super().__init__((f".{value[0]}.data", value[1]))
 
 
 class TempVariable(LocalVariable[int]):
@@ -78,14 +96,14 @@ class DataVariable(GlobalVariable[str]):
     """Global variable that lives on the 'data' section."""
 
     __slots__ = ()
-    _format = "{}"
+    _format = "{v}"
 
 
 class TextVariable(GlobalVariable[Tuple[str, int]]):
     """Global variable that lives on the 'text' section."""
 
     __slots__ = ()
-    _format = ".const_{0[0]}.{0[1]}"
+    _format = ".const_{v[0]}.{v[1]}"
 
     @property
     def version(self) -> int:

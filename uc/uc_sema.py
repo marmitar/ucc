@@ -50,7 +50,6 @@ from uc.uc_ast import (
     TypeSpec,
     UnaryOp,
     VarDecl,
-    While,
 )
 from uc.uc_parser import Coord, UCParser
 from uc.uc_type import (
@@ -157,7 +156,7 @@ class GlobalScope(Scope):
     def add(self, symb: Symbol, version: None = None) -> None:
         assert version is None
         symb.definition.version = "global"
-        super().add(symb)
+        self.table[symb.name] = symb
 
 
 class IterationScope(Scope):
@@ -725,20 +724,22 @@ class SemanticVisitor(NodeVisitor[uCType]):
 
     def _needs_implicit_return(self, stmt: Optional[Node]) -> bool:
         """Check if a given statement needs implicit return."""
-        # compound depends on its last statement
+        # compound mist have at least one 'return' statement
         if isinstance(stmt, Compound):
-            last = stmt.last_statement()
-            return self._needs_implicit_return(last)
+            for substmt in stmt.statements:
+                if not self._needs_implicit_return(substmt):
+                    return False
         # conditional depends on both branchs
         elif isinstance(stmt, If):
             # fmt: off
             return self._needs_implicit_return(stmt.true_stmt) \
                 or self._needs_implicit_return(stmt.false_stmt)
             # fmt: on
-        # 'for' is ok if it has no condition, no break and has a return
-        elif isinstance(stmt, For):
+        # 'for' is ok if it has no condition or 'true' constant, no break and has a return
+        elif isinstance(stmt, IterationStmt):
             # fmt: off
-            return stmt.condition is None \
+            condition = stmt.condition and stmt.condition.as_comma_op()
+            return (condition is None or isinstance(condition, BoolConstant) and condition.value) \
                 and len(stmt.break_locations) == 0 \
                 and self._needs_implicit_return(stmt.body)
             # fmt: on

@@ -15,9 +15,12 @@ from typing import (
     Union,
 )
 from graphviz import Digraph
+from uc.uc_ast import ID
 from uc.uc_interpreter import Value
 from uc.uc_ir import (
     AddInstr,
+    AllocInstr,
+    ArrayDataVaraible,
     CBranchInstr,
     DataVariable,
     DefineInstr,
@@ -29,6 +32,7 @@ from uc.uc_ir import (
     LabelInstr,
     LabelName,
     LiteralInstr,
+    NamedVariable,
     PrintInstr,
     ReturnInstr,
     StoreInstr,
@@ -163,7 +167,7 @@ class FunctionBlock(CountedBlock):
         self.define = DefineInstr(
             function.rettype, DataVariable(self.name), ((ty, var) for _, ty, var in self.params)
         )
-        self.entry = BasicBlock(self, "entry")
+        self.entry = EntryBlock(self)
 
     @property
     def label(self) -> DataVariable:
@@ -179,6 +183,9 @@ class FunctionBlock(CountedBlock):
         version = self._new_version("label")
         return f".L{version}"
 
+    def alloc(self, uctype: uCType, name: NamedVariable) -> None:
+        self.entry.append(AllocInstr(uctype, name))
+
     def instructions(self) -> Iterator[DefineInstr]:
         yield self.define
 
@@ -193,6 +200,7 @@ class PutsBlock(FunctionBlock):
             ".puts", VoidType, [("str", ArrayType(CharType, None)), ("len", IntType)]
         )
         super().__init__(program, self.uctype)
+        self.entry = self.entry.next
 
         # create loop index and constant 1
         index = self.entry.new_literal(0)
@@ -221,6 +229,7 @@ class MemCopy(FunctionBlock):
         ptr = PointerType(VoidType)
         self.uctype = FunctionType(".memcpy", ptr, [("src", ptr), ("dest", ptr), ("len", IntType)])
         super().__init__(program, self.uctype)
+        self.entry = self.entry.next
 
         # create loop index and constant 1
         index = self.entry.new_literal(0)
@@ -275,6 +284,15 @@ class BasicBlock(Block):
         self.append(LiteralInstr(uctype, value, target))
         return target
 
+    def alloc(self, uctype: uCType, name: ID, array_data: bool = False) -> NamedVariable:
+        if array_data:
+            varname = ArrayDataVaraible((name.name, name.version))
+        else:
+            varname = NamedVariable((name.name, name.version))
+
+        self.function.alloc(uctype, varname)
+        return varname
+
     @property
     def label(self) -> LabelName:
         return LabelName(self.name)
@@ -286,17 +304,56 @@ class BasicBlock(Block):
         init = (LabelInstr(self.name),)
         return chain(init, self.instr)
 
+    def new_conditional(self) -> ConditionBlock:
+        self.next = ConditionBlock(self.function)
+        return self.next
 
-# class ConditionBlock(Block):
-#     """
-#     Class for a block representing an conditional statement.
-#     There are two branches to handle each possibility.
-#     """
 
-#     def __init__(self, label: str):
-#         super(self).__init__(label)
-#         self.taken: Optional[Block] = None
-#         self.fall_through: Optional[Block] = None
+class EntryBlock(BasicBlock):
+    "Block specialized for stack allocations"
+
+    next: BasicBlock
+
+    def __init__(self, function: FunctionBlock, next_block: Optional[str] = None):
+        super().__init__(function, name="entry")
+        self.next = BasicBlock(function, next_block)
+
+    def new_temp(self) -> TempVariable:
+        raise ValueError()
+
+    def new_literal(self, value: Value, uctype: uCType) -> TempVariable:
+        raise ValueError()
+
+
+class ConditionBlock(BasicBlock):
+    """
+    Class for a block representing an conditional statement.
+    There are two branches to handle each possibility.
+    """
+
+    next: BasicBlock
+
+    def __init__(self, function: FunctionBlock, name: Optional[str] = None):
+        super().__init__(function, name)
+        self.taken: Optional[BasicBlock] = None
+        self.next = BasicBlock(self.function, f"{self.name}.end")
+
+    def taken_block(self) -> BasicBlock:
+        self.taken = BasicBlock(self.function, f"{self.name}.false")
+        self.taken.next = self.next
+        return self.taken
+
+    def instructions(self) -> Iterator[Instruction]:
+        for instr in super().instructions():
+            yield instr
+        if self.taken is not None:
+            yield JumpInstr(self.taken.label)
+
+    def subblocks(self) -> Iterator[Block]:
+        if self.taken is not None:
+            yield self.taken
+        else:
+            yield self.next
 
 
 # # # # # # # # #
