@@ -10,6 +10,7 @@ from uc.uc_ast import (
     ArrayRef,
     Assignment,
     BinaryOp,
+    Break,
     Compound,
     Constant,
     Decl,
@@ -54,6 +55,7 @@ from uc.uc_ir import (
     GtInstr,
     Instruction,
     JumpInstr,
+    LabelName,
     LeInstr,
     LiteralInstr,
     LoadInstr,
@@ -297,7 +299,9 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
         # test condition
         if node.condition is not None:
             condition = self.visit(node.condition)
-            self.current.append(CBranchInstr(condition, end_block.label))
+            self.current.append(
+                NotInstr(BoolType, condition, condition), CBranchInstr(condition, end_block.label)
+            )
         # run body
         if node.body is not None:
             self.visit(node.body)
@@ -312,6 +316,9 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
 
     visit_For = visit_IterationStmt
     visit_While = visit_IterationStmt
+
+    def visit_Break(self, node: Break) -> None:
+        self.current.append(JumpInstr(LabelName(node.iteration.end_label)))
 
     # # # # # # # #
     # EXPRESSIONS #
