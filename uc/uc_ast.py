@@ -237,29 +237,20 @@ class FuncDef(Node):
     __slots__ = (
         "return_type",
         "declaration",
-        "decl_list",
         "implementation",
-        "return_list",
     )
     attr_names = ()
-    special_attr = ("return_list",)
 
     def __init__(
         self,
         return_type: TypeSpec,
         declaration: Decl,
-        decl_list: DeclList,
         implementation: Compound,
     ):
         super().__init__(declaration.coord)
         self.return_type = return_type
         self.declaration = declaration
-        self.decl_list = decl_list
         self.implementation = implementation
-        self.return_list: Tuple[Return, ...] = ()
-
-    def add_return(self, node: Return) -> None:
-        self.return_list += (node,)
 
 
 class ParamList(Node):
@@ -409,12 +400,11 @@ class Break(Node):
 
 
 class Compound(Node):
-    __slots__ = "declarations", "statements"
+    __slots__ = ("statements",)
     attr_names = ()
 
-    def __init__(self, declarations: DeclList, statements: list[Node], coord: Coord):
+    def __init__(self, statements: list[Node], coord: Coord):
         super().__init__(coord)
-        self.declarations = declarations
         self.statements = tuple(statements)
 
     def last_statement(self) -> Optional[Node]:
@@ -532,7 +522,6 @@ class Return(Node):
         self.result = result
 
     def bind(self, function: FuncDef) -> None:
-        function.add_return(self)
         self.function = function
 
 
@@ -713,14 +702,15 @@ class BoolConstant(Constant):
 
 
 class ID(Node):
-    __slots__ = "name", "is_global"
+    __slots__ = "name", "version"
     attr_names = ("name",)
-    special_attr = ("is_global",)
+    special_attr = ("version",)
+
+    version: Literal["global"] | int
 
     def __init__(self, name: str, coord: Coord):
         super().__init__(coord)
         self.name = name
-        self.is_global = False
 
     def lvalue_name(self) -> ID:
         return self

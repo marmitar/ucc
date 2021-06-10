@@ -229,19 +229,9 @@ class UCParser:
         p[0] = p[1]
 
     def p_function_definition(self, p):
-        """function_definition : type_specifier declarator declaration_list compound_statement"""
+        """function_definition : type_specifier declarator compound_statement"""
         decl = self._build_declarations(p[1], [{"decl": p[2]}])
-        p[0] = FuncDef(p[1], decl[0], p[3], p[4])
-
-    def p_declaration_list(self, p):
-        """declaration_list :
-        | declaration_list declaration
-        """
-        if len(p) == 1:
-            p[0] = DeclList()
-        else:
-            p[1].extend(p[2])
-            p[0] = p[1]
+        p[0] = FuncDef(p[1], decl[0], p[3])
 
     def p_declarator(self, p):
         """declarator : identifier
@@ -332,9 +322,9 @@ class UCParser:
     # STATEMENTS  #
 
     def p_compound_statement(self, p):
-        """compound_statement : LBRACE declaration_list statement_list RBRACE"""
+        """compound_statement : LBRACE statement_list RBRACE"""
         coord = self._token_coord(p, 1)
-        p[0] = Compound(p[2], p[3], coord)
+        p[0] = Compound(p[2], coord)
 
     def p_statement_list(self, p):
         """statement_list :
@@ -351,6 +341,7 @@ class UCParser:
         | assert_statement
         | print_statement
         | read_statement
+        | declaration
         """
         p[0] = p[1]
 
@@ -383,7 +374,7 @@ class UCParser:
         | RETURN maybe_expression SEMI
         """
         coord = self._token_coord(p, 1)
-        if len(p) == 3:
+        if p[1] == "break":
             p[0] = Break(coord)
         else:
             p[0] = Return(p[2], coord)
@@ -477,9 +468,10 @@ class UCParser:
         ("left", "AND"),
         ("nonassoc", "EQ", "NE"),
         ("nonassoc", "LE", "LT", "GE", "GT"),
-        ("left", "PLUS", "MINUS", "ADDRESS"),
+        ("left", "PLUS", "MINUS"),
         ("left", "TIMES", "DIVIDE", "MOD"),
-        ("right", "NOT"),
+        ("right", "UNPLUS", "UNMINUS"),
+        ("right", "NOT", "ADDRESS", "DEREF"),
     )
 
     def p_unary_expression(self, p):
@@ -543,10 +535,10 @@ class UCParser:
         p[0] = TypeSpec(p[1], coord)
 
     def p_unary_operator(self, p):
-        """unary_operator : PLUS
-        | MINUS
+        """unary_operator : PLUS    %prec UNPLUS
+        | MINUS                     %prec UNMINUS
         | NOT
-        | TIMES
+        | TIMES                     %prec DEREF
         | ADDRESS
         """
         p[0] = p[1]

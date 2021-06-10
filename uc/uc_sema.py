@@ -97,8 +97,8 @@ class Symbol:
         return self.definition.uc_type
 
     @property
-    def is_global(self) -> bool:
-        return self.definition.is_global
+    def version(self) -> Union[Literal["global"], int]:
+        return self.definition.version
 
     def __str__(self) -> str:
         return repr(self)
@@ -129,8 +129,12 @@ class Scope:
     def __init__(self):
         self.table: dict[str, Symbol] = {}
 
-    def add(self, symb: Symbol) -> None:
+    def add(self, symb: Symbol, version: Optional[int] = None) -> None:
         """Add or change symbol definition in scope."""
+        if version is None:
+            symb.definition.version = 0
+        else:
+            symb.definition.version = version + 1
         self.table[symb.name] = symb
 
     def get(self, name: str) -> Optional[Symbol]:
@@ -150,8 +154,9 @@ class Scope:
 class GlobalScope(Scope):
     """Scope for global variables."""
 
-    def add(self, symb: Symbol) -> None:
-        symb.definition.is_global = True
+    def add(self, symb: Symbol, version: None = None) -> None:
+        assert version is None
+        symb.definition.version = "global"
         super().add(symb)
 
 
@@ -201,7 +206,7 @@ class FunctionScope(Scope):
             (isinstance(sym, FuncDefSymbol) or sym.type != self.type)
         )
 
-    def definition_scope(self, outer: Scope) -> Scope:
+    def definition_scope(self, outer: GlobalScope) -> Scope:
         """Special scope for function definition."""
 
         class DeclScope(Scope):
@@ -246,7 +251,11 @@ class SymbolTable:
 
     def add(self, definition: ID) -> None:
         """Add or change symbol definition in current scope."""
-        self.current_scope.add(Symbol(definition))
+        current = self.lookup(definition.name)
+        if current is None:
+            self.current_scope.add(Symbol(definition))
+        else:
+            self.current_scope.add(Symbol(definition), current.version)
 
     def find(self, matches: Callable[[Scope], bool]) -> Optional[Scope]:
         """Find scope with given property, from inner to outermost."""
@@ -753,8 +762,6 @@ class SemanticVisitor(NodeVisitor[uCType]):
         with self.symtab.new(def_scope):
             self.visit(node.declaration)
         # declare the function body in the new scope as well
-        with self.symtab.new(function_scope):
-            self.visit(node.decl_list)
         self.visit_Compound(node.implementation, function_scope)
         # check if implicit return is needed
         if self._needs_implicit_return(node.implementation):
@@ -873,11 +880,8 @@ class SemanticVisitor(NodeVisitor[uCType]):
                     if uctype != BoolType:
                         raise InvalidLoopCondition(node.condition, coord=node.coord)
 
-    def visit_For(self, node: For) -> None:
-        self.visit_IterationStmt(node)
-
-    def visit_While(self, node: While) -> None:
-        self.visit_IterationStmt(node)
+    visit_For = visit_IterationStmt
+    visit_While = visit_IterationStmt
 
     def visit_If(self, node: If) -> None:
         # check if the conditional expression is of boolean type
@@ -999,7 +1003,7 @@ class SemanticVisitor(NodeVisitor[uCType]):
             if definition is None:
                 raise UndefinedIdentifier(node)
             # mark as global
-            node.is_global = definition.is_global
+            node.version = definition.version
             return definition.type
 
         else:  # initialize the type

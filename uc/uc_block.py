@@ -207,7 +207,7 @@ class PutsBlock(FunctionBlock):
             CBranchInstr(result, true_target=LabelName("exit")),
             ElemInstr(CharType, string, index, result),
             PrintInstr(CharType, result),
-            AddInstr(PointerType(CharType), index, one, index),
+            AddInstr(IntType, index, one, index),
             JumpInstr(loop.label),
         )
         # then exit

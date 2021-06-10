@@ -183,7 +183,6 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
         self.current = block.entry
         # populate entry
         self.visit(decl.param_list)
-        self.visit(node.decl_list)
         # visit body
         self.visit(node.implementation)
         # remove from block list
@@ -239,7 +238,7 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
             instr = ReturnInstr(VoidType)
         self.current.append(instr)
 
-    def visit_ExprList(self, node: ExprList) -> TempVariable:
+    def visit_ExprList(self, node: ExprList) -> Variable:
         for expr in node.expr:
             result = self.visit(expr)
         return result
