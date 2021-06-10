@@ -106,6 +106,7 @@ class Uninitialized(Enum):
     __le__ = _cmp
     __gt__ = _cmp
     __ge__ = _cmp
+    __bool__ = _cmp
 
     def __hash__(self) -> int:
         return hash(self.__class__.__name__)
@@ -418,7 +419,7 @@ class Interpreter:
             # with the code returned by main in the return register.
             print(end="", flush=True)
             # exit with return value
-            sys.exit(self.registers[0])
+            sys.exit(self.registers[0] or 0)
 
         # get return value
         retval = self.registers[0]
@@ -506,7 +507,10 @@ class Interpreter:
         if self.debug:
             printerr("Interpreter running in debug mode:")
             self._show_idb_help()
-        self.pc = self.start or self.lastpc
+        if self.start is not None:
+            self.pc = self.start
+        else:
+            self.pc = self.lastpc
         _breakpoint: Optional[int] = None
         while True:
             try:

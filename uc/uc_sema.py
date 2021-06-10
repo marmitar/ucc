@@ -209,8 +209,9 @@ class FunctionScope(Scope):
         """Special scope for function definition."""
 
         class DeclScope(Scope):
-            def add(this, sym: Symbol) -> Symbol:
+            def add(this, sym: Symbol, version: Optional[str | int] = None) -> Symbol:
                 assert sym.definition is self.ident
+                assert version is None or version == "global"
                 # add function to outer scope
                 return outer.add(FuncDefSymbol(self.ident, self.definition))
 
@@ -648,43 +649,30 @@ class SemanticVisitor(NodeVisitor[uCType]):
             # Visit all of the global declarations
             self.visit_children(node)
 
-    def visit_Decl(self, node: Decl, *, ltype: Optional[uCType] = None) -> None:
-        # Visit the declaration type and initialization
-        if ltype is None:
-            ltype = self.visit(node.type)
-        # define the function or variable
-        self.visit_ID(node.name, ltype)
+    def visit_Decl(self, node: Decl) -> None:
         if node.init is None:
-            return  # ok, just uninitialized
-        rtype = self.visit(node.init)
-        # check if initilization is valid
-        if ltype != rtype:
-            if isinstance(ltype, ArrayType):
-                if isinstance(node.init, InitList):
-                    raise ArrayListSizeMismatch(node)
-                else:
-                    raise ArraySizeMismatchOnInit(node.name)
-            if isinstance(rtype, ArrayType):
-                raise VariableIsNotArray(node)
-            else:
-                raise InvalidInitializationType(node.name)
-        # update unsized arrays
-        if isinstance(ltype, ArrayType):
-            if ltype.size is None:
-                ltype.size = rtype.size
-                node.name.uc_type = ltype
-            elif ltype.size != rtype.size:
-                if isinstance(node.init, InitList):
-                    raise ArrayListSizeMismatch(node)
-                else:
-                    raise ArraySizeMismatchOnInit(node.name)
+            uctype = self.visit(node.type)
+        elif not isinstance(node.init, InitList):
+            init = self.visit(node.init)
+            uctype = self.visit(node.type, init)
+        else:
+            init = self.visit(node.init)
+            try:
+                uctype = self.visit(node.type, init)
+            except ArraySizeMismatchOnInit:
+                raise ArrayListSizeMismatch(node)
+        # Visit the declaration type and initialization
+        # define the function or variable
+        self.visit_ID(node.name, uctype)
 
-    def visit_VarDecl(self, node: VarDecl) -> PrimaryType:
-        # just pass on the basic type
-        return self.visit_TypeSpec(node.type)
+    def visit_ArrayDecl(self, node: ArrayDecl, init: Optional[uCType] = None) -> ArrayType:
+        if init is not None:
+            if not isinstance(init, ArrayType):
+                raise ArraySizeMismatchOnInit(node.declname)
+            elem_type = self.visit(node.type, init.elem_type)
+        else:
+            elem_type = self.visit(node.type)
 
-    def visit_ArrayDecl(self, node: ArrayDecl) -> ArrayType:
-        elem_type = self.visit(node.type)
         if isinstance(elem_type, ArrayType) and elem_type.size is None:
             # only outer array modifier may be unsized
             raise ArrayDimensionMismatch(node.type)
@@ -703,13 +691,36 @@ class SemanticVisitor(NodeVisitor[uCType]):
                 raise NegativeArraySize(size)
             # define the type size
             array_size = size.value
+        elif init is not None:
+            array_size = init.size
         else:
             array_size = None
 
+        if init is not None and init.size != array_size:
+            raise ArraySizeMismatchOnInit(node.declname)
         return ArrayType(elem_type, array_size)
 
-    def visit_PointerDecl(self, node: PointerDecl) -> PointerType:
+    def visit_VarDecl(self, node: VarDecl, init: Optional[uCType] = None) -> PrimaryType:
+        uctype = self.visit_TypeSpec(node.type)
+        if init is not None and init != uctype:
+            if isinstance(init, ArrayType):
+                raise VariableIsNotArray(node.declname)
+            else:
+                raise InvalidInitializationType(node.declname)
+        # just pass on the basic type
+        return uctype
+
+    def visit_PointerDecl(self, node: PointerDecl, init: Optional[uCType] = None) -> PointerType:
         inner_type = self.visit(node.type)
+        if isinstance(init, ArrayType):
+            inner_type = self.visit(node.type, init.elem_type)
+        elif isinstance(init, PointerType):
+            inner_type = self.visit(node.type, init.inner)
+        elif init is None:
+            inner_type = self.visit(node.type)
+        else:
+            raise InvalidInitializationType(node.name)
+
         # just wrap it in a pointer
         return PointerType(inner_type)
 
@@ -726,9 +737,10 @@ class SemanticVisitor(NodeVisitor[uCType]):
         """Check if a given statement needs implicit return."""
         # compound mist have at least one 'return' statement
         if isinstance(stmt, Compound):
-            for substmt in stmt.statements:
+            for substmt in reversed(stmt.statements):
                 if not self._needs_implicit_return(substmt):
                     return False
+            return True
         # conditional depends on both branchs
         elif isinstance(stmt, If):
             # fmt: off
@@ -738,9 +750,11 @@ class SemanticVisitor(NodeVisitor[uCType]):
         # 'for' is ok if it has no condition or 'true' constant, no break and has a return
         elif isinstance(stmt, IterationStmt):
             # fmt: off
-            condition = stmt.condition and stmt.condition.as_comma_op()
-            return (condition is None or isinstance(condition, BoolConstant) and condition.value) \
-                and len(stmt.break_locations) == 0 \
+            if stmt.condition is not None:
+                condition = stmt.condition.as_comma_op()
+                if not isinstance(condition, BoolConstant) or condition.value is not True:
+                    return True
+            return len(stmt.break_locations) == 0 \
                 and self._needs_implicit_return(stmt.body)
             # fmt: on
         # otherwise, only an explicit return don't require implicit

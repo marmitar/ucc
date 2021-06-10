@@ -8,6 +8,7 @@ from uc.uc_ast import (
     AddressOp,
     ArrayDecl,
     ArrayRef,
+    Assert,
     Assignment,
     BinaryOp,
     Break,
@@ -16,6 +17,7 @@ from uc.uc_ast import (
     Decl,
     ExprList,
     FuncCall,
+    FuncDecl,
     FuncDef,
     GlobalDecl,
     If,
@@ -188,6 +190,9 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
                 value = None
             self.glob.new_global(decl.name.uc_type, varname, value)
 
+    def visit_FuncDecl(self, node: FuncDecl) -> None:
+        pass
+
     def visit_FuncDef(self, node: FuncDef) -> None:
         decl = node.declaration.type
         # create function block
@@ -206,7 +211,7 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
             if isinstance(decl.type, ArrayDecl):
                 uctype = decl.type.uc_type.as_pointer()
             else:
-                uctype = decl.type
+                uctype = decl.type.uc_type
 
             varname = self.current.alloc(uctype, decl.name)
             self.current.append(
@@ -320,6 +325,9 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
     def visit_Break(self, node: Break) -> None:
         self.current.append(JumpInstr(LabelName(node.iteration.end_label)))
 
+    def visit_Assert(self, node: Assert) -> None:
+        ...
+
     # # # # # # # #
     # EXPRESSIONS #
 
@@ -423,6 +431,7 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
                 MulInstr(IntType, index, size, index),
                 AddInstr(IntType, index, offset, offset),
             )
+            array = array.array
 
         pointer = self.visit(array)
         value = self.current.new_temp()

@@ -285,6 +285,6 @@ class FunctionType(uCType):
         return self.rettype.ir() + "_(" + params + ")"
 
     @classmethod
-    def sizeof(cls) -> int:
+    def __ucsize__(self) -> int:
         # same as pointer
         return PointerType.__ucsize__()
