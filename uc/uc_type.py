@@ -54,6 +54,8 @@ class uCType:
 # # # # # # # # #
 # Primary Types #
 
+Int = int
+
 
 @unique
 class PrimaryType(uCType, Enum):
@@ -67,7 +69,7 @@ class PrimaryType(uCType, Enum):
     def typename(self) -> str:
         return self.name
 
-    def __ucsize__(self) -> int:
+    def __ucsize__(self) -> Int:
         return 0 if self == VoidType else 1
 
     int = (
@@ -155,7 +157,10 @@ class ArrayType(uCType):
         return super().__hash__()
 
     def __ucsize__(self) -> int:
-        return self.size * self.elem_type.__ucsize__()
+        if self.size is None:
+            return PointerType.__ucsize__()
+        else:
+            return self.size * self.elem_type.__ucsize__()
 
     @staticmethod
     def empty_list() -> ArrayType:
@@ -163,7 +168,7 @@ class ArrayType(uCType):
         return ArrayType(_UndefinedType, 0)
 
     def out_of_bounds(self, value: Union[int, str]) -> bool:
-        """Check if value is inside of bound for array type."""
+        """Check if value is inside of bounds for array type."""
         try:
             value = int(value)
         except ValueError:
@@ -223,9 +228,10 @@ class PointerType(uCType):
     def ir(self) -> str:
         return self.inner.ir() + "_*"
 
-    def __ucsize__(self) -> int:
+    @classmethod
+    def __ucsize__(cls) -> int:
         # pointer is same as an integer
-        return 1
+        return IntType.__ucsize__()
 
 
 # # # # # # # # #
@@ -278,6 +284,7 @@ class FunctionType(uCType):
         params = ",".join(ty.ir() for _, ty in self.params)
         return self.rettype.ir() + "_(" + params + ")"
 
-    def sizeof(self) -> int:
+    @classmethod
+    def sizeof(cls) -> int:
         # same as pointer
-        return 1
+        return PointerType.__ucsize__()

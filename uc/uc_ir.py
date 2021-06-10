@@ -202,7 +202,7 @@ class AllocInstr(TypedInstruction):
     arguments = ("varname",)
     target_attr = "varname"
 
-    def __init__(self, type: uCType, varname: NamedVariable):
+    def __init__(self, type: uCType, varname: Union[TempVariable, NamedVariable]):
         super().__init__(type)
         self.varname = varname
 

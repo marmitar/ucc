@@ -139,14 +139,20 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
 
     def visit_ArrayDecl(self, node: ArrayDecl, init: Optional[Node]) -> None:
         varname = self._varname(node.declname)
-        self.current.append(AllocInstr(node.uc_type, varname))
+        data = self.current.new_temp()
+        # alloc space for data and pointer
+        self.current.append(
+            AllocInstr(node.uc_type.as_pointer(), varname),
+            AllocInstr(node.uc_type, data),
+            StoreInstr(node.uc_type, data, varname),
+        )
         if init is not None:
             value = self.visit(init)
             size = self.current.new_literal(sizeof(node))
             # copy initialization data
             self.current.append(
                 ParamInstr(PointerType(VoidType), value),
-                ParamInstr(PointerType(VoidType), varname),
+                ParamInstr(PointerType(VoidType), data),
                 ParamInstr(IntType, size),
                 CallInstr(VoidType, self.glob.memcpy),
             )
@@ -166,10 +172,9 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
             varname = self._varname(decl.name)
             if decl.init is not None:
                 value = self._extract_value(decl.init)
-                instr = GlobalInstr(decl.uc_type, varname, value)
             else:
-                instr = GlobalInstr(decl.uc_type, varname)
-            self.current.append(instr)
+                value = None
+            self.glob.new_global(decl.name.uc_type, varname, value)
 
     def visit_FuncDef(self, node: FuncDef) -> None:
         decl = node.declaration.type
@@ -187,9 +192,15 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
     def visit_ParamList(self, node: ParamList) -> None:
         for decl, (_, _, tempvar) in zip(node.params, self.current.function.params):
             varname = self._varname(decl.name)
+            # use arrays as pointer
+            if isinstance(decl.type, ArrayDecl):
+                uctype = decl.type.uc_type.as_pointer()
+            else:
+                uctype = decl.type
+
             self.current.append(
-                AllocInstr(decl.type.uc_type, varname),
-                StoreInstr(decl.type.uc_type, tempvar, varname),
+                AllocInstr(uctype, varname),
+                StoreInstr(uctype, tempvar, varname),
             )
 
     def visit_InitList(self, node: InitList) -> TextVariable:
@@ -318,26 +329,35 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
         return self.unary_op[node.op](self, node.uc_type, node.expr, ref=ref)
 
     def visit_ArrayRef(self, node: ArrayRef, ref: bool = False) -> TempVariable:
-        # TODO
-        source = self.visit(node.array)
-        index = self.visit(node.index)
-        # calculate offset, if needed
+        offset = self.visit(node.index)
+        # calculate offset for first index
         if sizeof(node) != 1:
-            offset = self.current.new_temp()
-            size = self._new_constant(IntType, sizeof(node))
-            self.current.append(MulInstr(IntType, size, index, offset))
+            size = self.current.new_literal(sizeof(node))
+            self.current.append(MulInstr(IntType, offset, size, offset))
         else:
-            offset = index
+            size = None
+        array = node.array
+        # and all other indexes
+        while isinstance(array, ArrayRef):
+            index = self.visit(array.index)
+            if size is None:
+                size = self.current.new_temp()
+            self.current.append(
+                LiteralInstr(IntType, sizeof(array), size),
+                MulInstr(IntType, index, size, index),
+                AddInstr(IntType, index, offset, offset),
+            )
+
+        pointer = self.visit(array)
+        value = self.current.new_temp()
         # return reference for compound types
         if ref or isinstance(node.uc_type, ArrayType):
-            address = self.current.new_temp()
-            self.current.append(AddInstr(node.uc_type, source, offset, address))
-            return address
+            instr = AddInstr(node.uc_type, pointer, offset, value)
         # and value for primaries
         else:
-            value = self.current.new_temp()
-            self.current.append(ElemInstr(node.uc_type, source, offset, value))
-            return value
+            instr = ElemInstr(node.uc_type, pointer, offset, value)
+        self.current.append(instr)
+        return value
 
     def visit_FuncCall(self, node: FuncCall) -> Optional[TempVariable]:
         # get function address
@@ -379,7 +399,7 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
     def visit_ID(self, node: ID, ref: bool = False) -> Variable:
         stackvar = self._varname(node)
         # load address
-        if ref or isinstance(node.uc_type, ArrayType):
+        if ref or (node.is_global and isinstance(node.uc_type, ArrayType)):
             return stackvar
         # or value
         register = self.current.new_temp()

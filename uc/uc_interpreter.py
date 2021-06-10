@@ -59,50 +59,6 @@ from uc.uc_ir import (
 )
 from uc.uc_type import CharType, FloatType, IntType, uCType
 
-# def format_instruction(t: tuple[str, ...]) -> str:
-#     operand = t[0].split("_")
-#     op = operand[0]
-#     ty = operand[1] if len(operand) > 1 else None
-#     if len(operand) >= 3:
-#         for qual in operand[2:]:
-#             if qual == "*":
-#                 ty += "*"
-#             else:
-#                 ty += f"[{qual}]"
-#     if len(t) > 1:
-#         if op == "define":
-#             return f"\n{op} {ty} {t[1]} (" + ", ".join(" ".join(el) for el in t[2]) + ")"
-#         else:
-#             _str = "" if op == "global" else "  "
-#             if op == "jump":
-#                 _str += f"{op} label {t[1]}"
-#             elif op == "cbranch":
-#                 _str += f"{op} {t[1]} label {t[2]} label {t[3]}"
-#             elif op == "global":
-#                 if ty.startswith("string"):
-#                     _str += f"{t[1]} = {op} {ty} '{t[2]}'"
-#                 elif len(t) > 2:
-#                     _str += f"{t[1]} = {op} {ty} {t[2]}"
-#                 else:
-#                     _str += f"{t[1]} = {op} {ty}"
-#             elif op == "return" or op == "print":
-#                 _str += f"{op} {ty} {t[1]}"
-#             elif op == "sitofp" or op == "fptosi":
-#                 _str += f"{t[2]} = {op} {t[1]}"
-#             elif op == "store" or op == "param":
-#                 _str += f"{op} {ty} "
-#                 for el in t[1:]:
-#                     _str += f"{el} "
-#             else:
-#                 _str += f"{t[-1]} = {op} {ty} "
-#                 for el in t[1:-1]:
-#                     _str += f"{el} "
-#             return _str
-#     elif ty == "void":
-#         return f"  {op}"
-#     else:
-#         return f"{op}"
-
 
 def printerr(*args) -> None:
     """Show error or warning messages."""
@@ -372,15 +328,15 @@ class Interpreter:
         for label, offset in self.labels[funcname]:
             self.vars[label] = self.pc + offset
 
-    def _alloc_data(self, size: Size, target: NamedVariable) -> int:
+    def _alloc_data(self, size: Size) -> int:
         if not isinstance(size, int):
             size = sizeof(size)
         # Alloc space in memory and save the offset in the dictionary
         # for new vars or temporaries, only.
-        self.vars[target] = self.offset
+        offset = self.offset
         self.offset += size
         # return new address
-        return self.vars[target]
+        return offset
 
     def _alloc_reg(self, target: Register) -> int:
         if not isinstance(target, int):
@@ -431,9 +387,10 @@ class Interpreter:
             if isinstance(value, str):
                 for ch in value:
                     yield ch
-            elif isinstance(value, list):
-                for val in flatten(value):
-                    yield val
+            elif isinstance(value, (list, tuple)):
+                for subitem in value:
+                    for val in flatten(subitem):
+                        yield val
             elif value is not None:
                 yield value
 
@@ -575,7 +532,11 @@ class Interpreter:
     # Run Operations, except Binary, Relational & Cast
     #
     def run_alloc(self, alloc: AllocInstr) -> None:
-        self._alloc_data(alloc.type, alloc.varname)
+        if isinstance(alloc.varname, TempVariable):
+            reg = self._alloc_reg(alloc.varname)
+            self.registers[reg] = self._alloc_data(alloc.type)
+        else:
+            self.vars[alloc.varname] = self._alloc_data(alloc.type)
 
     def run_call(self, call: CallInstr) -> None:
         # save the return pc in the return stack
