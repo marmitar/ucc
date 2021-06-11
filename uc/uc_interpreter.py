@@ -28,6 +28,7 @@ from uc.uc_ir import (
     DefineInstr,
     ElemInstr,
     EqInstr,
+    ExitInstr,
     GeInstr,
     GetInstr,
     GlobalInstr,
@@ -414,13 +415,6 @@ class Interpreter:
         self.returns.append(self.pc)
 
     def _pop(self) -> None:
-        if not self.returns:
-            # We reach the end of main function, so return to system
-            # with the code returned by main in the return register.
-            print(end="", flush=True)
-            # exit with return value
-            sys.exit(self.registers[0] or 0)
-
         # get return value
         retval = self.registers[0]
         # restore the vars of the caller
@@ -478,7 +472,7 @@ class Interpreter:
 
                 M[self.offset] = pc
                 self.offset += 1
-                if instr.source.value == "main":
+                if instr.source.value == ".start":
                     self.start = pc
             # store label address
             elif isinstance(instr, LabelInstr):
@@ -578,6 +572,14 @@ class Interpreter:
         idx = self._get_value(elem.index)
         # calculate and access address
         self.registers[target] = M[base + idx]
+
+    def run_exit(self, exit: ExitInstr) -> None:
+        # We reach the end of main function, so return to system
+        # with the code returned by main in the return register.
+        print(end="", flush=True)
+        # exit with return value
+        retval = self._get_value(exit.source)
+        sys.exit(retval)
 
     def run_get(self, get: GetInstr) -> None:
         target = self._alloc_reg(get.target)
