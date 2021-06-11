@@ -617,3 +617,14 @@ class PrintInstr(ParamInstr):
 
     def __init__(self, type: uCType = VoidType, source: Optional[TempVariable] = None):
         super().__init__(type, source)
+
+
+class ExitInstr(Instruction):
+    """Call exit syscall"""
+
+    __slots__ = ("source",)
+    opname = "exit"
+
+    def __init__(self, source: TempVariable):
+        super().__init__()
+        self.source = source

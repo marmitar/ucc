@@ -24,10 +24,12 @@ from uc.uc_ir import (
     AddInstr,
     AllocInstr,
     ArrayDataVaraible,
+    CallInstr,
     CBranchInstr,
     DataVariable,
     DefineInstr,
     ElemInstr,
+    ExitInstr,
     GeInstr,
     GlobalInstr,
     Instruction,
@@ -138,6 +140,11 @@ class GlobalBlock(CountedBlock):
             self._puts = PutsBlock(self)
         return self._puts.label
 
+    def add_start(self, rettype: uCType) -> StartFunction:
+        start = StartFunction(self, rettype)
+        self.functions.append(start)
+        return start
+
     def instructions(self) -> Iterator[Instruction]:
         # show text variables, then data
         return chain(self.text, self.data)
@@ -210,6 +217,27 @@ class SpecialFunction(FunctionBlock):
         self.uctype = FunctionType("." + self.name, self.rettype, self.args)
         super().__init__(program, self.uctype)
         self.entry = self.entry.next
+
+
+class StartFunction(SpecialFunction):
+    """Function that calls main"""
+
+    name = "start"
+
+    def __init__(self, program: GlobalBlock, rettype: uCType = VoidType):
+        super().__init__(program)
+
+        retval = self.entry.new_temp()
+        # main returns void, exit with zero
+        if rettype is VoidType:
+            self.entry.append(
+                CallInstr(VoidType, DataVariable("main")),
+                LiteralInstr(IntType, 0, retval),
+                ExitInstr(retval),
+            )
+        # main returns number, exit with return value
+        else:
+            self.entry.append(CallInstr(rettype, DataVariable("main"), retval), ExitInstr(retval))
 
 
 class SpecialLoopFunction(SpecialFunction):

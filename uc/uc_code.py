@@ -52,6 +52,7 @@ from uc.uc_ir import (
     DivInstr,
     ElemInstr,
     EqInstr,
+    ExitInstr,
     GeInstr,
     GetInstr,
     GtInstr,
@@ -83,9 +84,12 @@ from uc.uc_sema import NodeVisitor, Visitor
 from uc.uc_type import (
     ArrayType,
     BoolType,
+    CharType,
+    FunctionType,
     IntType,
     PointerType,
     PrimaryType,
+    StringType,
     VoidType,
     uCType,
 )
@@ -119,13 +123,6 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
             self._code = bb.visit(self.glob)
         return self._code
 
-    # You must implement visit_Nodename methods for all of the other
-    # AST nodes.  In your code, you will need to make instructions
-    # and append them to the current block code list.
-    #
-    # A few sample methods follow. Do not hesitate to complete or change
-    # them if needed.
-
     # # # # # # # # #
     # DECLARATIONS  #
 
@@ -135,6 +132,8 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
         for decl in node.gdecls:
             self.visit(decl)
         # define start point
+        if isinstance(node.uc_type, FunctionType):
+            self.glob.add_start(node.uc_type.rettype)
 
         if self.viewcfg:  # evaluate to True if -cfg flag is present in command line
             dot = CFG(node.name)
@@ -328,7 +327,34 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
         self.current.append(JumpInstr(LabelName(node.iteration.end_label)))
 
     def visit_Assert(self, node: Assert) -> None:
-        ...
+        next_block = self.current.insert_new(BasicBlock)
+        # if condition is tre, jump to next block
+        condition = self.visit(node.param)
+        self.current.append(CBranchInstr(condition, next_block.label))
+        # else, show fail message
+        msg = "assertion_fail on "
+        msg_type = StringType(len(msg))
+        message = self.glob.new_text(msg_type, msg)
+        size = self.current.new_literal(msg_type.size)
+        self.current.append(
+            ParamInstr(msg_type, message),
+            ParamInstr(IntType, size),
+            CallInstr(VoidType, self.glob.puts),
+        )
+        # and coordinates
+        coord = node.param.coord or node.coord
+        self.current.append(
+            LiteralInstr(IntType, coord.line, size),
+            PrintInstr(IntType, size),
+            LiteralInstr(CharType, ":", size),
+            PrintInstr(CharType, size),
+            LiteralInstr(IntType, coord.column, size),
+            PrintInstr(IntType, size),
+        )
+        # then, exit
+        self.current.append(LiteralInstr(IntType, 0, size), ExitInstr(size))
+        # otherwise, keep running in new block
+        self.current = next_block
 
     # # # # # # # #
     # EXPRESSIONS #
