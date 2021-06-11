@@ -623,7 +623,9 @@ class ExitInstr(Instruction):
     """Call exit syscall"""
 
     __slots__ = ("source",)
+
     opname = "exit"
+    arguments = ("source",)
 
     def __init__(self, source: TempVariable):
         super().__init__()

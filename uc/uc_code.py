@@ -107,8 +107,6 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
         self.glob: GlobalBlock = None
         self.current: Optional[BasicBlock] = None
 
-        # TODO: Complete if needed.
-
     def show(self, buf: TextIO = sys.stdout) -> None:
         for code in self.code:
             print(code.format(), file=buf)
@@ -136,8 +134,9 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
             self.glob.add_start(node.uc_type.rettype)
 
         if self.viewcfg:  # evaluate to True if -cfg flag is present in command line
-            dot = CFG(node.name)
-            dot.view(node)
+            dot = CFG()
+            for function in self.glob.subblocks():
+                dot.view(function)
 
     def _extract_value(self, node: Node) -> Union[Any, list[Any]]:
         if isinstance(node, InitList):

@@ -61,8 +61,9 @@ from uc.uc_type import (
 class Block:
     __slots__ = ("instr", "next")
 
-    def __init__(self) -> None:
+    def __init__(self, name: str):
         self.next: Optional[Block] = None
+        self.name = name
 
     @property
     def classname(self) -> str:
@@ -75,14 +76,20 @@ class Block:
         if self.next is not None:
             yield self.next
 
+    def __hash__(self) -> int:
+        return hash(self.name)
+
+    def __eq__(self, other) -> bool:
+        return self is other
+
 
 class CountedBlock(Block):
     __slots__ = ("_count",)
 
     next: None
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, name: str):
+        super().__init__(name)
         self._count = DefaultDict[str, int](int)
 
     def _new_version(self, key: str) -> int:
@@ -95,8 +102,7 @@ class GlobalBlock(CountedBlock):
     """Main block, able to declare globals and constants."""
 
     def __init__(self, name: Optional[str] = None):
-        super().__init__()
-        self.name = name or "program"
+        super().__init__(name or "program")
 
         self.data: list[GlobalInstr] = []
         self.text: list[GlobalInstr] = []
@@ -166,13 +172,12 @@ class FunctionBlock(CountedBlock):
     """Special block for function definition."""
 
     def __init__(self, program: GlobalBlock, function: FunctionType):
-        super().__init__()
+        super().__init__(function.funcname)
         self.program = program
         # initialize register count on 1
         self._count["%temp%"] = 1
 
         # function data
-        self.name = function.funcname
         self.params = [(name, ty, self.new_temp()) for name, ty in function.params]
         # function definition
         self.define = DefineInstr(
@@ -314,15 +319,13 @@ class BasicBlock(Block):
     next: Optional[BasicBlock]
 
     def __init__(self, function: FunctionBlock, name: Optional[str] = None):
-        super().__init__()
+        # label definition
+        if name is None:
+            name = function.new_label()
+        super().__init__(name)
         self.function = function
 
         self.instr: list[Instruction] = []
-        # label definition
-        if name is None:
-            self.name = function.new_label()
-        else:
-            self.name = name
 
     def new_temp(self) -> TempVariable:
         return self.function.new_temp()
@@ -476,13 +479,13 @@ class GraphData:
         elif not instr:
             return "{" + name + "}"
 
-        init = "{"
-        if name:
-            init += name + ":"
+        # init = "{"
+        # if name:
+        #     init += name + ":"
         body = (i.format() for i in instr)
-        end = "}"
+        # end = "}"
 
-        return "\\l\t".join(chain((init,), body, (end,)))
+        return "\\l\t".join(chain(body, [""]))
 
     def add_node(
         self,
@@ -515,50 +518,56 @@ class CFG(BlockVisitor[GraphData]):
 
         super().__init__(new_data)
 
-    def generic_visit(self, block: Block, g: GraphData) -> None:
+    def visit_BasicBlock(self, block: BasicBlock, g: GraphData) -> None:
         if not g.func_graph:
             name = f"<{block.function.name}>{block.name}"
         else:
             name = block.name
-        g.add_node(block, name, block.instr)
+        g.add_node(block, name, block.instructions())
 
         if block.next is not None:
             self.visit(block.next, g)
+            connect = True
+        else:
+            connect = False
+
+        for instr in block.instructions():
+            if isinstance(instr, JumpInstr):
+                g.add_edge(block, instr.target.value)
+                connect = False
+            elif isinstance(instr, CBranchInstr):
+                g.add_edge(block, instr.true_target.value)
+                if instr.false_target is not None:
+                    g.add_edge(block, instr.false_target.value)
+            elif isinstance(instr, (ExitInstr, ReturnInstr)):
+                connect = False
+            elif not g.func_graph and isinstance(instr, CallInstr):
+                g.add_edge(block, instr.source.value)
+
+        if connect:
             g.add_edge(block, block.next)
 
-        # TODO:
-        # # Function definition. An empty block that connect to the Entry Block
-        # self.g.node(self.fname, label=None, _attributes={"shape": "ellipse"})
-        # self.g.edge(self.fname, block.next_block.label)
+    visit_EntryBlock = visit_BasicBlock
+    visit_ConditionBlock = visit_BasicBlock
+    visit_LoopBlock = visit_BasicBlock
 
     def visit_GlobalBlock(self, block: GlobalBlock, g: GraphData) -> None:
         # special node for data and text sections
         g.add_node(None, ".text", block.text)
-        g.add_node(block, ".data", block.instr)
+        g.add_node(block, ".data", block.data)
         # and all functions as well
         for func in block.subblocks():
             self.visit(func, g)
 
-    def visit_FuntionBlock(self, func: FunctionBlock, g: GraphData) -> None:
-        g.add_node(func, func.name, func.instr)
+    def visit_FunctionBlock(self, func: FunctionBlock, g: GraphData) -> None:
+        g.add_node(func, func.name, func.instructions())
         # connect to the first block
-        self.visit(func.next, g)
-        g.add_edge(func, func.head)
+        self.visit(func.entry, g)
+        g.add_edge(func, func.entry)
 
-    visit_PutsBlock = visit_FuntionBlock
-    visit_MemCopy = visit_FuntionBlock
-
-    # def visit_ConditionBlock(self, block: ConditionBlock) -> None:
-    #     # Get the label as node name
-    #     name = block.label
-    #     # get the formatted instructions as node label
-    #     label = "{" + name + ":\\l\t"
-    #     for inst in block.instructions[1:]:
-    #         label += format_instruction(inst) + "\\l\t"
-    #     label += "|{<f0>T|<f1>F}}"
-    #     self.g.node(name, label=label)
-    #     self.g.edge(name + ":f0", block.taken.label)
-    #     self.g.edge(name + ":f1", block.fall_through.label)
+    visit_PutsBlock = visit_FunctionBlock
+    visit_MemCopy = visit_FunctionBlock
+    visit_StartFunction = visit_FunctionBlock
 
     def view(self, block: Block) -> None:
         graph = self.visit(block).graph
