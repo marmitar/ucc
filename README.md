@@ -19,7 +19,7 @@ You should do the following tasks:
 
 ## Requirements
 
-Use Python 3.5 or a newer version.    
+Use Python 3.5 or a newer version.
 Required pip packages:
 - ply, pytest, setuptools, graphviz, pathlib
 
@@ -80,6 +80,19 @@ for the rest of the code. Run both from the root of the repo:
     isort .
     black .
 ```
+
+### Using Pre-Commit Hooks
+
+Linting can be done automatically before every commit using
+[git hooks](https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks).
+Required pip packages:
+- pre-commit
+
+Liniting hooks can be enabled with:
+```sh
+    pre-commit install --install-hooks
+```
+
 ## Grading
 
 Your assignment will be evaluated in terms of:
@@ -115,7 +128,7 @@ of the compiler. You can check your score by running `python tests/test_analysis
 
 ## Questions
 
-If you have any doubts or run into problems, please contact the TAs.    
+If you have any doubts or run into problems, please contact the TAs.
 Happy coding! :smile: :keyboard:
 
 ## Contribute
