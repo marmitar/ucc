@@ -180,7 +180,7 @@ class UCLexer:
     """
 
     def t_STRING_LITERAL(self, t):
-        r"\"(\\.|.|\n)*?\" "
+        r"\"(\\.|.|\n)*?\""
         t.value = t.value[1:-1]
         return t
 

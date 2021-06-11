@@ -12,12 +12,12 @@ import sys
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Iterator, Literal, Optional, Protocol, TextIO, Union
+from uc.uc_analysis import DataFlow
 from uc.uc_code import CodeGenerator
 from uc.uc_interpreter import Interpreter
 from uc.uc_parser import UCParser
 from uc.uc_sema import Visitor
 
-# from uc.uc_analysis import DataFlow
 # from uc.uc_llvm import LLVMCodeGenerator
 
 """
@@ -156,7 +156,8 @@ class Compiler:
         """
         try:
             self.parser = UCParser()
-            self.ast = self.parser.parse(self.code)
+            with open(self.args.filename) as code:
+                self.ast = self.parser.parse(code)
             if not self.args.yaml and (file := self.file.get("ast")):
                 self.ast.show(buf=file, showcoord=True)
         except AssertionError as e:
@@ -180,23 +181,23 @@ class Compiler:
         if not self.args.yaml and (file := self.file.get("ir")):
             self.gen.show(buf=file)
 
-    # def _opt(self):
-    #     self.opt = DataFlow(self.args.cfg, self.args.verbose)
-    #     self.opt.visit(self.ast)
-    #     self.optcode = self.opt.code
-    #     if not self.args.yaml and (file := self.file.get("opt")):
-    #         self.opt.show(buf=self.opt_file)
+    def _opt(self):
+        self.opt = DataFlow(self.args.cfg, self.args.verbose)
+        self.opt.visit(self.ast)
+        self.optcode = self.opt.code
+        if not self.args.yaml and (file := self.file.get("opt")):
+            self.opt.show(buf=self.opt_file)
 
     # def _llvm(self):
     #     self.llvm = LLVMCodeGenerator(self.args.cfg)
     #     self.llvm.visit(self.ast)
     #     if not self.args.yaml and (file := self.file.get("llvm")):
-    #         self.llvm.save_ir(self.llvm_file)
+    #         self.llvm.save_ir(file)
     #     if self.run:
     #         if self.args.llvm_opt:
     #             self.llvm.execute_ir(self.args.llvm_opt, self.file.get("llvm-opt"))
     #         else:
-    #             self.llvm.execute_ir(self.args.llvm_opt, self.llvm_file)
+    #             self.llvm.execute_ir(self.args.llvm_opt, self.file.get("llvm"))
 
     def _do_compile(self) -> None:
         """Compiles the code to the given source file."""
@@ -250,9 +251,6 @@ class Compiler:
             printerr(f"Outputting the optimized LLVM IR to {llvm_opt_filename}.")
             self.file["llvm-opt"] = open(llvm_opt_filename, "w")
 
-        with open(filename, "r") as source:
-            self.code = source.read()
-
         self.run = not self.args.no_run
         if self.args.verbose:
             printerr(f"Compiling {filename}:")
@@ -270,9 +268,18 @@ class Compiler:
             #             vm.run(self.optcode)
             #         else:
             #             vm.run(self.gencode)
-            elif self.run and not self.args.cfg:
-                vm = Interpreter(self.args.idb)
-                vm.run(self.gencode)
+            else:
+                if self.args.opt:
+                    speedup = len(self.gencode) / len(self.optcode)
+                    printerr(
+                        f"default = {len(self.gencode)}, optimized = {len(self.optcode)}, speedup = {speedup:.2f}"
+                    )
+                if self.run and not self.args.cfg:
+                    vm = Interpreter(self.args.idb)
+                    if self.args.opt:
+                        vm.run(self.optcode)
+                    else:
+                        vm.run(self.gencode)
 
         while self.file:
             _, file = self.file.popitem()

@@ -5,7 +5,7 @@ int f(int m, int n) {
         return n;
     }
     else {
-        m = m - 1;
+        m = m -1;
         return m;
     }
 }

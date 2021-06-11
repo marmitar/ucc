@@ -1,41 +1,13 @@
-/* Bubble sort code */
-
-int main()
-{
-  int array[100], n, c, d, swap;
-
-  print("Enter number of elements");
-  print();
-  n = 25;
-
-  print("Enter ", n, " integers");
-  print();
-
-  for (c=0; c<n; c=c+1)
-    array[c] = n-c;
-
-  for (c=0; c<n; c=c+1)
-     print(array[c], " ");
-  print();
-
-  for (c=0; c<n-1; c=c+1)
-  {
-    for (d=0; d<n-c-1; d=d+1)
-    {
-      if (array[d] > array[d+1]) /* For decreasing order use < */
-      {
-        swap       = array[d];
-        array[d]   = array[d+1];
-        array[d+1] = swap;
-      }
+int main() {
+    int i = 3, n = 6;
+    for (int k = 1; k < n; k=k+1) {
+        if (i >= n) {
+            break;
+        }
+        else {
+            i=i+1;
+        }
     }
-  }
-
-  print("Sorted list in ascending order:");
-  print();
-
-  for (c=0; c<n; c=c+1)
-     print(array[c], " ");
-
-  return 0;
+    assert i == n;
+    return 0;
 }

@@ -612,6 +612,7 @@ class PrintInstr(ParamInstr):
 
 class ExitInstr(Instruction):
     """Call exit syscall to terminate program"""
+
     # Added instruction to emulate exit syscall
 
     __slots__ = ("source",)

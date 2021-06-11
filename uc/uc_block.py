@@ -15,7 +15,7 @@ from typing import (
     Union,
 )
 from graphviz import Digraph
-from uc.uc_ast import FuncDef, ID, Program
+from uc.uc_ast import ID, FuncDef, Program
 from uc.uc_interpreter import Value
 from uc.uc_ir import (
     AllocInstr,
@@ -199,9 +199,7 @@ class StartFunction(Block):
     def __init__(self, program: GlobalBlock, rettype: uCType = VoidType):
         super().__init__(self.name)
         # '.start' is a function without arguments, that never returns
-        self.instr: list[Instruction] = [
-            DefineInstr(VoidType, DataVariable(self.name))
-        ]
+        self.instr: list[Instruction] = [DefineInstr(VoidType, DataVariable(self.name))]
 
         temp = TempVariable(1)
         # main returns void, exit with zero
@@ -215,6 +213,7 @@ class StartFunction(Block):
 
     def instructions(self) -> Iterator[Instruction]:
         return iter(self.instr)
+
 
 # # # # # # # #
 # CODE BLOCKS #
