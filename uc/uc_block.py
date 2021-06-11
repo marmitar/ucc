@@ -5,11 +5,13 @@ from itertools import chain
 from typing import (
     Any,
     Callable,
+    ClassVar,
     DefaultDict,
     Generic,
     Iterable,
     Iterator,
     List,
+    Literal,
     Optional,
     Type,
     TypeVar,
@@ -90,8 +92,9 @@ class CountedBlock(Block):
 class GlobalBlock(CountedBlock):
     """Main block, able to declare globals and constants."""
 
-    def __init__(self):
+    def __init__(self, name: Optional[str] = None):
         super().__init__()
+        self.name = name or "program"
 
         self.data: list[GlobalInstr] = []
         self.text: list[GlobalInstr] = []
@@ -194,28 +197,38 @@ class FunctionBlock(CountedBlock):
         yield self.entry
 
 
-class PutsBlock(FunctionBlock):
+class SpecialFunction(FunctionBlock):
+    """Base class for libuc functions"""
+
+    name: ClassVar[str]
+    rettype: ClassVar[uCType] = VoidType
+    args: ClassVar[tuple[tuple[str, uCType], ...]] = ()
+
+    entry: BasicBlock
+
     def __init__(self, program: GlobalBlock):
-        # build definition
-        self.uctype = FunctionType(
-            ".puts", VoidType, [("str", ArrayType(CharType, None)), ("len", IntType)]
-        )
+        self.uctype = FunctionType("." + self.name, self.rettype, self.args)
         super().__init__(program, self.uctype)
         self.entry = self.entry.next
 
-        # create loop index and constant 1
+
+class SpecialLoopFunction(SpecialFunction):
+
+    rettype: ClassVar[Literal[VoidType]] = VoidType
+
+    def __init__(self, program: GlobalBlock, body: Callable[..., list[Instruction]]):
+        super().__init__(program)
+        # create loop index, constant 1 and extract length
         index = self.entry.new_literal(0)
         one = self.entry.new_literal(1)
-
-        self.entry.next = loop = BasicBlock(self)  # TODO: loop block
-        string, length = (var for _, _, var in self.params)
+        *args, length = (var for _, _, var in self.params)
+        # build main loop
+        loop = self.entry.insert_new(LoopBlock)
         result = loop.new_temp()
-        # iterate over caracters
         loop.append(
             GeInstr(IntType, index, length, result),
             CBranchInstr(result, true_target=LabelName("exit")),
-            ElemInstr(CharType, string, index, result),
-            PrintInstr(CharType, result),
+            *body(*args, index, result, one),
             AddInstr(IntType, index, one, index),
             JumpInstr(loop.label),
         )
@@ -224,34 +237,37 @@ class PutsBlock(FunctionBlock):
         loop.next.append(ReturnInstr(VoidType))
 
 
-class MemCopy(FunctionBlock):
+class PutsBlock(SpecialLoopFunction):
+    """Printing many characters at once"""
+
+    name = "puts"
+    args = (("str", ArrayType(CharType, None)), ("len", IntType))
+
     def __init__(self, program: GlobalBlock):
-        # build definition
-        ptr = PointerType(VoidType)
-        self.uctype = FunctionType(".memcpy", ptr, [("src", ptr), ("dest", ptr), ("len", IntType)])
-        super().__init__(program, self.uctype)
-        self.entry = self.entry.next
+        def body(string, index, result, one):
+            return [
+                ElemInstr(CharType, string, index, result),
+                PrintInstr(CharType, result),
+            ]
 
-        # create loop index and constant 1
-        index = self.entry.new_literal(0)
-        one = self.entry.new_literal(1)
+        super().__init__(program, body)
 
-        self.entry.next = loop = BasicBlock(self)  # TODO: loop block
-        src, dest, length = (var for _, _, var in self.params)
-        result = loop.new_temp()
-        # iterate over caracters
-        loop.append(
-            GeInstr(IntType, index, length, result),
-            CBranchInstr(result, true_target=LabelName("exit")),
-            ElemInstr(IntType, src, index, result),
-            StoreInstr(IntType, result, dest),
-            AddInstr(IntType, index, one, index),
-            AddInstr(ptr, dest, one, dest),
-            JumpInstr(loop.label),
-        )
-        # then exit
-        loop.next = BasicBlock(self, "exit")
-        loop.next.append(ReturnInstr(VoidType))
+
+class MemCopy(SpecialLoopFunction):
+    """Copying data in memory"""
+
+    name = "memcpy"
+    args = (("src", PointerType(VoidType)), ("dest", PointerType(VoidType)), ("len", IntType))
+
+    def __init__(self, program: GlobalBlock):
+        def body(src, dest, index, result, one):
+            return [
+                ElemInstr(IntType, src, index, result),
+                StoreInstr(IntType, result, dest),
+                AddInstr(PointerType(VoidType), dest, one, dest),
+            ]
+
+        super().__init__(program, body)
 
 
 # # # # # # # #
@@ -381,7 +397,7 @@ class BlockVisitor(Generic[C]):
     implement custom processing (similar to ASTs).
     """
 
-    def __init__(self, default: Callable[[], C]):
+    def __init__(self, default: Callable[[Block], C]):
         self.visitor = lru_cache(maxsize=None)(self.visitor)
         self.default = default
 
@@ -393,7 +409,7 @@ class BlockVisitor(Generic[C]):
 
     def visit(self, block: Block, total: Optional[C] = None) -> C:
         if total is None:
-            total = self.default()
+            total = self.default(block)
 
         value = self.visitor(block.classname)(block, total)
         if value is not None:
@@ -404,7 +420,7 @@ class BlockVisitor(Generic[C]):
 
 class EmitBlocks(BlockVisitor[List[Instruction]]):
     def __init__(self):
-        super().__init__(list)
+        super().__init__(lambda _: [])
 
     def generic_visit(self, block: Block, total: list[Instruction]) -> None:
         total.extend(block.instructions())
@@ -420,9 +436,10 @@ class EmitBlocks(BlockVisitor[List[Instruction]]):
 class GraphData:
     """Wrapper for building the CFG graph."""
 
-    def __init__(self, graph: Digraph):
-        self.graph = graph
+    def __init__(self, name: str, func_graph: bool = False):
+        self.graph = Digraph(name, filename=name + ".gv", node_attr={"shape": "record"})
         self.nodes: dict[Block, str] = {}
+        self.func_graph = func_graph
 
     def build_label(self, name: str = "", instr: Iterable[Instruction] = ()) -> str:
         """Create node label from instructions."""
@@ -464,18 +481,27 @@ class GraphData:
 
 
 class CFG(BlockVisitor[GraphData]):
-    def __init__(self, name: Optional[str] = None):
-        # program name
-        self.name = name or "program"
-
-        def new_data():
-            g = Digraph("g", filename=f"{self.name}.gv", node_attr={"shape": "record"})
-            return GraphData(g)
+    def __init__(self):
+        def new_data(block: Union[FunctionBlock, GlobalBlock]):
+            return GraphData(block.name, isinstance(block, FunctionBlock))
 
         super().__init__(new_data)
 
     def generic_visit(self, block: Block, g: GraphData) -> None:
-        g.add_node(block, "", block.instructions())
+        if not g.func_graph:
+            name = f"<{block.function.name}>{block.name}"
+        else:
+            name = block.name
+        g.add_node(block, name, block.instr)
+
+        if block.next is not None:
+            self.visit(block.next, g)
+            g.add_edge(block, block.next)
+
+        # TODO:
+        # # Function definition. An empty block that connect to the Entry Block
+        # self.g.node(self.fname, label=None, _attributes={"shape": "ellipse"})
+        # self.g.edge(self.fname, block.next_block.label)
 
     def visit_GlobalBlock(self, block: GlobalBlock, g: GraphData) -> None:
         # special node for data and text sections
@@ -491,17 +517,8 @@ class CFG(BlockVisitor[GraphData]):
         self.visit(func.next, g)
         g.add_edge(func, func.head)
 
-    def visit_BasicBlock(self, block: BasicBlock, g: GraphData) -> None:
-        name = f"<{block.function.name}>{block.name}"
-        g.add_node(block, name, block.instr)
-
-        if block.next is not None:
-            self.visit(block.next, g)
-            g.add_edge(block, block.next)
-        # TODO:
-        # # Function definition. An empty block that connect to the Entry Block
-        # self.g.node(self.fname, label=None, _attributes={"shape": "ellipse"})
-        # self.g.edge(self.fname, block.next_block.label)
+    visit_PutsBlock = visit_FuntionBlock
+    visit_MemCopy = visit_FuntionBlock
 
     # def visit_ConditionBlock(self, block: ConditionBlock) -> None:
     #     # Get the label as node name

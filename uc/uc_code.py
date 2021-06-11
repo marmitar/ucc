@@ -100,7 +100,7 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
     def __init__(self, viewcfg: bool):
         self.viewcfg = viewcfg
 
-        self.glob = GlobalBlock()
+        self.glob: GlobalBlock = None
         self.current: Optional[BasicBlock] = None
 
         # TODO: Complete if needed.
@@ -130,9 +130,11 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
     # DECLARATIONS  #
 
     def visit_Program(self, node: Program) -> None:
+        self.glob = GlobalBlock(node.name)
         # Visit all of the global declarations
         for decl in node.gdecls:
             self.visit(decl)
+        # define start point
 
         if self.viewcfg:  # evaluate to True if -cfg flag is present in command line
             dot = CFG(node.name)

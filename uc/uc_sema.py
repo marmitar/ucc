@@ -643,11 +643,16 @@ class SemanticVisitor(NodeVisitor[uCType]):
     # # # # # # # # #
     # DECLARATIONS  #
 
-    def visit_Program(self, node: Program) -> None:
+    def visit_Program(self, node: Program) -> Optional[FunctionType]:
         # global scope
         with self.symtab.new(GlobalScope()):
             # Visit all of the global declarations
             self.visit_children(node)
+            # find main function
+            main = self.symtab.lookup("main")
+        # set same type as 'main'
+        if main is not None and isinstance(main.type, FunctionType):
+            return main.type
 
     def visit_Decl(self, node: Decl) -> None:
         if node.init is None:
