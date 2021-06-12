@@ -241,6 +241,7 @@ class UCParser:
         | TIMES declarator
         | declarator LPAREN                RPAREN
         | declarator LPAREN parameter_list RPAREN
+        | declarator LPAREN VOID RPAREN
         """
         # simple identifier
         if len(p) == 2:
@@ -256,7 +257,7 @@ class UCParser:
             p[0] = self._type_modify_decl(p[2], PointerDecl())
         # function declaration
         else:
-            params = p[3] if len(p) == 5 else ParamList()
+            params = p[3] if len(p) == 5 and p[3] != "void" else ParamList()
             params.coord = self._token_coord(p, 2)
             # use locate parameters at parenthesis
             p[0] = self._type_modify_decl(p[1], FuncDecl(params))

@@ -15,7 +15,7 @@ from typing import (
     Union,
 )
 from graphviz import Digraph
-from uc.uc_ast import ID
+from uc.uc_ast import FuncDef, ID, Program
 from uc.uc_interpreter import Value
 from uc.uc_ir import (
     AllocInstr,
@@ -87,14 +87,16 @@ class CountedBlock(Block):
 class GlobalBlock(CountedBlock):
     """Main block, able to declare globals and constants."""
 
-    def __init__(self, name: Optional[str] = None):
-        super().__init__(name or "program")
+    def __init__(self, program: Program):
+        super().__init__(program.name or "program")
+        program.cfg = self
 
         self.data: list[GlobalInstr] = []
         self.text: list[GlobalInstr] = []
         # cache of defined constants, to avoid repeated values
         self.consts: dict[tuple[str, str], TextVariable] = {}
         # all functions in the program
+        self._start: Optional[StartFunction] = None
         self.functions: list[FunctionBlock] = []
 
     def new_text(self, ty: uCType, value: Any) -> TextVariable:
@@ -119,9 +121,8 @@ class GlobalBlock(CountedBlock):
         return block
 
     def add_start(self, rettype: uCType) -> StartFunction:
-        start = StartFunction(self, rettype)
-        self.functions.append(start)
-        return start
+        self._start = StartFunction(self, rettype)
+        return self._start
 
     def instructions(self) -> Iterator[Instruction]:
         # show text variables, then data
@@ -130,6 +131,8 @@ class GlobalBlock(CountedBlock):
     def subblocks(self) -> Iterator[Block]:
         for function in self.functions:
             yield function
+        if self._start:
+            yield self._start
 
 
 # # # # # # # # # #
@@ -139,7 +142,16 @@ class GlobalBlock(CountedBlock):
 class FunctionBlock(CountedBlock):
     """Special block for function definition."""
 
-    def __init__(self, program: GlobalBlock, function: FunctionType):
+    def __init__(self, program: GlobalBlock, function: Union[FuncDef, FunctionType]):
+        # link node to code gen block
+        if isinstance(function, FuncDef):
+            self.definition = function
+            self.definition.cfg = self
+            function = function.func_type
+        # for '.start', there is nothing to link
+        else:
+            self.definition = None
+
         super().__init__(function.funcname)
         self.program = program
         # initialize register count on 1
@@ -149,7 +161,9 @@ class FunctionBlock(CountedBlock):
         self.params = [(name, ty, self.new_temp()) for name, ty in function.params]
         # function definition
         self.define = DefineInstr(
-            function.rettype, DataVariable(self.name), ((ty, var) for _, ty, var in self.params)
+            function.rettype,
+            DataVariable(self.name),
+            ((ty, var) for _, ty, var in self.params),
         )
         self.entry = EntryBlock(self)
 
@@ -177,27 +191,30 @@ class FunctionBlock(CountedBlock):
         yield self.entry
 
 
-class StartFunction(FunctionBlock):
-    """Function that calls main"""
+class StartFunction(Block):
+    """Entry function for a program (may not be needed on llvm)"""
 
     name = ".start"
 
     def __init__(self, program: GlobalBlock, rettype: uCType = VoidType):
-        self.uctype = FunctionType(self.name, VoidType)
-        super().__init__(program, self.uctype)
-        self.entry = self.entry.next
+        super().__init__(self.name)
+        # '.start' is a function without arguments, that never returns
+        self.instr: list[Instruction] = [
+            DefineInstr(VoidType, DataVariable(self.name))
+        ]
 
+        temp = TempVariable(1)
         # main returns void, exit with zero
         if rettype is VoidType:
-            self.entry.append_instr(CallInstr(VoidType, DataVariable("main")))
-            zero = self.entry.new_literal(0)
-            self.entry.append_instr(ExitInstr(zero))
+            self.instr.append(CallInstr(VoidType, DataVariable("main")))
+            self.instr.append(LiteralInstr(IntType, 0, temp))
         # main returns number, exit with return value
         else:
-            retval = self.entry.new_temp()
-            self.entry.append_instr(CallInstr(rettype, DataVariable("main"), retval))
-            self.entry.append_instr(ExitInstr(retval))
+            self.instr.append(CallInstr(rettype, DataVariable("main"), temp))
+        self.instr.append(ExitInstr(temp))
 
+    def instructions(self) -> Iterator[Instruction]:
+        return iter(self.instr)
 
 # # # # # # # #
 # CODE BLOCKS #
@@ -424,7 +441,11 @@ class CFG(BlockVisitor[GraphData]):
         self.visit(func.entry, g)
         g.add_edge(func, func.entry)
 
-    visit_StartFunction = visit_FunctionBlock
+    def visit_StartFunction(self, func: StartFunction, g: GraphData) -> None:
+        g.add_node(func, func.name, func.instructions())
+        # connect to the first block
+        self.visit(func.entry, g)
+        g.add_edge(func, func.entry)
 
     def view(self, block: Block) -> None:
         graph = self.visit(block).graph

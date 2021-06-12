@@ -27,7 +27,7 @@ from uc.uc_type import (
 )
 
 if TYPE_CHECKING:
-    from uc.uc_block import BasicBlock, FunctionBlock
+    from uc.uc_block import BasicBlock, FunctionBlock, GlobalBlock
 
 
 class Coord(Protocol):
@@ -200,9 +200,11 @@ def sizeof(item: Union[Node, uCType]) -> int:
 
 
 class Program(Node):
-    __slots__ = "gdecls", "name"
+    __slots__ = "gdecls", "name", "cfg"
     attr_names = ()
-    special_attr = ("name",)
+    special_attr = ("name", "cfg")
+
+    cfg: GlobalBlock
 
     def __init__(self, gdecls: list[Union[GlobalDecl, FuncDef]]):
         super().__init__()
@@ -275,6 +277,10 @@ class FuncDef(Node):
         self.return_type = return_type
         self.declaration = declaration
         self.implementation = implementation
+
+    @property
+    def func_type(self) -> FunctionType:
+        return self.declaration.type.uc_type
 
 
 class ParamList(Node):
