@@ -98,6 +98,10 @@ class Symbol:
     def version(self) -> Union[Literal["global"], int]:
         return self.definition.version
 
+    @property
+    def coord(self) -> Optional[Coord]:
+        return self.definition.coord
+
     def __str__(self) -> str:
         return repr(self)
 
@@ -649,8 +653,14 @@ class SemanticVisitor(NodeVisitor[uCType]):
             self.visit_children(node)
             # find main function
             main = self.symtab.lookup("main")
-        # set same type as 'main'
-        if main is not None and isinstance(main.type, FunctionType):
+        # check if 'main' is valid
+        if main is not None:
+            if not isinstance(main.type, FunctionType):
+                msg = "name 'main' is reserved for the main function"
+                raise SemanticError(msg, main.coord)
+            if main.type.rettype != VoidType and main.type.rettype != IntType:
+                msg = "'main' must return nothing or an integer"
+                raise SemanticError(msg, main.coord)
             return main.type
 
     def visit_Decl(self, node: Decl) -> None:

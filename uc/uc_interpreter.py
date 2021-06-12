@@ -279,14 +279,14 @@ class Interpreter:
     def _parse_input(self) -> Optional[int]:
         while True:
             try:
-                cmd = list(input("idb> ").strip().split(" "))
+                cmd = list(input("idb> ").split())
                 if cmd[0] == "s" or cmd[0] == "step":
                     return None
                 elif cmd[0] == "g" or cmd[0] == "go":
                     return int(cmd[1])
                 elif cmd[0] == "e" or cmd[0] == "ex":
-                    for i in range(1, len(cmd)):
-                        self._view_location(cmd[i])
+                    for var in cmd[1:]:
+                        self._view_location(var)
                 elif cmd[0] == "a" or cmd[0] == "assign":
                     if len(cmd) != 4:
                         printerr(
@@ -435,8 +435,6 @@ class Interpreter:
                 current_function = instr.source
                 self.globals[current_function] = pc
                 self.labels[current_function] = []
-                if current_function.name == ".start":
-                    self.start = pc
             # store label address
             elif isinstance(instr, LabelInstr):
                 self.labels[current_function].append((instr.name, pc))
@@ -453,7 +451,6 @@ class Interpreter:
         # Also, set the start pc to the main function entry
         self.code = ircode
         self.offset = 0
-        self.start = None
         self.lastpc = self._prepare_globals()
 
         # Now, running the program starting from the main function
@@ -461,10 +458,11 @@ class Interpreter:
         if self.debug:
             printerr("Interpreter running in debug mode:")
             self._show_idb_help()
-        if self.start is not None:
-            self.pc = self.start
-        else:
+
+        self.pc = self.globals.get(DataVariable(".start"))
+        if self.pc is None:
             self.pc = self.lastpc
+
         _breakpoint: Optional[int] = None
         while True:
             try:
@@ -594,7 +592,7 @@ class Interpreter:
         if isinstance(store.type, ArrayType):
             source = self._get_value(store.source)
             data = self._load_multiple(source, store.type)
-            self._store_multiple(target, data)
+            M[target : target + len(data)] = data
         else:
             value = self._get_value(store.source)
             M[target] = value

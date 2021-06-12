@@ -109,7 +109,7 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
     # DECLARATIONS  #
 
     def visit_Program(self, node: Program) -> None:
-        self.glob = GlobalBlock(node.name)
+        self.glob = GlobalBlock(node)
         # Visit all of the global declarations
         for decl in node.gdecls:
             self.visit(decl)
@@ -119,7 +119,7 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
 
         if self.viewcfg:  # evaluate to True if -cfg flag is present in command line
             dot = CFG()
-            for function in self.glob.subblocks():
+            for function in self.glob.functions:
                 dot.view(function)
 
     def _extract_value(self, node: Node) -> Union[Any, list[Any]]:
