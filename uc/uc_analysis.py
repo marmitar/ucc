@@ -1,57 +1,63 @@
+from __future__ import annotations
 import argparse
 import pathlib
 import sys
-from uc.uc_ast import FuncDef
-from uc.uc_block import CFG, format_instruction
+from typing import TextIO
+from uc.uc_ast import Program
+from uc.uc_block import CFG, EmitBlocks
 from uc.uc_code import CodeGenerator
 from uc.uc_interpreter import Interpreter
+from uc.uc_ir import Instruction
 from uc.uc_parser import UCParser
 from uc.uc_sema import NodeVisitor, Visitor
 
 
-class DataFlow(NodeVisitor):
-    def __init__(self, viewcfg):
-        # flag to show the optimized control flow graph
+class DataFlow(NodeVisitor[None]):
+    def __init__(self, viewcfg: bool):
         self.viewcfg = viewcfg
-        # list of code instructions after optimizations
-        self.code = []
-        # TODO
 
-    def show(self, buf=sys.stdout):
-        _str = ""
-        for _code in self.code:
-            _str += format_instruction(_code) + "\n"
-        buf.write(_str)
+    def show(self, buf: TextIO = sys.stdout) -> None:
+        for code in self.code:
+            print(code.format(), file=buf)
+
+    @property
+    def code(self) -> list[Instruction]:
+        """
+        The generated code (can be mapped to a list of tuples)
+        """
+        if not hasattr(self, "_code"):
+            bb = EmitBlocks()
+            self._code = bb.visit(self.glob)
+        return self._code
 
     # TODO: add analyses
 
-    def visit_Program(self, node):
+    def visit_Program(self, node: Program) -> None:
         # First, save the global instructions on code member
-        self.code = node.text[:]  # [:] to do a copy
-        for _decl in node.gdecls:
-            if isinstance(_decl, FuncDef):
-                # start with Reach Definitions Analysis
-                self.buildRD_blocks(_decl.cfg)
-                self.computeRD_gen_kill()
-                self.computeRD_in_out()
-                # and do constant propagation optimization
-                self.constant_propagation()
+        self.glob = node.cfg
+        # for decl in node.gdecls:
+        #     if isinstance(decl, FuncDef):
+        #         # start with Reach Definitions Analysis
+        #         self.buildRD_blocks(decl.cfg)
+        #         self.computeRD_gen_kill()
+        #         self.computeRD_in_out()
+        #         # and do constant propagation optimization
+        #         self.constant_propagation()
 
-                # after do live variable analysis
-                self.buildLV_blocks(_decl.cfg)
-                self.computeLV_use_def()
-                self.computeLV_in_out()
-                # and do dead code elimination
-                self.deadcode_elimination()
+        #         # after do live variable analysis
+        #         self.buildLV_blocks(decl.cfg)
+        #         self.computeLV_use_def()
+        #         self.computeLV_in_out()
+        #         # and do dead code elimination
+        #         self.deadcode_elimination()
 
-                # finally save optimized instructions in self.code
-                self.appendOptimizedCode(_decl.cfg)
+        #         # finally save optimized instructions in self.code
+        #         self.appendOptimizedCode(decl.cfg)
 
         if self.viewcfg:
-            for _decl in node.gdecls:
-                if isinstance(_decl, FuncDef):
-                    dot = CFG(_decl.decl.name.name + ".opt")
-                    dot.view(_decl.cfg)
+            dot = CFG()
+            for function in self.glob.functions:
+                dot.view(function)
 
 
 if __name__ == "__main__":
@@ -75,9 +81,7 @@ if __name__ == "__main__":
         action="store_true",
         default=True,
     )
-    parser.add_argument(
-        "--debug", help="Run interpreter in debug mode.", action="store_true"
-    )
+    parser.add_argument("--debug", help="Run interpreter in debug mode.", action="store_true")
     parser.add_argument(
         "-c",
         "--cfg",
@@ -104,7 +108,7 @@ if __name__ == "__main__":
     p = UCParser()
     # open file and parse it
     with open(input_path) as f:
-        ast = p.parse(f.read())
+        ast = p.parse(f)
 
     sema = Visitor()
     sema.visit(ast)

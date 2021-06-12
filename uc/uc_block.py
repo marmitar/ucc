@@ -115,7 +115,7 @@ class GlobalBlock(CountedBlock):
     def new_global(self, uctype: uCType, varname: DataVariable, value: Optional[Any]) -> None:
         self.data.append(GlobalInstr(uctype, varname, value))
 
-    def new_function(self, function: FunctionType) -> FunctionBlock:
+    def new_function(self, function: FuncDef) -> FunctionBlock:
         block = FunctionBlock(self, function)
         self.functions.append(block)
         return block
@@ -187,8 +187,14 @@ class FunctionBlock(CountedBlock):
     def instructions(self) -> Iterator[DefineInstr]:
         yield self.define
 
-    def subblocks(self) -> Iterator[Block]:
+    def subblocks(self) -> Iterator[EntryBlock]:
         yield self.entry
+
+    def all_blocks(self) -> Iterator[BasicBlock]:
+        block = self.entry
+        while block is not None:
+            yield block
+            block = block.next
 
 
 class StartFunction(Block):

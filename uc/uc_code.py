@@ -160,7 +160,7 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
     def visit_FuncDef(self, node: FuncDef) -> None:
         decl = node.declaration.type
         # create function block
-        self.cfg = block = self.glob.new_function(decl.uc_type)
+        self.cfg = block = self.glob.new_function(node)
         self.current = block.entry.next
         # populate entry and build body
         self.visit(decl.param_list)
