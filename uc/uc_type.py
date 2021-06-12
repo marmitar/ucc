@@ -39,6 +39,9 @@ class uCType:
         """Size of type in memory."""
         raise NotImplementedError()
 
+    def __int__(self) -> int:
+        return self.__ucsize__()
+
     def __str__(self) -> str:
         """Standard type formatting."""
         return f"type({self.typename()})"
