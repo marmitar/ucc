@@ -31,7 +31,6 @@ from uc.uc_ast import (
     Decl,
     ExprList,
     FloatConstant,
-    For,
     FuncCall,
     FuncDecl,
     FuncDef,
@@ -1101,6 +1100,6 @@ if __name__ == "__main__":
     p = UCParser()
     # open file and parse it
     with open(input_path) as f:
-        ast = p.parse(f.read())
+        ast = p.parse(f)
         sema = Visitor()
         sema.visit(ast)

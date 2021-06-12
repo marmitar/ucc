@@ -2,6 +2,7 @@ from __future__ import annotations
 import inspect
 import sys
 from typing import (
+    TYPE_CHECKING,
     Any,
     Iterator,
     Literal,
@@ -24,6 +25,9 @@ from uc.uc_type import (
     StringType,
     uCType,
 )
+
+if TYPE_CHECKING:
+    from uc.uc_block import BasicBlock, FunctionBlock
 
 
 class Coord(Protocol):
@@ -74,8 +78,8 @@ class Node:
     """Abstract base class for AST nodes."""
 
     __slots__ = "coord", "uc_type"
-    attr_names: Tuple[str, ...] = ("uc_type",)
-    special_attr: Tuple[str, ...] = ("coord",)
+    attr_names: Tuple[str, ...] = ()
+    special_attr: Tuple[str, ...] = ("coord", "uc_type")
 
     uc_type: uCType
 
@@ -254,8 +258,12 @@ class FuncDef(Node):
         "return_type",
         "declaration",
         "implementation",
+        "cfg",
     )
     attr_names = ()
+    special_attr = ("cfg",)
+
+    cfg: FunctionBlock
 
     def __init__(
         self,
@@ -444,11 +452,11 @@ class EmptyStatement(Node):
 
 
 class IterationStmt(Node):
-    __slots__ = "declaration", "condition", "update", "body", "break_locations", "end_label"
+    __slots__ = "declaration", "condition", "update", "body", "break_locations", "end_block"
     attr_names = ()
-    special_attr = ("break_locations", "end_label")
+    special_attr = ("break_locations", "end_block")
 
-    end_label: str
+    end_block: BasicBlock
 
     def __init__(
         self,

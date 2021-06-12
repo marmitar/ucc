@@ -1,134 +1,121 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import (
-    ClassVar,
-    Generic,
-    Hashable,
-    Iterable,
-    Iterator,
-    NamedTuple,
-    Optional,
-    Tuple,
-    TypeVar,
-    Union,
-)
-from uc.uc_type import StringType, VoidType, uCType
+from typing import Iterable, Iterator, Literal, NamedTuple, Optional, Union
+from uc.uc_type import VoidType, uCType
 
 # # # # # # # # # #
 # Variable Types  #
 
 
-T = TypeVar("T", bound=Hashable)
-
-
 @dataclass(frozen=True)
-class Variable(Generic[T]):
+class Variable:
     """ABC for variables."""
 
-    value: T
-
-    @property
-    def name(self) -> str:
-        raise NotImplementedError()
+    name: str
+    version: int
 
     def __eq__(self, other) -> bool:
-        return self.__class__ is other.__class__ and self.value == other.value
+        return (
+            self.__class__ is other.__class__
+            and self.name == other.name
+            and self.version == other.version
+        )
+
+    def format(self) -> str:
+        if self.version != 0:
+            return f"{self.name}.{self.version}"
+        else:
+            return f"{self.name}"
 
     def __hash__(self) -> int:
-        return hash(self.value)
+        return hash((self.name, self.version))
 
     def __str__(self) -> str:
-        return self.name
+        return self.format()
 
 
-class LocalVariable(Generic[T], Variable[T]):
+class LocalVariable(Variable):
     """ABC for variables (numbered or named) with local scope."""
 
     __slots__ = ()
 
-    @property
-    def name(self) -> str:
-        return f"%{self.value}"
+    def __str__(self) -> str:
+        return f"%{self.format()}"
 
 
-class GlobalVariable(Variable[T]):
+class GlobalVariable(Variable):
     """ABC for variables with global scope."""
 
     __slots__ = ()
-    _format: ClassVar[str]
 
-    @property
-    def name(self) -> str:
-        return "@" + self._format.format(v=self.value)
+    def __str__(self) -> str:
+        return f"@{self.format()}"
 
 
-class NamedVariable(LocalVariable[Tuple[str, int]]):
+class NamedVariable(LocalVariable):
     """Local variable referenced by name."""
 
     __slots__ = ()
 
-    @property
-    def name(self) -> str:
-        if self.version > 0:
-            return f"%{self.value[0]}.{self.value[1]}"
-        else:
-            return f"%{self.value[0]}"
-
-    @property
-    def version(self) -> int:
-        return self.value[1]
+    def __init__(self, name: str, version: int):
+        super().__init__(name, version)
 
 
-class ArrayDataVaraible(NamedVariable):
-    """Variable that contains the actual data for an array."""
-
-    def __init__(self, value: tuple[str, int]):
-        super().__init__((f".{value[0]}.data", value[1]))
-
-
-class TempVariable(LocalVariable[int]):
+class TempVariable(LocalVariable):
     """Local variable referenced by a temporary number."""
 
     __slots__ = ()
 
+    name: Literal[""]
 
-class DataVariable(GlobalVariable[str]):
+    def __init__(self, version: int):
+        super().__init__("", version)
+
+    def format(self) -> str:
+        return str(self.version)
+
+    def __int__(self) -> int:
+        return self.version
+
+
+class DataVariable(GlobalVariable):
     """Global variable that lives on the 'data' section."""
 
     __slots__ = ()
-    _format = "{v}"
+
+    version: Literal[0]
+
+    def __init__(self, name: str):
+        super().__init__(name, 0)
 
 
-class TextVariable(GlobalVariable[Tuple[str, int]]):
+class TextVariable(GlobalVariable):
     """Global variable that lives on the 'text' section."""
 
     __slots__ = ()
-    _format = ".const_{v[0]}.{v[1]}"
 
-    @property
-    def version(self) -> int:
-        return self.value[1]
+    def format(self) -> int:
+        return f".const_{self.name}.{self.version}"
 
 
-class LabelName(Variable[str]):
+@dataclass(frozen=True)
+class LabelName:
     """Special variable for block labels."""
 
-    __slots__ = ()
+    name: str
 
-    @property
-    def name(self) -> str:
-        return f"label {self.value}"
+    def __str__(self) -> str:
+        return f"label {self.name}"
 
 
 # variables that lives on memory
 MemoryVariable = Union[NamedVariable, GlobalVariable]
-AnyVariable = Union[MemoryVariable, TempVariable]
 
 # # # # # # # # # # #
 # INSTRUCTION TYPES #
 
 
-Value = Union[int, float, str]
+Value = Union[int, float, str, MemoryVariable]
 
 
 class Instruction:
@@ -220,7 +207,7 @@ class AllocInstr(TypedInstruction):
     arguments = ("varname",)
     target_attr = "varname"
 
-    def __init__(self, type: uCType, varname: Union[TempVariable, NamedVariable]):
+    def __init__(self, type: uCType, varname: LocalVariable):
         super().__init__(type)
         self.varname = varname
 
@@ -234,17 +221,19 @@ class GlobalInstr(AllocInstr):
     arguments = "varname", "_value"
     indent = False
 
+    varname: GlobalVariable
+
     def __init__(
         self,
         type: uCType,
         varname: GlobalVariable,
-        value: Union[GlobalVariable, Value, list[Value], None] = None,
+        value: Union[Variable, Value, list[Value], None] = None,
     ):
         super().__init__(type, varname)
         self.value = value
 
     @property
-    def _value(self) -> Union[GlobalVariable, Value, list[Value]]:
+    def _value(self) -> Union[Variable, Value, list[Value]]:
         # format string as expected
         if isinstance(self.value, str):
             return f"'{self.value}'"
@@ -260,7 +249,7 @@ class LoadInstr(TargetInstruction):
     opname = "load"
     arguments = "varname", "target"
 
-    def __init__(self, type: uCType, varname: AnyVariable, target: TempVariable):
+    def __init__(self, type: uCType, varname: Variable, target: TempVariable):
         super().__init__(type, target)
         self.varname = varname
 
@@ -273,7 +262,7 @@ class StoreInstr(TypedInstruction):
     opname = "store"
     arguments = "source", "target"
 
-    def __init__(self, type: uCType, source: TempVariable, target: AnyVariable):
+    def __init__(self, type: uCType, source: Variable, target: Variable):
         super().__init__(type)
         self.source = source
         self.target = target
@@ -308,9 +297,7 @@ class ElemInstr(TargetInstruction):
     opname = "elem"
     arguments = "source", "index", "target"
 
-    def __init__(
-        self, type: uCType, source: AnyVariable, index: TempVariable, target: TempVariable
-    ):
+    def __init__(self, type: uCType, source: Variable, index: Variable, target: TempVariable):
         super().__init__(type, target)
         self.source = source
         self.index = index
@@ -339,7 +326,7 @@ class BinaryOpInstruction(TargetInstruction):
 
     arguments = "left", "right", "target"
 
-    def __init__(self, type: uCType, left: AnyVariable, right: AnyVariable, target: TempVariable):
+    def __init__(self, type: uCType, left: Variable, right: Variable, target: TempVariable):
         super().__init__(type, target)
         self.left = left
         self.right = right
@@ -385,7 +372,7 @@ class UnaryOpInstruction(TargetInstruction):
 
     arguments = "expr", "target"
 
-    def __init__(self, type: uCType, expr: TempVariable, target: TempVariable):
+    def __init__(self, type: uCType, expr: Variable, target: TempVariable):
         super().__init__(type, target)
         self.expr = expr
 
@@ -471,6 +458,10 @@ class LabelInstr(Instruction):
     def opname(self) -> str:
         return f"{self.label}:"
 
+    @property
+    def name(self) -> LabelName:
+        return LabelName(self.label)
+
 
 class JumpInstr(Instruction):
     """Jump to a target label"""
@@ -495,9 +486,9 @@ class CBranchInstr(Instruction):
 
     def __init__(
         self,
-        expr_test: TempVariable,
+        expr_test: Variable,
         true_target: LabelName,
-        false_target: Optional[LabelName] = None,
+        false_target: LabelName,
     ):
         super().__init__()
         self.expr_test = expr_test
@@ -579,7 +570,7 @@ class ReturnInstr(TypedInstruction):
     opname = "return"
     arguments = ("target",)
 
-    def __init__(self, type: uCType, target: Optional[AnyVariable] = None):
+    def __init__(self, type: uCType = VoidType, target: Optional[Variable] = None):
         super().__init__(type)
         self.target = target
 
@@ -592,7 +583,7 @@ class ParamInstr(TypedInstruction):
     opname = "param"
     arguments = ("source",)
 
-    def __init__(self, type: uCType, source: AnyVariable):
+    def __init__(self, type: uCType, source: Variable):
         super().__init__(type)
         self.source = source
 
@@ -603,7 +594,7 @@ class ReadInstr(ParamInstr):
     __slots__ = ()
     opname = "read"
 
-    def __init__(self, type: uCType, source: AnyVariable):
+    def __init__(self, type: uCType, source: Variable):
         super().__init__(type, source)
 
 
@@ -613,9 +604,9 @@ class PrintInstr(ParamInstr):
     __slots__ = ()
     opname = "print"
 
-    source: Optional[TempVariable]
+    source: Optional[Variable]
 
-    def __init__(self, type: uCType = VoidType, source: Optional[TempVariable] = None):
+    def __init__(self, type: uCType = VoidType, source: Optional[Variable] = None):
         super().__init__(type, source)
 
 

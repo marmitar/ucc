@@ -5,15 +5,12 @@ from itertools import chain
 from typing import (
     Any,
     Callable,
-    ClassVar,
     DefaultDict,
     Generic,
     Iterable,
     Iterator,
     List,
-    Literal,
     Optional,
-    Type,
     TypeVar,
     Union,
 )
@@ -21,38 +18,27 @@ from graphviz import Digraph
 from uc.uc_ast import ID
 from uc.uc_interpreter import Value
 from uc.uc_ir import (
-    AddInstr,
     AllocInstr,
-    ArrayDataVaraible,
     CallInstr,
     CBranchInstr,
     DataVariable,
     DefineInstr,
-    ElemInstr,
     ExitInstr,
-    GeInstr,
     GlobalInstr,
     Instruction,
     JumpInstr,
     LabelInstr,
     LabelName,
     LiteralInstr,
+    LocalVariable,
     NamedVariable,
-    PrintInstr,
     ReturnInstr,
-    StoreInstr,
+    TargetInstruction,
     TempVariable,
     TextVariable,
+    Variable,
 )
-from uc.uc_type import (
-    ArrayType,
-    CharType,
-    FunctionType,
-    IntType,
-    PointerType,
-    VoidType,
-    uCType,
-)
+from uc.uc_type import FunctionType, IntType, VoidType, uCType
 
 # # # # # #
 # BLOCKS  #
@@ -109,8 +95,6 @@ class GlobalBlock(CountedBlock):
         # cache of defined constants, to avoid repeated values
         self.consts: dict[tuple[str, str], TextVariable] = {}
         # all functions in the program
-        self._memcpy: Optional[MemCopy] = None
-        self._puts: Optional[PutsBlock] = None
         self.functions: list[FunctionBlock] = []
 
     def new_text(self, ty: uCType, value: Any) -> TextVariable:
@@ -120,7 +104,7 @@ class GlobalBlock(CountedBlock):
         if varname is not None:
             return varname
 
-        varname = TextVariable((ty.ir(), self._new_version(ty.ir())))
+        varname = TextVariable(ty.ir(), self._new_version(ty.ir()))
         # and insert into the text section
         self.text.append(GlobalInstr(ty, varname, value))
         self.consts[ty, str(value)] = varname
@@ -134,18 +118,6 @@ class GlobalBlock(CountedBlock):
         self.functions.append(block)
         return block
 
-    @property
-    def memcpy(self) -> DataVariable:
-        if self._memcpy is None:
-            self._memcpy = MemCopy(self)
-        return self._memcpy.label
-
-    @property
-    def puts(self) -> DataVariable:
-        if self._puts is None:
-            self._puts = PutsBlock(self)
-        return self._puts.label
-
     def add_start(self, rettype: uCType) -> StartFunction:
         start = StartFunction(self, rettype)
         self.functions.append(start)
@@ -156,10 +128,6 @@ class GlobalBlock(CountedBlock):
         return chain(self.text, self.data)
 
     def subblocks(self) -> Iterator[Block]:
-        if self._memcpy:
-            yield self._memcpy
-        if self._puts:
-            yield self._puts
         for function in self.functions:
             yield function
 
@@ -199,8 +167,8 @@ class FunctionBlock(CountedBlock):
         version = self._new_version("label")
         return f".L{version}"
 
-    def alloc(self, uctype: uCType, name: NamedVariable) -> None:
-        self.entry.append(AllocInstr(uctype, name))
+    def alloc(self, uctype: uCType, name: LocalVariable) -> None:
+        self.entry.instr.append(AllocInstr(uctype, name))
 
     def instructions(self) -> Iterator[DefineInstr]:
         yield self.define
@@ -209,105 +177,30 @@ class FunctionBlock(CountedBlock):
         yield self.entry
 
 
-class SpecialFunction(FunctionBlock):
-    """Base class for libuc functions"""
+class StartFunction(FunctionBlock):
+    """Function that calls main"""
 
-    name: ClassVar[str]
-    rettype: ClassVar[uCType] = VoidType
-    args: ClassVar[tuple[tuple[str, uCType], ...]] = ()
+    name = ".start"
 
-    entry: BasicBlock
-
-    def __init__(self, program: GlobalBlock):
-        self.uctype = FunctionType("." + self.name, self.rettype, self.args)
+    def __init__(self, program: GlobalBlock, rettype: uCType = VoidType):
+        self.uctype = FunctionType(self.name, VoidType)
         super().__init__(program, self.uctype)
         self.entry = self.entry.next
 
-
-class StartFunction(SpecialFunction):
-    """Function that calls main"""
-
-    name = "start"
-
-    def __init__(self, program: GlobalBlock, rettype: uCType = VoidType):
-        super().__init__(program)
-
-        retval = self.entry.new_temp()
         # main returns void, exit with zero
         if rettype is VoidType:
-            self.entry.append(
-                CallInstr(VoidType, DataVariable("main")),
-                LiteralInstr(IntType, 0, retval),
-                ExitInstr(retval),
-            )
+            self.entry.append_instr(CallInstr(VoidType, DataVariable("main")))
+            zero = self.entry.new_literal(0)
+            self.entry.append_instr(ExitInstr(zero))
         # main returns number, exit with return value
         else:
-            self.entry.append(CallInstr(rettype, DataVariable("main"), retval), ExitInstr(retval))
-
-
-class SpecialLoopFunction(SpecialFunction):
-
-    rettype: ClassVar[Literal[VoidType]] = VoidType
-
-    def __init__(self, program: GlobalBlock, body: Callable[..., list[Instruction]]):
-        super().__init__(program)
-        # create loop index, constant 1 and extract length
-        index = self.entry.new_literal(0)
-        one = self.entry.new_literal(1)
-        *args, length = (var for _, _, var in self.params)
-        # build main loop
-        loop = self.entry.insert_new(LoopBlock)
-        result = loop.new_temp()
-        loop.append(
-            GeInstr(IntType, index, length, result),
-            CBranchInstr(result, true_target=LabelName("exit")),
-            *body(*args, index, result, one),
-            AddInstr(IntType, index, one, index),
-            JumpInstr(loop.label),
-        )
-        # then exit
-        loop.next = BasicBlock(self, "exit")
-        loop.next.append(ReturnInstr(VoidType))
-
-
-class PutsBlock(SpecialLoopFunction):
-    """Printing many characters at once"""
-
-    name = "puts"
-    args = (("str", ArrayType(CharType, None)), ("len", IntType))
-
-    def __init__(self, program: GlobalBlock):
-        def body(string, index, result, one):
-            return [
-                ElemInstr(CharType, string, index, result),
-                PrintInstr(CharType, result),
-            ]
-
-        super().__init__(program, body)
-
-
-class MemCopy(SpecialLoopFunction):
-    """Copying data in memory"""
-
-    name = "memcpy"
-    args = (("src", PointerType(VoidType)), ("dest", PointerType(VoidType)), ("len", IntType))
-
-    def __init__(self, program: GlobalBlock):
-        def body(src, dest, index, result, one):
-            return [
-                ElemInstr(IntType, src, index, result),
-                StoreInstr(IntType, result, dest),
-                AddInstr(PointerType(VoidType), dest, one, dest),
-            ]
-
-        super().__init__(program, body)
+            retval = self.entry.new_temp()
+            self.entry.append_instr(CallInstr(rettype, DataVariable("main"), retval))
+            self.entry.append_instr(ExitInstr(retval))
 
 
 # # # # # # # #
 # CODE BLOCKS #
-
-
-B = TypeVar("B", bound=Block)
 
 
 class BasicBlock(Block):
@@ -315,8 +208,6 @@ class BasicBlock(Block):
     Class for a simple basic block.  Control flow unconditionally
     flows to the next block.
     """
-
-    next: Optional[BasicBlock]
 
     def __init__(self, function: FunctionBlock, name: Optional[str] = None):
         # label definition
@@ -327,91 +218,66 @@ class BasicBlock(Block):
 
         self.instr: list[Instruction] = []
 
-    def new_temp(self) -> TempVariable:
-        return self.function.new_temp()
-
-    def new_literal(self, value: Value, uctype: uCType = IntType) -> TempVariable:
-        target = self.new_temp()
-        self.append(LiteralInstr(uctype, value, target))
-        return target
-
-    def alloc(self, uctype: uCType, name: ID, array_data: bool = False) -> NamedVariable:
-        if array_data:
-            varname = ArrayDataVaraible((name.name, name.version))
-        else:
-            varname = NamedVariable((name.name, name.version))
-
-        self.function.alloc(uctype, varname)
-        return varname
-
     @property
     def label(self) -> LabelName:
         return LabelName(self.name)
 
-    def append(self, *instr: Instruction) -> None:
-        self.instr.extend(instr)
+    def alloc(self, uctype: uCType, name: ID) -> NamedVariable:
+        varname = NamedVariable(name.name, name.version)
+        self.function.alloc(uctype, varname)
+        return varname
+
+    def new_temp(self) -> TempVariable:
+        """Generate new temp variable."""
+        return self.function.new_temp()
+
+    def append_instr(self, instr: Instruction) -> None:
+        self.instr.append(instr)
+
+    def target_instr(self, instr: type[TargetInstruction], *args) -> TempVariable:
+        """Generate instruction and temp variable for output"""
+        target = self.new_temp()
+        self.instr.append(instr(*args, target))
+        return target
+
+    def new_literal(self, value: Value, uctype: uCType = IntType) -> TempVariable:
+        """Generate new temp var with literal value"""
+        return self.target_instr(LiteralInstr, uctype, value)
+
+    def jump_to(self, block: BasicBlock) -> None:
+        self.instr.append(JumpInstr(block.label))
+
+    def branch(self, condition: Variable, true: BasicBlock, false: BasicBlock) -> None:
+        self.instr.append(CBranchInstr(condition, true.label, false.label))
 
     def instructions(self) -> Iterator[Instruction]:
-        init = (LabelInstr(self.name),)
-        return chain(init, self.instr)
+        yield LabelInstr(self.name)
+        for instr in self.instr:
+            yield instr
 
-    def insert(self, block: B) -> B:
+    def insert(self, block: BasicBlock) -> BasicBlock:
         # insert new block in the linked list
         block.next = self.next
         self.next = block
         return block
 
-    def insert_new(self, block_type: Type[B], *args) -> B:
+    def insert_new(self, name: Optional[str] = None) -> BasicBlock:
         # create and insert
-        return self.insert(block_type(self.function, *args))
+        return self.insert(BasicBlock(self.function, name=name))
 
 
 class EntryBlock(BasicBlock):
-    "Initial function block, used for stack allocations"
+    """Initial block in function, used for stack allocations"""
 
     next: BasicBlock
+    instr: list[AllocInstr]
 
     def __init__(self, function: FunctionBlock, next_block: Optional[str] = None):
         super().__init__(function, name="entry")
-        self.next = BasicBlock(function, next_block)
+        self.next = BasicBlock(function, name=next_block)
 
     def new_temp(self) -> TempVariable:
         raise ValueError()
-
-    def new_literal(self, value: Value, uctype: uCType) -> TempVariable:
-        raise ValueError()
-
-
-class ConditionBlock(BasicBlock):
-    """
-    Class for a block representing an conditional statement.
-    There should be one branch and one jump for both cases.
-    """
-
-    next: BasicBlock
-
-    def __init__(self, function: FunctionBlock, name: Optional[str] = None):
-        super().__init__(function, name)
-        self.taken: Optional[BasicBlock] = None
-
-    def end_block(self) -> BasicBlock:
-        return BasicBlock(self.function, f"{self.name}.end")
-
-    def taken_block(self) -> BasicBlock:
-        self.taken = BasicBlock(self.function, f"{self.name}.taken")
-        return self.taken
-
-
-class LoopBlock(ConditionBlock):
-    """
-    Block for a loop statement, as a conditional
-    block, without taken branch.
-    """
-
-    taken: None
-
-    def taken_block(self) -> BasicBlock:
-        raise TypeError()
 
 
 # # # # # # # # #
@@ -479,12 +345,7 @@ class GraphData:
         elif not instr:
             return "{" + name + "}"
 
-        # init = "{"
-        # if name:
-        #     init += name + ":"
         body = (i.format() for i in instr)
-        # end = "}"
-
         return "\\l\t".join(chain(body, [""]))
 
     def add_node(
@@ -533,12 +394,12 @@ class CFG(BlockVisitor[GraphData]):
 
         for instr in block.instructions():
             if isinstance(instr, JumpInstr):
-                g.add_edge(block, instr.target.value)
+                g.add_edge(block, instr.target.name)
                 connect = False
             elif isinstance(instr, CBranchInstr):
-                g.add_edge(block, instr.true_target.value)
-                if instr.false_target is not None:
-                    g.add_edge(block, instr.false_target.value)
+                g.add_edge(block, instr.true_target.name)
+                g.add_edge(block, instr.false_target.name)
+                connect = False
             elif isinstance(instr, (ExitInstr, ReturnInstr)):
                 connect = False
             elif not g.func_graph and isinstance(instr, CallInstr):
@@ -548,8 +409,6 @@ class CFG(BlockVisitor[GraphData]):
             g.add_edge(block, block.next)
 
     visit_EntryBlock = visit_BasicBlock
-    visit_ConditionBlock = visit_BasicBlock
-    visit_LoopBlock = visit_BasicBlock
 
     def visit_GlobalBlock(self, block: GlobalBlock, g: GraphData) -> None:
         # special node for data and text sections
@@ -565,8 +424,6 @@ class CFG(BlockVisitor[GraphData]):
         self.visit(func.entry, g)
         g.add_edge(func, func.entry)
 
-    visit_PutsBlock = visit_FunctionBlock
-    visit_MemCopy = visit_FunctionBlock
     visit_StartFunction = visit_FunctionBlock
 
     def view(self, block: Block) -> None:
