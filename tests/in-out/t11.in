@@ -16,7 +16,7 @@ int find_lcm(int a, int b) {  // function definition
     }
     else {
         temp = temp + 1;
-        find_lcm(a,b);
+        temp = find_lcm(a,b);
         return temp;
     }
 }
