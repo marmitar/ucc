@@ -47,9 +47,10 @@ from uc.uc_type import FunctionType, IntType, VoidType, uCType
 class Block:
     __slots__ = ("instr", "next")
 
-    def __init__(self, name: str):
+    name: str
+
+    def __init__(self):
         self.next: Optional[Block] = None
-        self.name = name
 
     @property
     def classname(self) -> str:
@@ -74,8 +75,8 @@ class CountedBlock(Block):
 
     next: None
 
-    def __init__(self, name: str):
-        super().__init__(name)
+    def __init__(self):
+        super().__init__()
         self._count = DefaultDict[str, int](int)
 
     def _new_version(self, key: str) -> int:
@@ -88,7 +89,8 @@ class GlobalBlock(CountedBlock):
     """Main block, able to declare globals and constants."""
 
     def __init__(self, program: Program):
-        super().__init__(program.name or "program")
+        super().__init__()
+        self.name = program.name or "program"
         program.cfg = self
 
         self.data: list[GlobalInstr] = []
@@ -121,7 +123,7 @@ class GlobalBlock(CountedBlock):
         return block
 
     def add_start(self, rettype: uCType) -> StartFunction:
-        self._start = StartFunction(self, rettype)
+        self._start = StartFunction(rettype)
         return self._start
 
     def instructions(self) -> Iterator[Instruction]:
@@ -152,7 +154,8 @@ class FunctionBlock(CountedBlock):
         else:
             self.definition = None
 
-        super().__init__(function.funcname)
+        super().__init__()
+        self.name = function.funcname
         self.program = program
         # initialize register count on 1
         self._count["%temp%"] = 1
@@ -202,8 +205,8 @@ class StartFunction(Block):
 
     name = ".start"
 
-    def __init__(self, program: GlobalBlock, rettype: uCType = VoidType):
-        super().__init__(self.name)
+    def __init__(self, rettype: uCType = VoidType):
+        super().__init__()
         # '.start' is a function without arguments, that never returns
         self.instr: list[Instruction] = [DefineInstr(VoidType, DataVariable(self.name))]
 
@@ -233,16 +236,17 @@ class BasicBlock(Block):
 
     def __init__(self, function: FunctionBlock, name: Optional[str] = None):
         # label definition
+        super().__init__()
         if name is None:
             name = function.new_label()
-        super().__init__(name)
+        self.label = LabelName(name)
         self.function = function
 
         self.instr: list[Instruction] = []
 
     @property
-    def label(self) -> LabelName:
-        return LabelName(self.name)
+    def name(self) -> LabelName:
+        return self.label.name
 
     def alloc(self, uctype: uCType, name: ID) -> NamedVariable:
         varname = NamedVariable(name.name, name.version)

@@ -1,6 +1,15 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Iterable, Iterator, Literal, NamedTuple, Optional, Union
+from typing import (
+    Generic,
+    Iterable,
+    Iterator,
+    Literal,
+    NamedTuple,
+    Optional,
+    TypeVar,
+    Union,
+)
 from uc.uc_type import VoidType, uCType
 
 # # # # # # # # # #
@@ -151,8 +160,9 @@ class Instruction:
             yield " "
 
         if self.target_attr is not None:
-            yield self.get(self.target_attr)
-            yield "="
+            if (attr := self.get(self.target_attr)) is not None:
+                yield attr
+                yield "="
 
         yield self.opname
 
@@ -169,6 +179,13 @@ class Instruction:
     def format(self) -> str:
         return " ".join(self.format_args())
 
+    def __str__(self) -> str:
+        return repr(self.format())
+
+    def __repr__(self) -> str:
+        params = ", ".join(f"{attr}={getattr(self, attr, None)}" for attr in self.arguments)
+        return f"{self.__class__.__name__}({params})"
+
 
 class TypedInstruction(Instruction):
     __slots__ = ("type",)
@@ -184,44 +201,53 @@ class TypedInstruction(Instruction):
         return f"{self.opname}_{self.type.ir()}"
 
 
-class TargetInstruction(TypedInstruction):
+V = TypeVar("V")
+
+
+class TargetInstruction(Generic[V], TypedInstruction):
     __slots__ = ("target",)
 
-    target_attr = "target"
+    target_attr: Literal["target"] = "target"
 
-    def __init__(self, type: uCType, target: TempVariable):
+    def __init__(self, type: uCType, target: V):
         super().__init__(type)
         self.target = target
+
+
+class TempTargetInstruction(TargetInstruction[Optional[TempVariable]]):
+    __slots__ = ()
+
+    target: Optional[TempVariable]
 
 
 # # # # # # # # # # # #
 # Variables & Values  #
 
 
-class AllocInstr(TypedInstruction):
+class AllocInstr(TargetInstruction[LocalVariable]):
     """Allocate on stack (ref by register) a variable of a given type."""
 
-    __slots__ = ("varname",)
+    __slots__ = ()
 
     opname = "alloc"
-    arguments = ("varname",)
-    target_attr = "varname"
+    arguments = ("target",)
 
     def __init__(self, type: uCType, varname: LocalVariable):
-        super().__init__(type)
-        self.varname = varname
+        super().__init__(type, varname)
+
+    @property
+    def varname(self) -> LocalVariable:
+        return self.target
 
 
-class GlobalInstr(AllocInstr):
+class GlobalInstr(TargetInstruction[GlobalVariable]):
     """Allocate on heap a global var of a given type. value is optional."""
 
     __slots__ = ("value",)
 
     opname = "global"
-    arguments = "varname", "_value"
+    arguments = "target", "_value"
     indent = False
-
-    varname: GlobalVariable
 
     def __init__(
         self,
@@ -233,6 +259,10 @@ class GlobalInstr(AllocInstr):
         self.value = value
 
     @property
+    def varname(self) -> GlobalVariable:
+        return self.target
+
+    @property
     def _value(self) -> Union[Variable, Value, list[Value]]:
         # format string as expected
         if isinstance(self.value, str):
@@ -241,13 +271,14 @@ class GlobalInstr(AllocInstr):
             return self.value
 
 
-class LoadInstr(TargetInstruction):
+class LoadInstr(TempTargetInstruction):
     """Load the value of a variable (stack/heap) into target (register)."""
 
     __slots__ = ("varname",)
 
     opname = "load"
     arguments = "varname", "target"
+    target: TempVariable
 
     def __init__(self, type: uCType, varname: Variable, target: TempVariable):
         super().__init__(type, target)
@@ -268,13 +299,14 @@ class StoreInstr(TypedInstruction):
         self.target = target
 
 
-class LiteralInstr(TargetInstruction):
+class LiteralInstr(TempTargetInstruction):
     """Load a literal value into target."""
 
     __slots__ = ("value",)
 
     opname = "literal"
     arguments = "_value", "target"
+    target: TempVariable
 
     def __init__(self, type: uCType, value: Value, target: TempVariable):
         super().__init__(type, target)
@@ -321,10 +353,11 @@ class GetInstr(TypedInstruction):
 # Binary Operations #
 
 
-class BinaryOpInstruction(TargetInstruction):
+class BinaryOpInstruction(TempTargetInstruction):
     __slots__ = ("left", "right")
 
     arguments = "left", "right", "target"
+    target: TempVariable
 
     def __init__(self, type: uCType, left: Variable, right: Variable, target: TempVariable):
         super().__init__(type, target)
@@ -366,11 +399,12 @@ class ModInstr(BinaryOpInstruction):
 # Unary Operations  #
 
 
-class UnaryOpInstruction(TargetInstruction):
+class UnaryOpInstruction(TempTargetInstruction):
 
     __slots__ = ("expr",)
 
     arguments = "expr", "target"
+    target: TempVariable
 
     def __init__(self, type: uCType, expr: Variable, target: TempVariable):
         super().__init__(type, target)
@@ -539,7 +573,7 @@ class DefineInstr(TypedInstruction):
         return "\n" + super().format()
 
 
-class CallInstr(TypedInstruction):
+class CallInstr(TempTargetInstruction):
     """Call a function. target is an optional return value"""
 
     __slots__ = ("source", "target")
@@ -550,16 +584,8 @@ class CallInstr(TypedInstruction):
     def __init__(
         self, type: uCType, source: GlobalVariable, target: Optional[TempVariable] = None
     ):
-        super().__init__(type)
+        super().__init__(type, target)
         self.source = source
-        self.target = target
-
-    @property
-    def target_attr(self) -> Optional[str]:
-        if self.target is None:
-            return None
-        else:
-            return "target"
 
 
 class ReturnInstr(TypedInstruction):
