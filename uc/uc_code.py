@@ -31,7 +31,7 @@ from uc.uc_ast import (
     UnaryOp,
     VarDecl,
 )
-from uc.uc_block import CFG, BasicBlock, EmitBlocks, GlobalBlock
+from uc.uc_block import CFG, BasicBlock, BranchBlock, EmitBlocks, GlobalBlock
 from uc.uc_interpreter import Interpreter
 from uc.uc_ir import (
     AddInstr,
@@ -199,21 +199,24 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
             self.current.append_instr(PrintInstr(param.uc_type, value))
 
     def visit_If(self, node: If) -> None:
+        cond_block = self.current.insert_new(BranchBlock)
         # evaluate condition (might have side effects)
+        self.current = cond_block
         condition = self.visit(node.condition)
-        cond_block, name = self.current, self.current.name
         # generate end block
-        end_block = self.current.insert_new()
+        end_block = self.current.insert_new(BasicBlock)
         # evaluate true case
         if node.true_stmt is not None:
-            self.current = true_target = self.current.insert_new(f"{name}.true")
+            true_target = self.current.insert_new(BasicBlock, f"{cond_block.name}.true")
+            self.current = true_target
             self.visit(node.true_stmt)
             self.current.jump_to(end_block)
         else:
             true_target = end_block
         # and false case
         if node.false_stmt is not None:
-            self.current = false_target = self.current.insert_new(f"{name}.false")
+            false_target = self.current.insert_new(BasicBlock, f"{cond_block.name}.false")
+            self.current = false_target
             self.visit(node.false_stmt)
             self.current.jump_to(end_block)
         else:
@@ -240,9 +243,9 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
         if node.declaration is not None:
             self.visit(node.declaration)
         # initialize loop block and end block
-        cond_block = self.current.insert_new()
-        loop_body = cond_block.insert_new(f"{cond_block.name}.body")
-        node.end_block = loop_body.insert_new()
+        cond_block = self.current.insert_new(BranchBlock)
+        loop_body = cond_block.insert_new(BasicBlock, f"{cond_block.name}.body")
+        node.end_block = loop_body.insert_new(BasicBlock)
 
         # test condition
         self.current = cond_block
@@ -250,7 +253,7 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
             condition = self.visit(node.condition)
         else:
             condition = self.current.new_literal(True, BoolType)
-        self.current.branch(condition, loop_body, node.end_block)
+        cond_block.branch(condition, loop_body, node.end_block)
         # run body
         self.current = loop_body
         if node.body is not None:
@@ -270,28 +273,29 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
         self.current.jump_to(node.iteration.end_block)
 
     def visit_Assert(self, node: Assert) -> None:
-        assert_fail = self.current.insert_new(f"{self.current.name}.fail")
-        next_block = assert_fail.insert_new()
+        assert_test = self.current.insert_new(BranchBlock)
+        assert_fail = assert_test.insert_new(BasicBlock, f"{self.current.name}.fail")
+        next_block = assert_fail.insert_new(BasicBlock)
         # if condition is true, jump to next block
+        self.current = assert_test
         condition = self.visit(node.param)
-        self.current.branch(condition, next_block, assert_fail)
+        assert_test.branch(condition, next_block, assert_fail)
         # else, show fail message
-        self.current = assert_fail
         msg = "assertion_fail on "
         msg_type = StringType(len(msg))
         message = self.glob.new_text(msg_type, msg)
-        self.current.append_instr(PrintInstr(msg_type, message))
+        assert_fail.append_instr(PrintInstr(msg_type, message))
         # and coordinates
         coord = node.param.coord or node.coord
-        line = self.current.new_literal(coord.line)
-        self.current.append_instr(PrintInstr(IntType, line))
-        sep = self.current.new_literal(":", CharType)
-        self.current.append_instr(PrintInstr(CharType, sep))
-        column = self.current.new_literal(coord.column)
-        self.current.append_instr(PrintInstr(IntType, column))
+        line = assert_fail.new_literal(coord.line)
+        assert_fail.append_instr(PrintInstr(IntType, line))
+        sep = assert_fail.new_literal(":", CharType)
+        assert_fail.append_instr(PrintInstr(CharType, sep))
+        column = assert_fail.new_literal(coord.column)
+        assert_fail.append_instr(PrintInstr(IntType, column))
         # then, exit
-        zero = self.current.new_literal(0)
-        self.current.append_instr(ExitInstr(zero))
+        zero = assert_fail.new_literal(0)
+        assert_fail.append_instr(ExitInstr(zero))
         # otherwise, keep running in new block
         self.current = next_block
 
