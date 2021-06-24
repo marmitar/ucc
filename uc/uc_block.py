@@ -34,6 +34,7 @@ from uc.uc_ir import (
     NamedVariable,
     ReturnInstr,
     TargetInstruction,
+    TempTargetInstruction,
     TempVariable,
     TextVariable,
     Variable,
@@ -180,6 +181,18 @@ class FunctionBlock(CountedBlock):
         """
         return TempVariable(self._new_version("%temp%"))
 
+    def update_temps(self) -> None:
+        self._count["%temp%"] = 1
+        # renumber all parameters
+        for _, _, var in self.params:
+            var.version = self._new_version("%temp%")
+        #  then all variables
+        for block in self.all_blocks():
+            for instr in block.instructions():
+                # just analyze instructions that generate temporaries
+                if isinstance(instr, TempTargetInstruction) and instr.target is not None:
+                    instr.target.version = self._new_version("%temp%")
+
     def new_label(self) -> str:
         version = self._new_version("label")
         return f".L{version}"
@@ -228,15 +241,13 @@ class StartFunction(Block):
 # CODE BLOCKS #
 
 
-class BasicBlock(Block):
-    """
-    Class for a simple basic block.  Control flow unconditionally
-    flows to the next block.
-    """
+C = TypeVar("C")
 
+
+class CodeBlock(Block):
     def __init__(self, function: FunctionBlock, name: Optional[str] = None):
-        # label definition
         super().__init__()
+        # label definition
         if name is None:
             name = function.new_label()
         self.label = LabelName(name)
@@ -245,7 +256,7 @@ class BasicBlock(Block):
         self.instr: list[Instruction] = []
 
     @property
-    def name(self) -> LabelName:
+    def name(self) -> str:
         return self.label.name
 
     def alloc(self, uctype: uCType, name: ID) -> NamedVariable:
@@ -270,29 +281,55 @@ class BasicBlock(Block):
         """Generate new temp var with literal value"""
         return self.target_instr(LiteralInstr, uctype, value)
 
-    def jump_to(self, block: BasicBlock) -> None:
-        self.instr.append(JumpInstr(block.label))
-
-    def branch(self, condition: Variable, true: BasicBlock, false: BasicBlock) -> None:
-        self.instr.append(CBranchInstr(condition, true.label, false.label))
-
     def instructions(self) -> Iterator[Instruction]:
         yield LabelInstr(self.name)
         for instr in self.instr:
             yield instr
 
-    def insert(self, block: BasicBlock) -> BasicBlock:
+    def insert(self, block: C) -> C:
         # insert new block in the linked list
         block.next = self.next
         self.next = block
         return block
 
-    def insert_new(self, name: Optional[str] = None) -> BasicBlock:
+    def insert_new(self, block: type[C], *args) -> C:
         # create and insert
-        return self.insert(BasicBlock(self.function, name=name))
+        return self.insert(block(self.function, *args))
 
 
-class EntryBlock(BasicBlock):
+class BasicBlock(CodeBlock):
+    """
+    Class for a simple basic block.  Control flow unconditionally
+    flows to the next block.
+    """
+
+    def __init__(self, function: FunctionBlock, name: Optional[str] = None):
+        super().__init__(function, name=name)
+        self.jumps: list[CodeBlock] = []
+
+    def jump_to(self, block: BasicBlock) -> None:
+        self.jumps.append(block)
+
+    def instructions(self) -> Iterator[Instruction]:
+        for instr in super().instructions():
+            yield instr
+        for jump in self.jumps:
+            yield JumpInstr(jump.label)
+
+
+class BranchBlock(CodeBlock):
+    def branch(self, condition: Variable, true: CodeBlock, false: CodeBlock) -> None:
+        self.condition = condition
+        self.taken = true
+        self.fallthrough = false
+
+    def instructions(self) -> Iterator[Instruction]:
+        for instr in super().instructions():
+            yield instr
+        yield CBranchInstr(self.condition, self.taken.label, self.fallthrough.label)
+
+
+class EntryBlock(CodeBlock):
     """Initial block in function, used for stack allocations"""
 
     next: BasicBlock
@@ -405,7 +442,7 @@ class CFG(BlockVisitor[GraphData]):
 
         super().__init__(new_data)
 
-    def visit_BasicBlock(self, block: BasicBlock, g: GraphData) -> None:
+    def visit_CodeBlock(self, block: CodeBlock, g: GraphData) -> None:
         if not g.func_graph:
             name = f"<{block.function.name}>{block.name}"
         else:
@@ -434,7 +471,9 @@ class CFG(BlockVisitor[GraphData]):
         if connect:
             g.add_edge(block, block.next)
 
-    visit_EntryBlock = visit_BasicBlock
+    visit_BasicBlock = visit_CodeBlock
+    visit_BranchBlock = visit_CodeBlock
+    visit_EntryBlock = visit_CodeBlock
 
     def visit_GlobalBlock(self, block: GlobalBlock, g: GraphData) -> None:
         # special node for data and text sections
