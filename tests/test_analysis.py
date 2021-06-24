@@ -85,7 +85,7 @@ def test_analysis(test_name, capsys):
         expect = f_ex.read()
     assert captured.out == expect
     assert captured.err == ""
-    assert len(optcode) < len(gencode)
+    assert len(gencode)/len(optcode) > 1.1
 
 @timeout_decorator.timeout(30)
 def run_with_timeout(optcode):
@@ -96,6 +96,39 @@ def run_with_timeout(optcode):
         return e.code
     return None
 
+@pytest.mark.timeout(30)
+@pytest.mark.parametrize(
+    "test_name", name
+)
+# capfd will capture the stdout/stderr outputs generated during the test
+def test_bonus(test_name, capsys):
+    input_path, expected_path, speedup_path = resolve_test_files(test_name)
+
+    p = UCParser(debug=False)
+    with open(input_path) as f_in, open(expected_path) as f_ex:
+        ast = p.parse(f_in.read())
+        sema = Visitor()
+        sema.visit(ast)
+        gen = CodeGenerator(False)
+        gen.visit(ast)
+        gencode = gen.code
+        opt = DataFlow(False)
+        opt.visit(ast)
+        optcode = opt.code
+        vm = Interpreter(False)
+        with pytest.raises(SystemExit) as sys_error:
+            vm.run(optcode)
+        captured = capsys.readouterr()
+        assert sys_error.value.code == 0
+        expect = f_ex.read()
+    assert captured.out == expect
+    assert captured.err == ""
+
+    with open(speedup_path) as f_sp:
+        reference = f_sp.read().split()
+    ref_speedup = float(reference[6])
+    assert len(optcode) != 0
+    assert round(len(gencode)/len(optcode), 2) > ref_speedup
 
 def speedup_points():
     total_grade = 0
@@ -123,17 +156,17 @@ def speedup_points():
             except Exception:
                 print("Test failed", test_name, 0.0)
                 continue
-        if(cap_stdout.getvalue() != expect or cap_stderr.getvalue() != "" or len(optcode) >= len(gencode) or code_err != 0):
+        if(cap_stdout.getvalue() != expect or cap_stderr.getvalue() != "" or len(gencode)/len(optcode) <= 1.1 or code_err != 0):
             print("Test failed", test_name, 0.0)
             continue
 
         with open(speedup_path) as f_sp:
             reference = f_sp.read().split()
         grade = 0
-        optimized_instructions = int(reference[4])
+        ref_speedup = float(reference[6])
         if len(optcode) != 0:
-            grade = optimized_instructions/len(optcode)
-            grade = 1.0 if grade > 1.0 else grade
+            grade = round(len(gencode)/len(optcode), 2)
+            grade = 0.55 if grade > ref_speedup else 0.5
         print("{} {:.2f}".format(test_name, grade))
         total_grade += grade
     print("{} {:.2f}".format("[Total]", total_grade))
