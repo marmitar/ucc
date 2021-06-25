@@ -389,19 +389,20 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
     def visit_FuncCall(self, node: FuncCall) -> Optional[TempVariable]:
         # get function address
         source = self._varname(node.callable)
-        # load parameters
+        # analyze parameters
+        varnames: list[Variable] = []
         for param in node.parameters():
             varname = self.visit(param)
+            varnames.append(varname)
+        # and load them
+        for varname in varnames:
             self.current.append_instr(ParamInstr(param.uc_type, varname))
         # then call the function
         if node.uc_type is VoidType:
-            target = None
-            instr = CallInstr(node.uc_type, source)
+            self.current.append_instr(CallInstr(node.uc_type, source))
         else:
-            target = self.current.new_temp()
-            instr = CallInstr(node.uc_type, source, target)
-        self.current.append_instr(instr)
-        return target
+            target = self.current.target_instr(CallInstr, node.uc_type, source)
+            return target
 
     # # # # # # # # #
     # BASIC SYMBOLS #
