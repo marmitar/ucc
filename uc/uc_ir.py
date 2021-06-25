@@ -7,6 +7,7 @@ from typing import (
     Literal,
     NamedTuple,
     Optional,
+    Type,
     TypeVar,
     Union,
 )
@@ -130,6 +131,14 @@ Value = Union[int, float, str, MemoryVariable]
 class Instruction:
     __slots__ = ()
 
+    operations: dict[str, Type[Instruction]] = {}
+
+    def __init_subclass__(cls) -> None:
+        """Register instruction by opname"""
+        opname = getattr(cls, "opname", None)
+        if isinstance(opname, str):
+            Instruction.operations[opname] = cls
+
     opname: str
     type: Optional[uCType] = None
     arguments: tuple[str, ...] = ()
@@ -185,6 +194,9 @@ class Instruction:
     def __repr__(self) -> str:
         params = ", ".join(f"{attr}={getattr(self, attr, None)}" for attr in self.arguments)
         return f"{self.__class__.__name__}({params})"
+
+    def __hash__(self) -> int:
+        return hash(id(self))
 
 
 class TypedInstruction(Instruction):

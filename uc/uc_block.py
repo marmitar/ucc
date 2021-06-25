@@ -70,6 +70,12 @@ class Block:
     def __eq__(self, other) -> bool:
         return self is other
 
+    def __str__(self) -> str:
+        return self.name
+
+    def __repr__(self) -> str:
+        return f"{self.classname}({self.name})"
+
 
 class CountedBlock(Block):
     __slots__ = ("_count",)
@@ -127,7 +133,7 @@ class GlobalBlock(CountedBlock):
         self._start = StartFunction(rettype)
         return self._start
 
-    def instructions(self) -> Iterator[Instruction]:
+    def instructions(self) -> Iterator[GlobalInstr]:
         # show text variables, then data
         return chain(self.text, self.data)
 
@@ -206,7 +212,7 @@ class FunctionBlock(CountedBlock):
     def subblocks(self) -> Iterator[EntryBlock]:
         yield self.entry
 
-    def all_blocks(self) -> Iterator[BasicBlock]:
+    def all_blocks(self) -> Iterator[CodeBlock]:
         block = self.entry
         while block is not None:
             yield block
@@ -245,6 +251,8 @@ C = TypeVar("C")
 
 
 class CodeBlock(Block):
+    next: CodeBlock
+
     def __init__(self, function: FunctionBlock, name: Optional[str] = None):
         super().__init__()
         # label definition
