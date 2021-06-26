@@ -164,6 +164,7 @@ class FunctionBlock(CountedBlock):
         super().__init__()
         self.name = function.funcname
         self.program = program
+        self.fntype = function
         # initialize register count on 1
         self._count["%temp%"] = 1
 
