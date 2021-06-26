@@ -390,13 +390,13 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
         # get function address
         source = self._varname(node.callable)
         # analyze parameters
-        varnames: list[Variable] = []
+        varnames: list[tuple[Variable, uCType]] = []
         for param in node.parameters():
             varname = self.visit(param)
-            varnames.append(varname)
+            varnames.append((varname, param.uc_type))
         # and load them
-        for varname in varnames:
-            self.current.append_instr(ParamInstr(param.uc_type, varname))
+        for varname, uctype in varnames:
+            self.current.append_instr(ParamInstr(uctype, varname))
         # then call the function
         if node.uc_type is VoidType:
             self.current.append_instr(CallInstr(node.uc_type, source))
