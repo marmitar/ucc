@@ -196,7 +196,12 @@ class Instruction:
         return f"{self.__class__.__name__}({params})"
 
     def __hash__(self) -> int:
-        return hash(id(self))
+        return hash(self.format())
+
+    def __eq__(self, other: Instruction) -> bool:
+        return self.__class__ is other.__class__ and all(
+            a == b for a, b in zip(self.values(), other.values())
+        )
 
 
 class TypedInstruction(Instruction):
@@ -507,6 +512,9 @@ class LabelInstr(Instruction):
     @property
     def name(self) -> LabelName:
         return LabelName(self.label)
+
+    def __repr__(self) -> str:
+        return f"LabelInstr({self.label})"
 
 
 class JumpInstr(Instruction):

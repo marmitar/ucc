@@ -2,7 +2,7 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
-from typing import Callable, Dict, Literal, Set, TextIO, Tuple
+from typing import Callable, Dict, Literal, Set, TextIO, Tuple, Union
 from uc.uc_ast import FuncDef, Program
 from uc.uc_block import CFG, CodeBlock, EmitBlocks, FunctionBlock
 from uc.uc_code import CodeGenerator
@@ -35,6 +35,10 @@ InOut = Dict[Variable, Set[Tuple[CodeBlock, Instruction]]]
 GenKill = Tuple[Tuple[Variable, ...], Tuple[Variable, ...]]
 
 
+# # # # # # # # # # #
+# Generic Data Flow #
+
+
 class BlockData:
     """Info for a basic block in data flow analysis"""
 
@@ -49,15 +53,16 @@ class BlockData:
         self.inp: InOut = {}
         # and output
         self.out: InOut = {}
-
         # GEN for all instructions in this block
         self.gen: VarData = {}
         # KILL entire block
         self.kill: dict[Variable, Instruction] = {}
 
-        # GEN for each instruction in this block
+        # IN and OUT for each instruction
+        self.iinp: dict[Instruction, InOut] = {}
+        self.iout: dict[Instruction, InOut] = {}
+        # GEN and KILL for each instruction in this block
         self.igen: dict[Instruction, tuple[Variable, ...]] = {}
-        # KILL for each instruction
         self.ikill: dict[Instruction, tuple[Variable, ...]] = {}
 
     def update(
@@ -75,6 +80,40 @@ class BlockData:
         for var in gen:
             vgen = self.gen.get(var, ())
             self.gen[var] = vgen + (instr,)
+
+    def build_forward_in_out(self) -> None:
+        """Build IN and OUT for each instruction in forward analysis"""
+        inout = self.inp
+        for instr in self.block.instructions():
+            self.iinp[instr] = inout
+
+            new: InOut = {}
+            for var, data in inout.items():
+                if var not in self.ikill[instr]:
+                    new[var] = data
+            for var in self.igen[instr]:
+                data = new.get(var, set())
+                new[var] = data | {(self.block, instr)}
+
+            inout = self.iout[instr] = new
+        assert inout == self.out
+
+    def build_backward_in_out(self) -> None:
+        """Build IN and OUT for each instruction in backward analysis"""
+        inout = self.out
+        for instr in self.block.instructions():
+            self.iout[instr] = inout
+
+            new: InOut = {}
+            for var, data in inout.items():
+                if var not in self.ikill[instr]:
+                    new[var] = data
+            for var in self.igen[instr]:
+                data = new.get(var, set())
+                new[var] = data | {(self.block, instr)}
+
+            inout = self.iinp[instr] = new
+        assert inout == self.inp
 
     def apply(self, data: InOut) -> InOut:
         """Apply GEN and KILL for input/output sets"""
@@ -103,10 +142,10 @@ class DataFlowAnalysis:
         self.data = {block: self.block_transfer(block) for block in function.all_blocks()}
 
         # build predecessors, IN and OUT
-        self.update_preds()
-        self.build_in_out()
+        self._update_preds()
+        self._build_in_out()
 
-    def update_preds(self) -> None:
+    def _update_preds(self) -> None:
         """Set predecessors for all block (run only once)"""
         for tail in self.function.all_blocks():
             for head in self.data[tail].succ:
@@ -115,7 +154,7 @@ class DataFlowAnalysis:
     # # # # # # # # # # # #
     # Data Flow Equations #
 
-    def forward_eq(self, block: CodeBlock) -> bool:
+    def _forward_eq(self, block: CodeBlock) -> bool:
         """Data flow equations for forward analysis"""
         changed = False
 
@@ -138,7 +177,7 @@ class DataFlowAnalysis:
 
         return changed
 
-    def backward_eq(self, block: CodeBlock) -> bool:
+    def _backward_eq(self, block: CodeBlock) -> bool:
         """Data flow equations for backward analysis"""
         changed = False
 
@@ -160,11 +199,15 @@ class DataFlowAnalysis:
 
         return changed
 
-    def equation(self, _: CodeBlock) -> bool:
+    def _equation(self, _: CodeBlock) -> bool:
         """Data flow equations (forward and backward)"""
         raise NotImplementedError
 
-    def build_in_out(self) -> None:
+    def _build_instr_in_out(_: BlockData) -> None:
+        """Build IN and OUT for each instruction"""
+        raise NotImplementedError
+
+    def _build_in_out(self) -> None:
         """Build IN and OUT sets"""
         changed = True
         # until stable
@@ -173,7 +216,11 @@ class DataFlowAnalysis:
 
             for block in self.function.all_blocks():
                 # apply for/backward equations
-                changed |= self.equation(block)
+                changed |= self._equation(block)
+
+        # generate IN and OUT for each instruction
+        for data in self.data.values():
+            self._build_instr_in_out(data)
 
     # # # # # # # # # # # #
     # Transfer functions  #
@@ -217,7 +264,13 @@ class DataFlowAnalysis:
 
     def __init_subclass__(cls, flow: Literal["forward", "backward"]) -> None:
         # choose forward or backward flow equations
-        cls.equation = cls.forward_eq if flow == "forward" else cls.backward_eq
+        if flow == "forward":
+            cls._equation = cls._forward_eq
+            cls._build_instr_in_out = BlockData.build_forward_in_out
+        else:
+            cls._equation = cls._backward_eq
+            cls._build_instr_in_out = BlockData.build_backward_in_out
+        cls._build_instr_in_out = staticmethod(cls._build_instr_in_out)
 
         # find GEN and KILL generators
         cls._defs = {}
@@ -225,6 +278,10 @@ class DataFlowAnalysis:
             if name.startswith("defs_"):
                 _, op = name.split("_", maxsplit=1)
                 cls._defs[op] = attr
+
+
+# # # # # # # # # # # # #
+# Constant Propagation  #
 
 
 class ReachingDefinitions(DataFlowAnalysis, flow="forward"):
