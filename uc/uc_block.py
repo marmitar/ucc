@@ -251,7 +251,7 @@ C = TypeVar("C")
 
 
 class CodeBlock(Block):
-    next: CodeBlock
+    next: Optional[CodeBlock]
 
     def __init__(self, function: FunctionBlock, name: Optional[str] = None):
         super().__init__()
