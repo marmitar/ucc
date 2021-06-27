@@ -4,7 +4,7 @@ import pathlib
 import sys
 from abc import abstractmethod
 from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, unique
 from typing import (
     Callable,
     Dict,
@@ -339,7 +339,7 @@ class DataFlowAnalysis:
 
 
 # # # # # # # # # # # # #
-# Constant Propagation  #
+# Reaching Definitions  #
 
 
 class ReachingDefinitions(DataFlowAnalysis, flow="forward"):
@@ -391,6 +391,62 @@ class ReachingDefinitions(DataFlowAnalysis, flow="forward"):
 
     def defs_read(self, instr: ReadInstr) -> GenKill:
         return (instr.source,), (instr.source,)
+
+
+# # # # # # # # # # # # #
+# Constant Propagation  #
+
+
+class Const:
+    """The semilattice for constant analysis"""
+
+    __slots__ = ()
+
+    @abstractmethod
+    def __xor__(self, other: Const) -> Const:
+        raise NotImplementedError
+
+
+@unique
+class ConstSpecial(Const, Enum):
+    NAC = object()
+    Undef = object()
+
+    def __xor__(self, other: Const) -> Const:
+        if self is NAC:
+            return self
+        else:
+            return other
+
+    def __str__(self) -> str:
+        return self.name
+
+    def __repr__(self) -> str:
+        return f"Const[{self.name}]"
+
+
+NAC = ConstSpecial.NAC
+Undef = ConstSpecial.Undef
+
+
+@dataclass(frozen=True)
+class ConstValue(Const):
+
+    value: Union[int, float, str, bool, list[Const], tuple[Const]]
+
+    def __xor__(self, other: Const) -> Const:
+        if not isinstance(other, ConstValue):
+            return other ^ self
+        elif self.value == other.value:
+            return self
+        else:
+            return NAC
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+    def __repr__(self) -> str:
+        return f"Const({self.value})"
 
 
 class DataFlow(NodeVisitor[None]):
