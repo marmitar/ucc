@@ -2,7 +2,20 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
-from typing import Callable, Dict, Literal, Set, TextIO, Tuple, Union
+from abc import abstractmethod
+from dataclasses import dataclass
+from enum import Enum
+from typing import (
+    Callable,
+    Dict,
+    Literal,
+    Optional,
+    Set,
+    TextIO,
+    Tuple,
+    Union,
+    overload,
+)
 from uc.uc_ast import FuncDef, Program
 from uc.uc_block import CFG, CodeBlock, EmitBlocks, FunctionBlock
 from uc.uc_code import CodeGenerator
@@ -31,7 +44,8 @@ from uc.uc_sema import NodeVisitor, Visitor
 from uc.uc_type import ArrayType, PointerType
 
 VarData = Dict[Variable, Tuple[Instruction, ...]]
-InOut = Dict[Variable, Set[Tuple[CodeBlock, Instruction]]]
+Locations = Set[Tuple[CodeBlock, Instruction]]
+InOut = Dict[Variable, Locations]
 GenKill = Tuple[Tuple[Variable, ...], Tuple[Variable, ...]]
 
 
@@ -221,6 +235,50 @@ class DataFlowAnalysis:
         # generate IN and OUT for each instruction
         for data in self.data.values():
             self._build_instr_in_out(data)
+
+    Position = Union[CodeBlock, Tuple[CodeBlock, Instruction]]
+
+    # fmt: off
+    @overload
+    def in_set(self, block: Position, var: None = None) -> InOut:
+        ...
+    @overload
+    def in_set(self, block: Position, var: Variable) -> Locations:
+        ...
+    # fmt: on
+    def in_set(self, block: Position, var: Optional[Variable] = None) -> Union[InOut, Locations]:
+        """IN set for a block or instruction"""
+        if isinstance(block, tuple):
+            block, instr = block
+            data = self.data[block].iinp[instr]
+        else:
+            data = self.data[block].inp
+
+        if var is not None:
+            return data[var]
+        else:
+            return data
+
+    # fmt: off
+    @overload
+    def out_set(self, block: Position, var: None = None) -> InOut:
+        ...
+    @overload
+    def out_set(self, block: Position, var: Variable) -> Locations:
+        ...
+    # fmt: on
+    def out_set(self, block: Position, var: Optional[Variable] = None) -> Union[InOut, Locations]:
+        """OUT set for a block or instruction"""
+        if isinstance(block, tuple):
+            block, instr = block
+            data = self.data[block].iout[instr]
+        else:
+            data = self.data[block].out
+
+        if var is not None:
+            return data[var]
+        else:
+            return data
 
     # # # # # # # # # # # #
     # Transfer functions  #
