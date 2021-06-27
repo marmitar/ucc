@@ -224,6 +224,7 @@ class StartFunction(Block):
     """Entry function for a program (may not be needed on llvm)"""
 
     name = ".start"
+    main = "main"
 
     def __init__(self, rettype: uCType = VoidType):
         super().__init__()
@@ -233,11 +234,11 @@ class StartFunction(Block):
         temp = TempVariable(1)
         # main returns void, exit with zero
         if rettype is VoidType:
-            self.instr.append(CallInstr(VoidType, DataVariable("main")))
+            self.instr.append(CallInstr(VoidType, DataVariable(self.main)))
             self.instr.append(LiteralInstr(IntType, 0, temp))
         # main returns number, exit with return value
         else:
-            self.instr.append(CallInstr(rettype, DataVariable("main"), temp))
+            self.instr.append(CallInstr(rettype, DataVariable(self.main), temp))
         self.instr.append(ExitInstr(temp))
 
     def instructions(self) -> Iterator[Instruction]:
@@ -446,8 +447,8 @@ class GraphData:
 
 class CFG(BlockVisitor[GraphData]):
     def __init__(self):
-        def new_data(block: Union[FunctionBlock, GlobalBlock]):
-            return GraphData(block.name, isinstance(block, FunctionBlock))
+        def new_data(block: Union[FunctionBlock, StartFunction, GlobalBlock]):
+            return GraphData(block.name, not isinstance(block, GlobalBlock))
 
         super().__init__(new_data)
 
@@ -465,24 +466,26 @@ class CFG(BlockVisitor[GraphData]):
             connect = False
 
         for instr in block.instructions():
-            if isinstance(instr, JumpInstr):
-                g.add_edge(block, instr.target.name)
-                connect = False
-            elif isinstance(instr, CBranchInstr):
-                g.add_edge(block, instr.true_target.name)
-                g.add_edge(block, instr.false_target.name)
-                connect = False
-            elif isinstance(instr, (ExitInstr, ReturnInstr)):
+            if isinstance(instr, (JumpInstr, CBranchInstr, ExitInstr, ReturnInstr)):
                 connect = False
             elif not g.func_graph and isinstance(instr, CallInstr):
-                g.add_edge(block, instr.source.value)
+                g.add_edge(block, instr.source.name)
 
         if connect:
             g.add_edge(block, block.next)
 
-    visit_BasicBlock = visit_CodeBlock
-    visit_BranchBlock = visit_CodeBlock
     visit_EntryBlock = visit_CodeBlock
+
+    def visit_BasicBlock(self, block: BasicBlock, g: GraphData) -> None:
+        self.visit_CodeBlock(block, g)
+
+        for next in block.jumps:
+            g.add_edge(block, next)
+
+    def visit_BranchBlock(self, block: BranchBlock, g: GraphData) -> None:
+        self.visit_CodeBlock(block, g)
+        g.add_edge(block, block.taken)
+        g.add_edge(block, block.fallthrough)
 
     def visit_GlobalBlock(self, block: GlobalBlock, g: GraphData) -> None:
         # special node for data and text sections
@@ -500,9 +503,7 @@ class CFG(BlockVisitor[GraphData]):
 
     def visit_StartFunction(self, func: StartFunction, g: GraphData) -> None:
         g.add_node(func, func.name, func.instructions())
-        # connect to the first block
-        self.visit(func.entry, g)
-        g.add_edge(func, func.entry)
+        g.add_edge(func, func.main)
 
     def view(self, block: Block) -> None:
         graph = self.visit(block).graph
