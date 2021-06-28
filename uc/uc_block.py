@@ -317,7 +317,7 @@ class BasicBlock(CodeBlock):
         super().__init__(function, name=name)
         self.jumps: list[CodeBlock] = []
 
-    def jump_to(self, block: BasicBlock) -> None:
+    def jump_to(self, block: CodeBlock) -> None:
         self.jumps.append(block)
 
     def instructions(self) -> Iterator[Instruction]:
