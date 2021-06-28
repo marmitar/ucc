@@ -129,8 +129,8 @@ class GlobalBlock(CountedBlock):
         self.functions.append(block)
         return block
 
-    def add_start(self, rettype: uCType) -> StartFunction:
-        self._start = StartFunction(rettype)
+    def add_start(self, main: FunctionType) -> StartFunction:
+        self._start = StartFunction(main)
         return self._start
 
     def instructions(self) -> Iterator[GlobalInstr]:
@@ -178,6 +178,16 @@ class FunctionBlock(CountedBlock):
         )
         self.entry = EntryBlock(self)
 
+    def local_variables(self) -> Iterator[LocalVariable]:
+        """Iterator over local (named and temp) variables."""
+        # list named variable
+        for instr in self.entry.instr:
+            if isinstance(instr.target, NamedVariable):
+                yield instr.target
+        # and temporaries
+        for i in range(1, self._count["%temp%"]):
+            yield TempVariable(i)
+
     @property
     def label(self) -> DataVariable:
         return DataVariable(self.name)
@@ -224,21 +234,20 @@ class StartFunction(Block):
     """Entry function for a program (may not be needed on llvm)"""
 
     name = ".start"
-    main = "main"
 
-    def __init__(self, rettype: uCType = VoidType):
+    def __init__(self, main: FunctionType):
         super().__init__()
         # '.start' is a function without arguments, that never returns
         self.instr: list[Instruction] = [DefineInstr(VoidType, DataVariable(self.name))]
 
         temp = TempVariable(1)
         # main returns void, exit with zero
-        if rettype is VoidType:
-            self.instr.append(CallInstr(VoidType, DataVariable(self.main)))
+        if main.rettype is VoidType:
+            self.instr.append(CallInstr(VoidType, DataVariable(main.funcname)))
             self.instr.append(LiteralInstr(IntType, 0, temp))
         # main returns number, exit with return value
         else:
-            self.instr.append(CallInstr(rettype, DataVariable(self.main), temp))
+            self.instr.append(CallInstr(main.rettype, DataVariable(main.funcname), temp))
         self.instr.append(ExitInstr(temp))
 
     def instructions(self) -> Iterator[Instruction]:

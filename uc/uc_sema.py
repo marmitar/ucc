@@ -957,7 +957,7 @@ class SemanticVisitor(NodeVisitor[uCType]):
         return (
             # must be a reference to an identifier or some element of an array
             isinstance(node, (ArrayRef, ID))
-            or isinstance(node, AddressOp)  # a reference to a derenced variable
+            or isinstance(node, AddressOp)  # a reference to a dereferenced variable
             and node.op == "*"
         )
 

@@ -338,13 +338,14 @@ class LiteralInstr(TempTargetInstruction):
             return self.value
 
 
-class ElemInstr(TargetInstruction):
+class ElemInstr(TempTargetInstruction):
     """Load into target the address of source (array) indexed by index."""
 
     __slots__ = ("source", "index")
 
     opname = "elem"
     arguments = "source", "index", "target"
+    target: TempVariable
 
     def __init__(self, type: uCType, source: Variable, index: Variable, target: TempVariable):
         super().__init__(type, target)

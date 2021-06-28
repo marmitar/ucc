@@ -115,7 +115,7 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
             self.visit(decl)
         # define start point
         if isinstance(node.uc_type, FunctionType):
-            self.glob.add_start(node.uc_type.rettype)
+            self.glob.add_start(node.uc_type)
 
         if self.viewcfg:  # evaluate to True if -cfg flag is present in command line
             dot = CFG()
