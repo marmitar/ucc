@@ -274,7 +274,7 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
 
     def visit_Assert(self, node: Assert) -> None:
         assert_test = self.current.insert_new(BranchBlock)
-        assert_fail = assert_test.insert_new(BasicBlock, f"{self.current.name}.fail")
+        assert_fail = assert_test.insert_new(BasicBlock, f"{assert_test.name}.fail")
         next_block = assert_fail.insert_new(BasicBlock)
         # if condition is true, jump to next block
         self.current = assert_test

@@ -241,6 +241,7 @@ class DataFlowAnalysis:
         inp = self.data[block].apply(out)
         if inp != self.data[block].inp:
             changed = True
+        self.data[block].inp = inp
 
         return changed
 
@@ -409,13 +410,10 @@ class ReachingDefinitions(DataFlowAnalysis, flow="forward"):
         return (instr.target,), (instr.target,)
 
     def defs_store(self, instr: StoreInstr) -> GenKill:
-        if isinstance(instr.type, (PointerType, ArrayType)):
-            return (instr.source, instr.target), (instr.source, instr.target)
-        else:
-            return (instr.target,), (instr.target,)
+        return (instr.source, instr.target), (instr.source, instr.target)
 
     def defs_load(self, instr: LoadInstr) -> GenKill:
-        return (instr.target,), (instr.target,)
+        return (instr.varname, instr.target), (instr.varname, instr.target)
 
     def defs_global(self, instr: GlobalInstr) -> GenKill:
         return (instr.target,), (instr.target,)
@@ -505,6 +503,20 @@ class ConstValue(Const):
         return f"Const({self.value})"
 
 
+@dataclass(frozen=True)
+class ConstVariable(Const):
+
+    value: Variable
+
+    def __xor__(self, other: Const) -> Const:
+        if not isinstance(other, ConstVariable):
+            return other ^ self
+        elif self.value == other.value:
+            return self
+        else:
+            return NAC
+
+
 Constants = Dict[Variable, Const]
 
 
@@ -546,6 +558,12 @@ class ConstantAnalysis:
         for block in rdefs.data.keys():
             self.visit(block)
 
+    @staticmethod
+    def _remove_block(labels: dict[LabelName, CodeBlock], block: BasicBlock, after: CodeBlock):
+        for key, value in labels.items():
+            if value is block:
+                labels[key] = after
+
     def rebuild(self) -> FunctionBlock:
         temp_usage: dict[Optional[BlockData], list[TempVariable]] = {}
         for temp, block in self.usage.items():
@@ -555,14 +573,16 @@ class ConstantAnalysis:
         temp_values = {temp: value for value, temp in self.temps.items()}
 
         if temp_usage.get(None, []):
-            static = self.rdefs.function.entry.insert_new(BasicBlock, "static")
-            static.instr = [
+            static = self.rdefs.function.entry.next
+            literals = [
                 LiteralInstr(uctype(temp_values[temp]), temp_values[temp], temp)
                 for temp in temp_usage[None]
             ]
+            static.instr = literals + static.instr
 
         labels: dict[LabelName, CodeBlock] = {}
         jumps: dict[BasicBlock, LabelName] = {}
+        parent: CodeBlock = self.rdefs.function.entry
         for block in self.rdefs.function.all_blocks():
             literals = [
                 LiteralInstr(uctype(temp_values[temp]), temp_values[temp], temp)
@@ -578,6 +598,14 @@ class ConstantAnalysis:
                 block = new
 
             labels[block.label] = block
+            if isinstance(block, BasicBlock) and len(block.instr) == 0:
+                if block.jumps:
+                    self._remove_block(labels, block, block.jumps[0])
+                    parent.next = block.next
+                elif block.next is not None:
+                    self._remove_block(labels, block, block.next)
+                    parent.next = block.next
+            parent = block
 
         block: Optional[CodeBlock] = self.rdefs.function.entry
         while block is not None:
@@ -606,7 +634,9 @@ class ConstantAnalysis:
         # otherwise return current value
         return value.get(var, Undef)
 
-    def get_const(self, defs: InOut, var: Variable) -> Union[ConstSpecial, ConstValue]:
+    def get_const(
+        self, defs: InOut, var: Variable
+    ) -> Union[ConstSpecial, ConstValue, ConstVariable]:
         result = Undef
         for block, instr in defs.get(var, set()):
             result ^= self.get(block, instr, var)
@@ -653,44 +683,55 @@ class ConstantAnalysis:
         return {instr.target: ConstValue(instr.value)}
 
     def _gen_alloc(self, instr: AllocInstr, _: InOut, _b: CodeBlock) -> Constants:
-        value = (Undef,)
-        return {instr.target: ConstValue(value)}
+        return {instr.target: ConstValue((Undef,))}
 
     def _gen_load(self, instr: LoadInstr, defs: InOut, _b: CodeBlock) -> Constants:
         value = self.get_const(defs, instr.varname)
         if isinstance(value, ConstSpecial):
-            return {instr.target: value}
+            alias = ConstVariable(instr.target)
+            return {instr.target: value, instr.varname: ConstValue((alias,))}
+        elif isinstance(value, ConstVariable):
+            instr.varname = value.value
+            return {instr.target: Undef, value.value: value}
         else:
             data = value.value[0]
             if not isinstance(data, Const):
                 data = ConstValue(data)
-            return {instr.target: data}
+            return {instr.target: data, instr.varname: value}
 
     def _gen_store(self, instr: StoreInstr, defs: InOut, block: CodeBlock) -> Constants:
         value = self.get_const(defs, instr.source)
         if isinstance(instr.type, ArrayType):
-            return {instr.target: value}
+            return {instr.target: value, instr.source: value}
         elif isinstance(value, ConstValue):
+            old_source = instr.source
             instr.source = self.get_temp(value.value, block)
-        return {instr.target: ConstValue((value,))}
+        elif isinstance(value, ConstSpecial):
+            value = ConstVariable(instr.source)
+            return {instr.target: ConstValue((value,)), instr.source: NAC}
+        else:
+            old_source = instr.source
+            instr.source = value.value
+            return {instr.target: ConstValue((value,)), old_source: value}
 
     def _gen_elem(self, instr: ElemInstr, defs: InOut, block: CodeBlock) -> Constants:
         source = self.get_const(defs, instr.source)
         index = self.get_const(defs, instr.index)
         if isinstance(index, ConstValue):
             instr.index = self.get_temp(index.value, block)
+        elif isinstance(index, ConstVariable):
+            instr.index = index.value
 
         if source is NAC or index is NAC:
             return {instr.target: NAC}
-        elif source is Undef or index is Undef:
+        elif not isinstance(source, ConstValue) or not isinstance(index, ConstValue):
             return {instr.target: Undef}
         else:
             value = source.value[index.value * sizeof(instr.type) :]
             return {instr.target: ConstValue(value)}
 
     def _gen_get(self, instr: GetInstr, defs: InOut, _b: CodeBlock) -> Constants:
-        value = self.get_const(defs, instr.source)
-        return {instr.source: ConstValue((NAC,)), instr.target: ConstValue((value,))}
+        return {instr.target: ConstVariable(instr.source)}
 
     def _generic_bin_op(
         self,
@@ -702,13 +743,17 @@ class ConstantAnalysis:
         left = self.get_const(defs, instr.left)
         if isinstance(left, ConstValue):
             instr.left = self.get_temp(left.value, block)
+        elif isinstance(left, ConstVariable):
+            instr.left = left.value
         right = self.get_const(defs, instr.right)
         if isinstance(right, ConstValue):
             instr.right = self.get_temp(right.value, block)
+        elif isinstance(right, ConstVariable):
+            instr.right = right.value
 
         if left is NAC or right is NAC:
             return {instr.target: NAC}
-        elif left is Undef or right is Undef:
+        elif not isinstance(left, ConstValue) or not isinstance(right, ConstValue):
             return {instr.target: Undef}
         else:
             value = op(left.value, right.value)
@@ -744,6 +789,9 @@ class ConstantAnalysis:
         value = self.get_const(defs, instr.expr)
         if isinstance(value, ConstSpecial):
             return {instr.target: value}
+        elif isinstance(value, ConstVariable):
+            instr.expr = value.value
+            return {instr.target: Undef}
 
         instr.expr = self.get_temp(value.value, block)
         if instr.type is BoolType:
@@ -765,18 +813,24 @@ class ConstantAnalysis:
             value = self.get_const(defs, instr.target)
             if isinstance(value, ConstValue):
                 instr.target = self.get_temp(value.value, block)
+            elif isinstance(value, ConstVariable):
+                instr.target = value.value
         return {}
 
     def _gen_param(self, instr: ParamInstr, defs: InOut, block: CodeBlock) -> Constants:
         value = self.get_const(defs, instr.source)
         if isinstance(value, ConstValue):
             instr.source = self.get_temp(value.value, block)
+        elif isinstance(value, ConstVariable):
+            instr.source = value.value
         return {}
 
     def _gen_exit(self, instr: ExitInstr, defs: InOut, block: CodeBlock) -> Constants:
         value = self.get_const(defs, instr.source)
         if isinstance(value, ConstValue):
             instr.source = self.get_temp(value.value, block)
+        elif isinstance(value, ConstVariable):
+            instr.source = value.value
         return {}
 
     def _gen_print(self, instr: PrintInstr, defs: InOut, block: CodeBlock) -> Constants:
@@ -784,6 +838,8 @@ class ConstantAnalysis:
             value = self.get_const(defs, instr.source)
             if isinstance(value, ConstValue) and isinstance(instr.type, PrimaryType):
                 instr.source = self.get_temp(value.value, block)
+            elif isinstance(value, ConstVariable):
+                instr.source = value.value
         return {}
 
     def _gen_cbranch(self, instr: CBranchInstr, defs: InOut, block: BranchBlock) -> Constants:
@@ -795,6 +851,8 @@ class ConstantAnalysis:
                 self.branch_to_jumps[block] = instr.false_target
         elif instr.true_target == instr.false_target:
             self.branch_to_jumps[block] = instr.true_target
+        elif isinstance(value, ConstVariable):
+            instr.expr_test = value.value
 
         return {}
 
