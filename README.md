@@ -8,18 +8,18 @@ Further instructions can be seen in this
 
 You should do the following tasks:
 
-- [ ] Paste your implementation of the lexer in `uc/uc_lexer.py`
-- [ ] Paste your implementation of the parser in `uc/uc_parser.py`
-- [ ] Paste your implementation of the ast in `uc/uc_ast.py`
-- [ ] Paste your implementation of the semantic analysis in `uc/uc_sema.py`
-- [ ] Paste your implementation of the type system in `uc/uc_type.py`
-- [ ] Paste your implementation of the code generation in `uc/uc_code.py`
-- [ ] Paste your implementation of basic blocks in `uc/uc_block.py`
+- [X] Paste your implementation of the lexer in `uc/uc_lexer.py`
+- [X] Paste your implementation of the parser in `uc/uc_parser.py`
+- [X] Paste your implementation of the ast in `uc/uc_ast.py`
+- [X] Paste your implementation of the semantic analysis in `uc/uc_sema.py`
+- [X] Paste your implementation of the type system in `uc/uc_type.py`
+- [X] Paste your implementation of the code generation in `uc/uc_code.py`
+- [X] Paste your implementation of basic blocks in `uc/uc_block.py`
 - [ ] Complete the implementation of the dataflow analysis in `uc/uc_analysis.py`
 
 ## Requirements
 
-Use Python 3.5 or a newer version.    
+Use Python 3.5 or a newer version.
 Required pip packages:
 - ply, pytest, setuptools, graphviz, pathlib
 
@@ -80,23 +80,36 @@ for the rest of the code. Run both from the root of the repo:
     isort .
     black .
 ```
+
+### Using Pre-Commit Hooks
+
+Linting can be done automatically before every commit using
+[git hooks](https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks).
+Required pip packages:
+- pre-commit
+
+Liniting hooks can be enabled with:
+```sh
+    pre-commit install --install-hooks
+```
+
 ## Grading
 
 Your assignment will be evaluated in terms of correctness and performance:
 
 - Correctness: your program returns correct results for the tests;
 - Performance: your program needs to reduce the generated number of instructions by at least ten percent;
-  
+
   The grade of this project is computed as P = sum(Ci)/N + B,
-  Ci = 1 if Ri/Si > 1.1, otherwise Ci = 0, 
+  Ci = 1 if Ri/Si > 1.1, otherwise Ci = 0,
   where Ci represents the correctness of the test, N the total number of tests for P,
-  Ri the number of instructions in the output of the non-optimized code, 
-  and Si the number of instructions in the output of the optimized code, 
+  Ri the number of instructions in the output of the non-optimized code,
+  and Si the number of instructions in the output of the optimized code,
   and B is the Bonus, computed as below.
 
 - Bonus (Extra Point): One extra point will be given proportionally to the
-  number of instructions of the optimized code when compared to the reference compiler. 
-  The bonus B = sum(Di)/N, where Di = 1, if Ri/Si > Wi, Di = 0 otherwise, 
+  number of instructions of the optimized code when compared to the reference compiler.
+  The bonus B = sum(Di)/N, where Di = 1, if Ri/Si > Wi, Di = 0 otherwise,
   where Wi is the reference compiler speedup.
 
 You can check your score by running `python tests/test_analysis.py`.
@@ -125,7 +138,7 @@ An internal grading script will be run instead to prevent cheating.
 
 ## Questions
 
-If you have any doubts or run into problems, please contact the TAs.    
+If you have any doubts or run into problems, please contact the TAs.
 Happy coding! :smile: :keyboard:
 
 ## Contribute
