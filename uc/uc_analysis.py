@@ -773,6 +773,12 @@ class ConstantAnalysis:
             instr.source = self.get_temp(value.value, block)
         return {}
 
+    def _gen_exit(self, instr: ExitInstr, defs: InOut, block: CodeBlock) -> Constants:
+        value = self.get_const(defs, instr.source)
+        if isinstance(value, ConstValue):
+            instr.source = self.get_temp(value.value, block)
+        return {}
+
     def _gen_print(self, instr: PrintInstr, defs: InOut, block: CodeBlock) -> Constants:
         if instr.source is not None:
             value = self.get_const(defs, instr.source)
@@ -820,6 +826,7 @@ class ConstantAnalysis:
         "param": _gen_param,
         "print": _gen_print,
         "cbranch": _gen_cbranch,
+        "exit": _gen_exit,
     }
 
 
@@ -870,7 +877,6 @@ class DataFlow(NodeVisitor[None]):
         # self.constant_propagation()
         rdefs = ReachingDefinitions(block)
         ctan = ConstantAnalysis(rdefs)
-
         return ctan.rebuild()
 
     def dead_code_elimination(self, block: FunctionBlock) -> FunctionBlock:
