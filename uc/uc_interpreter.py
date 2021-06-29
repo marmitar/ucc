@@ -16,6 +16,7 @@ import sys
 from enum import Enum, unique
 from typing import Any, Callable, Dict, Iterator, Literal, Optional, Union
 from uc.uc_ast import sizeof
+from uc.uc_block import CodeList
 from uc.uc_ir import (
     AddInstr,
     AllocInstr,
@@ -441,7 +442,7 @@ class Interpreter:
 
         return pc + 1
 
-    def run(self, ircode: list[Instruction]) -> None:
+    def run(self, ircode: CodeList) -> None:
         """
         Run intermediate code in the interpreter.  ircode is a list
         of instruction tuples.  Each instruction (opcode, *args) is
@@ -449,7 +450,7 @@ class Interpreter:
         """
         # First, store the global vars & constants
         # Also, set the start pc to the main function entry
-        self.code = ircode
+        self.code = list(ircode.with_start())
         self.offset = 0
         self.lastpc = self._prepare_globals()
 
@@ -473,7 +474,7 @@ class Interpreter:
                         _breakpoint = self._idb(self.pc)
                 elif self.debug:
                     _breakpoint = self._idb(self.pc)
-                instr = ircode[self.pc]
+                instr = self.code[self.pc]
             except IndexError:
                 break
             self.pc += 1
