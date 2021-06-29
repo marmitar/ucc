@@ -104,7 +104,7 @@ class GlobalBlock(CountedBlock):
         # cache of defined constants, to avoid repeated values
         self.consts: dict[tuple[str, str], TextVariable] = {}
         # all functions in the program
-        self._start: Optional[StartFunction] = None
+        self.start: Optional[StartFunction] = None
         self.functions: list[FunctionBlock] = []
 
     def new_text(self, ty: uCType, value: Any) -> TextVariable:
@@ -129,8 +129,8 @@ class GlobalBlock(CountedBlock):
         return block
 
     def add_start(self, main: FunctionType) -> StartFunction:
-        self._start = StartFunction(main)
-        return self._start
+        self.start = StartFunction(main)
+        return self.start
 
     def instructions(self) -> Iterator[GlobalInstr]:
         # show text variables, then data
@@ -139,8 +139,6 @@ class GlobalBlock(CountedBlock):
     def subblocks(self) -> Iterator[Block]:
         for function in self.functions:
             yield function
-        if self._start:
-            yield self._start
 
 
 # # # # # # # # # #
@@ -392,11 +390,24 @@ class BlockVisitor(Generic[C]):
             return total
 
 
-class EmitBlocks(BlockVisitor[List[Instruction]]):
-    def __init__(self):
-        super().__init__(lambda _: [])
+class CodeList(List[Instruction]):
+    def __init__(self, program: GlobalBlock) -> None:
+        self.program = program
 
-    def generic_visit(self, block: Block, total: list[Instruction]) -> None:
+    def with_start(self) -> Iterator[Instruction]:
+        for instr in self:
+            yield instr
+        if self.program.start is None:
+            return
+        for instr in self.program.start.instructions():
+            yield instr
+
+
+class EmitBlocks(BlockVisitor[CodeList]):
+    def __init__(self):
+        super().__init__(CodeList)
+
+    def generic_visit(self, block: Block, total: CodeList) -> None:
         total.extend(block.instructions())
         for subblock in block.subblocks():
             self.visit(subblock, total)

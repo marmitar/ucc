@@ -25,6 +25,7 @@ from uc.uc_block import (
     BasicBlock,
     BranchBlock,
     CodeBlock,
+    CodeList,
     EmitBlocks,
     EntryBlock,
     FunctionBlock,
@@ -1040,7 +1041,7 @@ class LivenessAnalysis(DataFlowAnalysis, flow="backward"):
         return (instr.varname,), (instr.target,)
 
     def defs_elem(self, instr: ElemInstr) -> GenKill:
-        return (instr.source, instr.index), (instr.target, instr.source)
+        return (instr.source, instr.index), (instr.target,)
 
     def defs_get(self, instr: GetInstr) -> GenKill:
         return (instr.source,), (instr.target,)
@@ -1155,7 +1156,10 @@ class DeadCodeElimination(Optimization):
         assert isinstance(instr, (TempTargetInstruction, AllocInstr, StoreInstr))
         assert instr.target is not None
 
-        self.elim[block][instr] = Alive
+        if isinstance(instr, StoreInstr):
+            self.elim[block][instr] = Dead
+        else:
+            self.elim[block][instr] = Alive
         result = self.gen_liveness((block, instr), instr.target)
         self.elim[block][instr] = result
         return result
@@ -1345,7 +1349,7 @@ class DataFlow(NodeVisitor[None]):
             print(code.format(), file=buf)
 
     @property
-    def code(self) -> list[Instruction]:
+    def code(self) -> CodeList:
         """
         The generated code (can be mapped to a list of tuples)
         """

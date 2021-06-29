@@ -31,7 +31,7 @@ from uc.uc_ast import (
     UnaryOp,
     VarDecl,
 )
-from uc.uc_block import CFG, BasicBlock, BranchBlock, EmitBlocks, GlobalBlock
+from uc.uc_block import CFG, BasicBlock, BranchBlock, CodeList, EmitBlocks, GlobalBlock
 from uc.uc_interpreter import Interpreter
 from uc.uc_ir import (
     AddInstr,
@@ -96,7 +96,7 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
             print(code.format(), file=buf)
 
     @property
-    def code(self) -> list[Instruction]:
+    def code(self) -> CodeList:
         """
         The generated code (can be mapped to a list of tuples)
         """
