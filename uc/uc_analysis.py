@@ -15,6 +15,7 @@ from typing import (
     Set,
     TextIO,
     Tuple,
+    TypeVar,
     Union,
     overload,
 )
@@ -25,6 +26,7 @@ from uc.uc_block import (
     BranchBlock,
     CodeBlock,
     EmitBlocks,
+    EntryBlock,
     FunctionBlock,
     GlobalBlock,
 )
@@ -433,8 +435,8 @@ class Optimization(ABC):
                 if value is old:
                     self.labels[key] = new
 
-    def __init__(self, dfa: DataFlowAnalysis) -> None:
-        self._function = dfa.function
+    def __init__(self, function: FunctionBlock) -> None:
+        self._function = function
 
     @property
     def _entry(self) -> CodeBlock:
@@ -445,7 +447,7 @@ class Optimization(ABC):
         for block in self._function.all_blocks():
             opt.labels[block.label] = block
 
-        parent: CodeBlock = self._entry
+        parent: Optional[CodeBlock] = None
         for block in self._function.all_blocks():
             block = builder(block, opt)
             opt.labels[block.label] = block
@@ -456,6 +458,7 @@ class Optimization(ABC):
                 elif block.next is not None:
                     next = block.next
                 else:
+                    parent.next = block
                     parent = block
                     continue
 
@@ -465,6 +468,8 @@ class Optimization(ABC):
                 else:
                     parent.next = None
             else:
+                if parent is not None:
+                    parent.next = block
                 parent = block
 
         return opt
@@ -655,7 +660,7 @@ def flatten(value: Value | list[Value]) -> Iterator[Value]:
 
 class ConstantAnalysis(Optimization):
     def __init__(self, rdefs: ReachingDefinitions) -> None:
-        super().__init__(rdefs)
+        super().__init__(rdefs.function)
         self.rdefs = rdefs
         self.default: Constants = {var: NAC for var in rdefs.variables()}
         self.values: dict[FlowBlock, dict[Instruction, Constants]] = {}
@@ -1075,7 +1080,7 @@ Dead = Liveness.Dead
 
 class DeadCodeElimination(Optimization):
     def __init__(self, ln: LivenessAnalysis) -> None:
-        super().__init__(ln)
+        super().__init__(ln.function)
         self.ln = ln
         self.elim: dict[CodeBlock, dict[Instruction, Liveness]] = {}
 
@@ -1193,6 +1198,106 @@ class DeadCodeElimination(Optimization):
 
 
 # # # # # # # # # # # # # #
+# Temporaries Renumbering #
+
+V = TypeVar("V")
+
+
+class RenumberTemps(Optimization):
+    def __init__(self, function: FunctionBlock) -> None:
+        super().__init__(function)
+        self.result = FunctionBlock(function.program, function.fntype)
+        self.temp_map = {var: var for _, var in self.result.define.args}
+
+    def rebuild(self) -> FunctionBlock:
+        opt = self._build_opt(self.visit_block)
+        _old = self._function
+        self._function = self.result
+        _new = self._rebuild_fn(opt)
+        assert _old is not _new
+        return _new
+
+    def visit_block(self, block: CodeBlock, opt: Optimization.OptData) -> CodeBlock:
+        if isinstance(block, EntryBlock):
+            new_block = self.result.entry
+        elif isinstance(block, BasicBlock):
+            new_block = BasicBlock(self.result, block.name)
+            if block.jumps:
+                opt.jumps[new_block] = block.jumps[0].label
+        elif isinstance(block, BranchBlock):
+            new_block = BranchBlock(self.result, block.name)
+        else:
+            raise ValueError(block)
+
+        for instr in block.instr:
+            new_block.instr.append(self.visit(instr))
+
+        if isinstance(new_block, BranchBlock):
+            cond = self.remap(block.condition)
+            new_block.branch(cond, block.taken, block.fallthrough)
+        return new_block
+
+    def remap(self, var: V) -> V:
+        if not isinstance(var, TempVariable):
+            return var
+        revar = self.temp_map.get(var, None)
+        if revar is None:
+            revar = self.result.new_temp()
+            self.temp_map[var] = revar
+        return revar
+
+    def visit(self, instr: Instruction) -> Instruction:
+        if isinstance(instr, AllocInstr):
+            varname = self.remap(instr.varname)
+            return AllocInstr(instr.type, varname)
+        elif isinstance(instr, LoadInstr):
+            varname = self.remap(instr.varname)
+            target = self.remap(instr.target)
+            return LoadInstr(instr.type, varname, target)
+        elif isinstance(instr, StoreInstr):
+            source = self.remap(instr.source)
+            target = self.remap(instr.target)
+            return StoreInstr(instr.type, source, target)
+        elif isinstance(instr, LiteralInstr):
+            value = self.remap(instr.value)
+            target = self.remap(instr.target)
+            return LiteralInstr(instr.type, value, target)
+        elif isinstance(instr, ElemInstr):
+            source = self.remap(instr.source)
+            index = self.remap(instr.index)
+            target = self.remap(instr.target)
+            return ElemInstr(instr.type, source, index, target)
+        elif isinstance(instr, GetInstr):
+            source = self.remap(instr.source)
+            target = self.remap(instr.target)
+            return GetInstr(instr.type, source, target)
+        elif isinstance(instr, BinaryOpInstruction):
+            left = self.remap(instr.left)
+            right = self.remap(instr.right)
+            target = self.remap(instr.target)
+            return instr.__class__(instr.type, left, right, target)
+        elif isinstance(instr, UnaryOpInstruction):
+            expr = self.remap(instr.expr)
+            target = self.remap(instr.target)
+            return instr.__class__(instr.type, expr, target)
+        elif isinstance(instr, CallInstr):
+            source = self.remap(instr.source)
+            target = self.remap(instr.target)
+            return CallInstr(instr.type, source, target)
+        elif isinstance(instr, ReturnInstr):
+            target = self.remap(instr.target)
+            return ReturnInstr(instr.type, target)
+        elif isinstance(instr, (ParamInstr, PrintInstr, ReadInstr)):
+            source = self.remap(instr.source)
+            return instr.__class__(instr.type, source)
+        elif isinstance(instr, ExitInstr):
+            source = self.remap(instr.source)
+            return ExitInstr(source)
+        else:
+            raise ValueError(instr)
+
+
+# # # # # # # # # # # # # #
 # Data Flow Optimizations #
 
 
@@ -1238,12 +1343,14 @@ class DataFlow(NodeVisitor[None]):
         dcelim = DeadCodeElimination(liveness)
         return dcelim.rebuild()
 
-        # TODO
-        return block
+    def renumber_temps(self, function: FunctionBlock) -> FunctionBlock:
+        renum = RenumberTemps(function)
+        return renum.rebuild()
 
     def visit_FuncDef(self, node: FuncDef) -> None:
         node.cfg = self.constant_propagation(node.cfg)
         node.cfg = self.dead_code_elimination(node.cfg)
+        node.cfg = self.renumber_temps(node.cfg)
         self.glob.functions.append(node.cfg)
 
 
