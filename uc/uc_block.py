@@ -16,7 +16,6 @@ from typing import (
 )
 from graphviz import Digraph
 from uc.uc_ast import ID, FuncDef, Program
-from uc.uc_interpreter import Value
 from uc.uc_ir import (
     AllocInstr,
     CallInstr,
@@ -34,9 +33,9 @@ from uc.uc_ir import (
     NamedVariable,
     ReturnInstr,
     TargetInstruction,
-    TempTargetInstruction,
     TempVariable,
     TextVariable,
+    Value,
     Variable,
 )
 from uc.uc_type import FunctionType, IntType, VoidType, uCType
