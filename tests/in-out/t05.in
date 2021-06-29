@@ -1,18 +1,17 @@
-/* Bubble sort code */
-
+// Check palindrome number
 int main() {
-    int v[10];
-    int n = 6, c, d, swap;
-    for (c=0; c<n; c=c+1)
-        v[c] = 10 - c;
-    for (c=0; c<n-1; c=c+1)
-        for (d=0; d<n-c-1; d=d+1)
-            if (v[d] > v[d+1]) {
-                swap = v[d];
-                v[d] = v[d+1];
-                v[d+1] = swap;
-            }
-    for (c=0; c<n; c=c+1)
-        assert v[c] == c + 5;
+    int n, r, sum = 0, temp;
+    print("enter the number = ");
+    n = 4111;
+    temp = n;
+    while(n > 0) {
+        r = n % 10;
+        sum = (sum * 10) + r;
+        n = n / 10;
+    }
+    if(temp == sum)
+        print("palindrome number ");
+    else
+        print("not palindrome");
     return 0;
 }

@@ -11,14 +11,23 @@ import argparse
 import sys
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Iterator, Literal, Optional, Protocol, TextIO, Union
+from typing import (
+    Any,
+    Callable,
+    Iterator,
+    List,
+    Literal,
+    Optional,
+    Protocol,
+    TextIO,
+    Union,
+)
 from uc.uc_analysis import DataFlow
 from uc.uc_code import CodeGenerator
 from uc.uc_interpreter import Interpreter
+from uc.uc_llvm import LLVMCodeGenerator
 from uc.uc_parser import UCParser
 from uc.uc_sema import Visitor
-
-# from uc.uc_llvm import LLVMCodeGenerator
 
 """
 One of the most important (and difficult) parts of writing a compiler
@@ -68,7 +77,7 @@ this to decide whether or not to keep processing or not.
 Use clear_errors() to clear the total number of errors.
 """
 
-_subscribers: list[Callable[[str], Any]] = []
+_subscribers: List[Callable[[str], Any]] = []
 _num_errors = 0
 
 
@@ -182,22 +191,22 @@ class Compiler:
             self.gen.show(buf=file)
 
     def _opt(self):
-        self.opt = DataFlow(self.args.cfg, self.args.verbose)
+        self.opt = DataFlow(self.args.cfg)
         self.opt.visit(self.ast)
         self.optcode = self.opt.code
         if not self.args.yaml and (file := self.file.get("opt")):
-            self.opt.show(buf=self.opt_file)
+            self.opt.show(buf=file)
 
-    # def _llvm(self):
-    #     self.llvm = LLVMCodeGenerator(self.args.cfg)
-    #     self.llvm.visit(self.ast)
-    #     if not self.args.yaml and (file := self.file.get("llvm")):
-    #         self.llvm.save_ir(file)
-    #     if self.run:
-    #         if self.args.llvm_opt:
-    #             self.llvm.execute_ir(self.args.llvm_opt, self.file.get("llvm-opt"))
-    #         else:
-    #             self.llvm.execute_ir(self.args.llvm_opt, self.file.get("llvm"))
+    def _llvm(self):
+        self.llvm = LLVMCodeGenerator(self.args.cfg)
+        self.llvm.visit(self.ast)
+        if not self.args.yaml and (file := self.file.get("llvm")):
+            self.llvm.save_ir(file)
+        if self.run:
+            if self.args.llvm_opt:
+                self.llvm.execute_ir(self.args.llvm_opt, self.file.get("llvm-opt"))
+            else:
+                self.llvm.execute_ir(self.args.llvm_opt, self.file.get("llvm"))
 
     def _do_compile(self) -> None:
         """Compiles the code to the given source file."""
@@ -206,10 +215,10 @@ class Compiler:
             self._sema()
         if not errors_reported():
             self._codegen()
-        #     if self.args.opt:
-        #         self._opt()
-        #     if self.args.llvm:
-        #         self._llvm()
+            if self.args.opt:
+                self._opt()
+            if self.args.llvm:
+                self._llvm()
 
     def compile(self) -> int:
         """Compiles the given  filename"""
@@ -258,17 +267,7 @@ class Compiler:
             self._do_compile()
             if n := errors_reported():
                 printerr(f"{n} error(s) encountered.")
-            # elif not self.args.llvm:
-            #     if self.args.opt:
-            #         speedup = len(self.gencode) / len(self.optcode)
-            #         printerr(f"default = {len(self.gencode)}, optimized = {len(self.optcode)}, speedup = {speedup:.2f}")
-            #     if self.run and not self.args.cfg:
-            #         vm = Interpreter(self.args.idb)
-            #         if self.args.opt:
-            #             vm.run(self.optcode)
-            #         else:
-            #             vm.run(self.gencode)
-            else:
+            elif not self.args.llvm:
                 if self.args.opt:
                     speedup = len(self.gencode) / len(self.optcode)
                     printerr(
