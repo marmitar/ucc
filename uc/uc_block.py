@@ -270,6 +270,7 @@ class CodeBlock(Block):
         if name is None:
             name = function.new_label()
         self.label = LabelName(name)
+        self.label_instr = LabelInstr(self.name)
         self.function = function
 
         self.instr: list[Instruction] = []
@@ -301,7 +302,7 @@ class CodeBlock(Block):
         return self.target_instr(LiteralInstr, uctype, value)
 
     def instructions(self) -> Iterator[Instruction]:
-        yield LabelInstr(self.name)
+        yield self.label_instr
         for instr in self.instr:
             yield instr
 
@@ -325,15 +326,21 @@ class BasicBlock(CodeBlock):
     def __init__(self, function: FunctionBlock, name: Optional[str] = None):
         super().__init__(function, name=name)
         self.jumps: list[CodeBlock] = []
+        self.jump_instr: list[JumpInstr] = []
 
     def jump_to(self, block: CodeBlock) -> None:
         self.jumps.append(block)
+        self.jump_instr.append(JumpInstr(block.label))
+
+    def clear_jumps(self) -> None:
+        self.jumps = []
+        self.jump_instr = []
 
     def instructions(self) -> Iterator[Instruction]:
         for instr in super().instructions():
             yield instr
-        for jump in self.jumps:
-            yield JumpInstr(jump.label)
+        for jump in self.jump_instr:
+            yield jump
 
 
 class BranchBlock(CodeBlock):
@@ -341,11 +348,12 @@ class BranchBlock(CodeBlock):
         self.condition = condition
         self.taken = true
         self.fallthrough = false
+        self.cbranch = CBranchInstr(condition, true.label, false.label)
 
     def instructions(self) -> Iterator[Instruction]:
         for instr in super().instructions():
             yield instr
-        yield CBranchInstr(self.condition, self.taken.label, self.fallthrough.label)
+        yield self.cbranch
 
 
 class EntryBlock(CodeBlock):
