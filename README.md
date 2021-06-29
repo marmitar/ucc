@@ -15,7 +15,7 @@ You should do the following tasks:
 - [X] Paste your implementation of the type system in `uc/uc_type.py`
 - [X] Paste your implementation of the code generation in `uc/uc_code.py`
 - [X] Paste your implementation of basic blocks in `uc/uc_block.py`
-- [ ] Complete the implementation of the dataflow analysis in `uc/uc_analysis.py`
+- [X] Complete the implementation of the dataflow analysis in `uc/uc_analysis.py`
 
 ## Requirements
 

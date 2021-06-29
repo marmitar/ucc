@@ -198,18 +198,6 @@ class FunctionBlock(CountedBlock):
         """
         return TempVariable(self._new_version("%temp%"))
 
-    def update_temps(self) -> None:
-        self._count["%temp%"] = 1
-        # renumber all parameters
-        for _, _, var in self.params:
-            var.version = self._new_version("%temp%")
-        #  then all variables
-        for block in self.all_blocks():
-            for instr in block.instructions():
-                # just analyze instructions that generate temporaries
-                if isinstance(instr, TempTargetInstruction) and instr.target is not None:
-                    instr.target.version = self._new_version("%temp%")
-
     def new_label(self) -> str:
         version = self._new_version("label")
         return f".L{version}"
