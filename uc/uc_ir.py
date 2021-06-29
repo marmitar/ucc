@@ -202,8 +202,8 @@ class Instruction:
     def __hash__(self) -> int:
         return hash(self._uid)
 
-    def __eq__(self, other: Instruction) -> bool:
-        return self._uid == other._uid
+    def __eq__(self, other) -> bool:
+        return isinstance(other, Instruction) and self._uid == other._uid
 
 
 class TypedInstruction(Instruction):

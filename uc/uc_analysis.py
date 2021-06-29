@@ -463,6 +463,8 @@ class Optimization(ABC):
                     continue
 
                 opt.change_block(block, opt.labels[next.label])
+                if isinstance(parent, BasicBlock) and not parent.jumps:
+                    opt.jumps[parent] = next.label
                 if block.next is not None:
                     parent.next = opt.labels[block.next.label]
                 else:
@@ -479,7 +481,8 @@ class Optimization(ABC):
         while block is not None:
             if isinstance(block, BasicBlock):
                 block.clear_jumps()
-                if (label := opt.jumps.get(block, None)) is not None:
+                label = opt.jumps.get(block, None)
+                if label is not None:
                     block.jump_to(opt.labels[label])
             elif isinstance(block, BranchBlock):
                 taken = opt.labels[block.taken.label]
@@ -1009,20 +1012,20 @@ class LivenessAnalysis(DataFlowAnalysis, flow="backward"):
     def defs_alloc(self, instr: AllocInstr) -> GenKill:
         return (), (instr.target,)
 
-    def defs_store(self, instr: StoreInstr) -> GenKill:
-        return (instr.source, instr.target), (instr.target,)
-
-    def defs_load(self, instr: LoadInstr) -> GenKill:
-        return (instr.varname,), (instr.target,)
-
     def defs_literal(self, instr: LiteralInstr) -> GenKill:
         if isinstance(instr.value, Variable):
             return (instr.value,), (instr.target,)
         else:
             return (), (instr.target,)
 
+    def defs_store(self, instr: StoreInstr) -> GenKill:
+        return (instr.source, instr.target), (instr.target,)
+
+    def defs_load(self, instr: LoadInstr) -> GenKill:
+        return (instr.varname,), (instr.target,)
+
     def defs_elem(self, instr: ElemInstr) -> GenKill:
-        return (instr.source, instr.index), (instr.target,)
+        return (instr.source, instr.index), (instr.target, instr.source)
 
     def defs_get(self, instr: GetInstr) -> GenKill:
         return (instr.source,), (instr.target,)
@@ -1083,6 +1086,7 @@ class DeadCodeElimination(Optimization):
         super().__init__(ln.function)
         self.ln = ln
         self.elim: dict[CodeBlock, dict[Instruction, Liveness]] = {}
+        self.aliases: dict[Variable, Variable] = {}
 
         for block in ln.function.all_blocks():
             self.visit_block(block)
@@ -1103,6 +1107,7 @@ class DeadCodeElimination(Optimization):
             elif isinstance(instr, (ParamInstr, CallInstr, PrintInstr, ReadInstr, LabelInstr)):
                 self.elim[block][instr] = Alive
             elif isinstance(instr, (TempTargetInstruction, AllocInstr, StoreInstr)):
+                self._mark_alias(instr)
                 unvisited.append(instr)
             else:
                 self.elim[block][instr] = Dead
@@ -1110,12 +1115,21 @@ class DeadCodeElimination(Optimization):
         for instr in unvisited:
             self.visit(block, instr)
 
-    def gen_liveness(self, loc: tuple[CodeBlock, Instruction], var: Variable) -> Liveness:
-        for block, instr in self.ln.out_set(loc).get(var, set()):
-            result = self.visit(block, instr)
-            if result is Alive:
-                return Alive
+    def _mark_alias(self, instr: Instruction) -> None:
+        if isinstance(instr, (GetInstr, ElemInstr)):
+            self.aliases[instr.target] = instr.source
 
+    def _iter_aliases(self, var: Variable) -> Iterator[Variable]:
+        while var is not None:
+            yield var
+            var = self.aliases.get(var, None)
+
+    def gen_liveness(self, loc: tuple[CodeBlock, Instruction], varname: Variable) -> Liveness:
+        for var in self._iter_aliases(varname):
+            for block, instr in self.ln.out_set(loc).get(var, set()):
+                result = self.visit(block, instr)
+                if result is Alive:
+                    return Alive
         return Dead
 
     def visit(self, block: CodeBlock, instr: Instruction) -> Liveness:
@@ -1194,6 +1208,12 @@ class DeadCodeElimination(Optimization):
         block = next(function.all_blocks())
         while block is not None:
             block.next = next_reachable(block.next)
+            if (
+                block.next is not None
+                and isinstance(block, BasicBlock)
+                and block.jumps == [block.next]
+            ):
+                block.jumps = []
             block = block.next
 
 
