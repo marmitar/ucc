@@ -129,7 +129,7 @@ Value = Union[int, float, str, MemoryVariable]
 
 
 class Instruction:
-    __slots__ = ()
+    __slots__ = ("_uid",)
 
     operations: dict[str, Type[Instruction]] = {}
 
@@ -144,6 +144,10 @@ class Instruction:
     arguments: tuple[str, ...] = ()
     target_attr: Optional[str] = None
     indent: bool = True
+
+    def __init__(self, counter: list[int] = [0]) -> None:
+        self._uid = counter[0]
+        counter[0] += 1
 
     @property
     def operation(self) -> str:
@@ -196,12 +200,10 @@ class Instruction:
         return f"{self.__class__.__name__}({params})"
 
     def __hash__(self) -> int:
-        return hash(self.format())
+        return hash(self._uid)
 
     def __eq__(self, other: Instruction) -> bool:
-        return self.__class__ is other.__class__ and all(
-            a == b for a, b in zip(self.values(), other.values())
-        )
+        return self._uid == other._uid
 
 
 class TypedInstruction(Instruction):
@@ -353,18 +355,18 @@ class ElemInstr(TempTargetInstruction):
         self.index = index
 
 
-class GetInstr(TypedInstruction):
+class GetInstr(TempTargetInstruction):
     """Store into target the address of source."""
 
     __slots__ = ("source", "target")
 
     opname = "get"
     arguments = "source", "target"
+    target: TempVariable
 
     def __init__(self, type: uCType, source: MemoryVariable, target: TempVariable):
-        super().__init__(type)
+        super().__init__(type, target)
         self.source = source
-        self.target = target
 
 
 # # # # # # # # # # #

@@ -621,9 +621,11 @@ class ConstantAnalysis:
         while block is not None:
             if isinstance(block, BasicBlock):
                 if block.jumps:
-                    block.jumps = [labels[block.jumps[0].label]]
+                    next = block.jumps[0].label
+                    block.clear_jumps()
+                    block.jump_to(labels[next])
                 elif block in jumps:
-                    block.jumps = [labels[jumps[block]]]
+                    block.jump_to(labels[jumps[block]])
             elif isinstance(block, BranchBlock):
                 block.taken = labels[block.taken.label]
                 block.fallthrough = labels[block.fallthrough.label]
