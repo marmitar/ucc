@@ -2,7 +2,7 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, unique
@@ -422,6 +422,75 @@ class DataFlowAnalysis:
                 cls._defs[op] = attr
 
 
+class Optimization(ABC):
+    @dataclass()
+    class OptData:
+        labels: dict[LabelName, CodeBlock]
+        jumps: dict[BasicBlock, LabelName]
+
+        def change_block(self, old: CodeBlock, new: CodeBlock) -> None:
+            for key, value in self.labels.items():
+                if value is old:
+                    self.labels[key] = new
+
+    def __init__(self, dfa: DataFlowAnalysis) -> None:
+        self._function = dfa.function
+
+    @property
+    def _entry(self) -> CodeBlock:
+        return self._function.entry
+
+    def _build_opt(self, builder: Callable[[CodeBlock, OptData], CodeBlock]) -> OptData:
+        opt = Optimization.OptData({}, {})
+        for block in self._function.all_blocks():
+            opt.labels[block.label] = block
+
+        parent: CodeBlock = self._entry
+        for block in self._function.all_blocks():
+            block = builder(block, opt)
+            opt.labels[block.label] = block
+
+            if isinstance(block, BasicBlock) and len(block.instr) == 0:
+                if block in opt.jumps:
+                    next = block.jumps[0]
+                elif block.next is not None:
+                    next = block.next
+                else:
+                    parent = block
+                    continue
+
+                opt.change_block(block, opt.labels[next.label])
+                if block.next is not None:
+                    parent.next = opt.labels[block.next.label]
+                else:
+                    parent.next = None
+            else:
+                parent = block
+
+        return opt
+
+    def _rebuild_fn(self, opt: OptData) -> FunctionBlock:
+        block = self._entry
+        while block is not None:
+            if isinstance(block, BasicBlock):
+                block.clear_jumps()
+                if (label := opt.jumps.get(block, None)) is not None:
+                    block.jump_to(opt.labels[label])
+            elif isinstance(block, BranchBlock):
+                taken = opt.labels[block.taken.label]
+                fallthrough = opt.labels[block.fallthrough.label]
+                block.branch(block.condition, taken, fallthrough)
+
+            if block.next is not None:
+                block.next = opt.labels[block.next.label]
+            block = block.next
+        return self._function
+
+    @abstractmethod
+    def rebuild(self) -> FunctionBlock:
+        raise NotImplementedError
+
+
 # # # # # # # # # # #
 # Reaching Analysis #
 
@@ -584,8 +653,9 @@ def flatten(value: Value | list[Value]) -> Iterator[Value]:
         yield value
 
 
-class ConstantAnalysis:
+class ConstantAnalysis(Optimization):
     def __init__(self, rdefs: ReachingDefinitions) -> None:
+        super().__init__(rdefs)
         self.rdefs = rdefs
         self.default: Constants = {var: NAC for var in rdefs.variables()}
         self.values: dict[FlowBlock, dict[Instruction, Constants]] = {}
@@ -597,12 +667,6 @@ class ConstantAnalysis:
 
         for block in rdefs.data.keys():
             self.visit_block(block)
-
-    @staticmethod
-    def _remove_block(labels: dict[LabelName, CodeBlock], block: BasicBlock, after: CodeBlock):
-        for key, value in labels.items():
-            if value is block:
-                labels[key] = after
 
     def rebuild(self) -> FunctionBlock:
         temp_usage: dict[Optional[BlockData], list[TempVariable]] = {}
@@ -620,10 +684,7 @@ class ConstantAnalysis:
             ]
             static.instr = literals + static.instr
 
-        labels: dict[LabelName, CodeBlock] = {}
-        jumps: dict[BasicBlock, LabelName] = {}
-        parent: CodeBlock = self.rdefs.function.entry
-        for block in self.rdefs.function.all_blocks():
+        def builder(block: CodeBlock, opt: Optimization.OptData) -> CodeBlock:
             literals = [
                 LiteralInstr(uctype(temp_values[temp]), temp_values[temp], temp)
                 for temp in temp_usage.get(block, [])
@@ -633,38 +694,16 @@ class ConstantAnalysis:
             if block in self.branch_to_jumps:
                 new = BasicBlock(block.function, block.name)
                 new.instr = block.instr
-                jumps[new] = self.branch_to_jumps[block]
+                opt.jumps[new] = self.branch_to_jumps[block]
                 new.next = block.next
-                block = new
+                return new
+            elif isinstance(block, BasicBlock) and block.jumps:
+                opt.jumps[block] = block.jumps[0].label
 
-            labels[block.label] = block
-            if isinstance(block, BasicBlock) and len(block.instr) == 0:
-                if block.jumps:
-                    self._remove_block(labels, block, block.jumps[0])
-                    parent.next = block.next
-                elif block.next is not None:
-                    self._remove_block(labels, block, block.next)
-                    parent.next = block.next
-            parent = block
+            return block
 
-        block: Optional[CodeBlock] = self.rdefs.function.entry
-        while block is not None:
-            if isinstance(block, BasicBlock):
-                if block.jumps:
-                    next = block.jumps[0].label
-                    block.clear_jumps()
-                    block.jump_to(labels[next])
-                elif block in jumps:
-                    block.jump_to(labels[jumps[block]])
-            elif isinstance(block, BranchBlock):
-                taken = labels[block.taken.label]
-                fallthrough = labels[block.fallthrough.label]
-                block.branch(block.condition, taken, fallthrough)
-            if block.next is not None:
-                block.next = labels[block.next.label]
-            block = block.next
-
-        return self.rdefs.function
+        opt = self._build_opt(builder)
+        return self._rebuild_fn(opt)
 
     def get(self, block: CodeBlock, instr: Instruction, var: Variable) -> Const:
         """Get constant value for variable after given instruction"""
