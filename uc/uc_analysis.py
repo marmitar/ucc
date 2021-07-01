@@ -9,6 +9,7 @@ from enum import Enum, unique
 from typing import (
     Callable,
     Dict,
+    Iterable,
     Iterator,
     Literal,
     Optional,
@@ -88,7 +89,7 @@ GenKill = Tuple[Tuple[Variable, ...], Tuple[Variable, ...]]
 class BlockData:
     """Info for a basic block in data flow analysis"""
 
-    def __init__(self, block: Union[GlobalBlock, CodeBlock]) -> None:
+    def __init__(self, block: FlowBlock) -> None:
         self.block = block
         # successors for this block
         self.succ: set[FlowBlock] = set()
@@ -175,24 +176,14 @@ class BlockData:
         return new
 
 
+T = TypeVar("T")
+
+
 class DataFlowAnalysis:
     """ABC for data flow analysis (forward and backward)"""
 
-    def __init__(self, function: FunctionBlock) -> None:
-        self.function = function
-
-        # mapping for labels to blocks
-        self.blocks = {block.label: block for block in function.all_blocks()}
-        # local variables
-        self.locals = tuple(function.local_variables())
-        # data flow info
-        self.data: dict[FlowBlock, BlockData] = {
-            function.program: self.global_transfer(function.program),
-            function: self.function_transfer(function),
-        }
-        for block in function.all_blocks():
-            self.data[block] = self.block_transfer(block)
-
+    def __init__(self, data: dict[FlowBlock, BlockData]) -> None:
+        self.data = data
         # build predecessors, IN and OUT
         self._update_preds()
         self._build_in_out()
@@ -202,14 +193,6 @@ class DataFlowAnalysis:
         for tail, data in self.data.items():
             for head in data.succ:
                 self.data[head].pred.add(tail)
-
-    def variables(self) -> Iterator[Variable]:
-        for var in self.text:
-            yield var
-        for var in self.globals:
-            yield var
-        for var in self.locals:
-            yield var
 
     # # # # # # # # # # # #
     # Data Flow Equations #
@@ -264,6 +247,7 @@ class DataFlowAnalysis:
         """Data flow equations (forward and backward)"""
         raise NotImplementedError
 
+    @staticmethod
     def _build_instr_in_out(_: BlockData) -> None:
         """Build IN and OUT for each instruction"""
         raise NotImplementedError
@@ -330,18 +314,84 @@ class DataFlowAnalysis:
     # # # # # # # # # # # #
     # Transfer functions  #
 
-    @staticmethod
-    def _forward_iter(block: FlowBlock) -> Iterator[Instruction]:
-        return block.instructions()
+    @classmethod
+    def _forward_iter(cls, it: Iterable[T]) -> Iterator[T]:
+        return iter(it)
 
-    @staticmethod
-    def _backward_iter(block: FlowBlock) -> Iterator[Instruction]:
-        return reversed(tuple(block.instructions()))
+    @classmethod
+    def _backward_iter(cls, it: Iterable[T]) -> Iterator[T]:
+        return reversed(tuple(it))
 
-    @staticmethod
-    def iter_instr(_: FlowBlock) -> Iterator[Instruction]:
-        """Iterate instructions acording to data flow"""
+    @classmethod
+    def iter(cls, _: Iterable[T]) -> Iterator[T]:
+        """Iterate items acording to data flow"""
         raise NotImplementedError
+
+    @classmethod
+    def iter_instr(cls, block: FlowBlock) -> Iterator[Instruction]:
+        """Iterate instructions acording to data flow"""
+        return cls.iter(block.instructions())
+
+    # GEN and KILL generators for each instruction type
+    _defs: dict[str, Callable[[Instruction], GenKill]]
+
+    def defs(self, instr: Instruction) -> GenKill:
+        """Get GEN and KILL for 'instr'"""
+        get_defs = self._defs.get(instr.opname, None)
+        if get_defs is not None:
+            return get_defs(self, instr)
+        else:
+            return (), ()
+
+    def __init_subclass__(cls, flow: Literal["forward", "backward", None] = None) -> None:
+        if flow is None:
+            return
+        # choose forward or backward flow equations
+        if flow == "forward":
+            cls._equation = cls._forward_eq
+            cls._build_instr_in_out = BlockData.build_forward_in_out
+            cls.iter = cls._forward_iter
+        else:
+            cls._equation = cls._backward_eq
+            cls._build_instr_in_out = BlockData.build_backward_in_out
+            cls.iter = cls._backward_iter
+
+        cls._build_instr_in_out = staticmethod(cls._build_instr_in_out)
+
+        # find GEN and KILL generators
+        cls._defs = {}
+        for name, attr in cls.__dict__.items():
+            if name.startswith("defs_"):
+                _, op = name.split("_", maxsplit=1)
+                cls._defs[op] = attr
+
+
+class LocalDataFlowAnalysis(DataFlowAnalysis):
+    """ABC for intraprecedural data flow analysis"""
+
+    def __init__(self, function: FunctionBlock) -> None:
+        self.function = function
+
+        # mapping for labels to blocks
+        self.blocks = {block.label: block for block in function.all_blocks()}
+        # local variables
+        self.locals = tuple(function.local_variables())
+        # data flow info
+        data: dict[FlowBlock, BlockData] = {
+            function.program: self.global_transfer(function.program),
+            function: self.function_transfer(function),
+        }
+        for block in function.all_blocks():
+            data[block] = self.block_transfer(block)
+        super().__init__(data)
+
+    def variables(self) -> Iterator[Variable]:
+        for var in self.text:
+            yield var
+        for var in self.globals:
+            yield var
+        for var in self.locals:
+            yield var
 
     def block_transfer(self, block: CodeBlock) -> BlockData:
         """Generate transfer functions and CFG connections"""
@@ -391,38 +441,6 @@ class DataFlowAnalysis:
         data.update(block.define, gen, kill)
         data.succ.add(block.entry)
         return data
-
-    # GEN and KILL generators for each instruction type
-    _defs: dict[str, Callable[[Instruction], GenKill]]
-
-    def defs(self, instr: Instruction) -> GenKill:
-        """Get GEN and KILL for 'instr'"""
-        get_defs = self._defs.get(instr.opname, None)
-        if get_defs is not None:
-            return get_defs(self, instr)
-        else:
-            return (), ()
-
-    def __init_subclass__(cls, flow: Literal["forward", "backward"]) -> None:
-        # choose forward or backward flow equations
-        if flow == "forward":
-            cls._equation = cls._forward_eq
-            cls._build_instr_in_out = BlockData.build_forward_in_out
-            cls.iter_instr = cls._forward_iter
-        else:
-            cls._equation = cls._backward_eq
-            cls._build_instr_in_out = BlockData.build_backward_in_out
-            cls.iter_instr = cls._backward_iter
-
-        cls._build_instr_in_out = staticmethod(cls._build_instr_in_out)
-        cls.iter_instr = staticmethod(cls.iter_instr)
-
-        # find GEN and KILL generators
-        cls._defs = {}
-        for name, attr in cls.__dict__.items():
-            if name.startswith("defs_"):
-                _, op = name.split("_", maxsplit=1)
-                cls._defs[op] = attr
 
 
 class Optimization(ABC):
@@ -504,7 +522,7 @@ class Optimization(ABC):
 # Reaching Analysis #
 
 
-class ReachingDefinitions(DataFlowAnalysis, flow="forward"):
+class ReachingDefinitions(LocalDataFlowAnalysis, flow="forward"):
     """Find reachable definitions for each instruction and variable"""
 
     def defs_binary_op(self, instr: BinaryOpInstruction) -> GenKill:
@@ -1008,7 +1026,7 @@ class ConstantAnalysis(Optimization):
 # Liveness Analysis #
 
 
-class LivenessAnalysis(DataFlowAnalysis, flow="backward"):
+class LivenessAnalysis(LocalDataFlowAnalysis, flow="backward"):
     """Find used definitions for each variable"""
 
     def defs_binary_op(self, instr: BinaryOpInstruction) -> GenKill:

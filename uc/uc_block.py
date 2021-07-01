@@ -223,17 +223,26 @@ class StartFunction(Block):
     def __init__(self, main: FunctionType):
         super().__init__()
         # '.start' is a function without arguments, that never returns
-        self.instr: list[Instruction] = [DefineInstr(VoidType, DataVariable(self.name))]
+        self.instr: list[Instruction] = [DefineInstr(VoidType, self.label)]
+        self.maintype = main
 
         temp = TempVariable(1)
         # main returns void, exit with zero
         if main.rettype is VoidType:
-            self.instr.append(CallInstr(VoidType, DataVariable(main.funcname)))
+            self.instr.append(CallInstr(VoidType, self.main))
             self.instr.append(LiteralInstr(IntType, 0, temp))
         # main returns number, exit with return value
         else:
-            self.instr.append(CallInstr(main.rettype, DataVariable(main.funcname), temp))
+            self.instr.append(CallInstr(main.rettype, self.main, temp))
         self.instr.append(ExitInstr(temp))
+
+    @property
+    def label(self) -> DataVariable:
+        return DataVariable(self.name)
+
+    @property
+    def main(self) -> DataVariable:
+        return DataVariable(self.maintype.funcname)
 
     def instructions(self) -> Iterator[Instruction]:
         return iter(self.instr)
