@@ -1215,7 +1215,9 @@ class DeadCodeElimination(Optimization):
         self._remove_unreachable(result)
         return result
 
-    def _reachable_blocks(self, function: FunctionBlock) -> Callable[[CodeBlock], bool]:
+    def _reachable_blocks(
+        self, function: FunctionBlock
+    ) -> tuple[Callable[[CodeBlock], bool], defaultdict[CodeBlock, list[CodeBlock]]]:
         pred: defaultdict[CodeBlock, list[CodeBlock]] = defaultdict(list)
         for block in function.all_blocks():
             if any(isinstance(i, (ReturnInstr, ExitInstr)) for i in block.instr):
@@ -1239,10 +1241,10 @@ class DeadCodeElimination(Optimization):
                 reachable[block] |= is_reachable(ant)
             return reachable[block]
 
-        return is_reachable
+        return is_reachable, pred
 
     def _remove_unreachable(self, function: FunctionBlock) -> None:
-        reachable = self._reachable_blocks(function)
+        reachable, pred = self._reachable_blocks(function)
 
         def next_reachable(block: Optional[CodeBlock]) -> Optional[CodeBlock]:
             while block is not None:
@@ -1250,15 +1252,30 @@ class DeadCodeElimination(Optimization):
                     return block
                 block = block.next
 
+        def update_preds(block: CodeBlock, next: CodeBlock) -> None:
+            for prev in pred[block]:
+                if isinstance(prev, BasicBlock):
+                    for i, jump in enumerate(prev.jumps):
+                        if jump == block:
+                            prev.jumps[i] = next
+                elif isinstance(prev, BranchBlock):
+                    if prev.taken == block:
+                        prev.taken = next
+                    if prev.fallthrough == block:
+                        prev.fallthrough = next
+                    prev.branch(prev.condition, prev.taken, prev.fallthrough)
+                if prev.next == block:
+                    prev.next = next
+
         block = next(function.all_blocks())
         while block is not None:
             block.next = next_reachable(block.next)
-            if (
-                block.next is not None
-                and isinstance(block, BasicBlock)
-                and block.jumps == [block.next]
-            ):
-                block.jumps = []
+            if block.next is not None and isinstance(block, BasicBlock):
+                if block.jumps == [block.next]:
+                    block.jumps = []
+                if pred[block.next] == [block]:
+                    block.next.instr = block.instr + block.next.instr
+                    update_preds(block, block.next)
             block = block.next
 
 
