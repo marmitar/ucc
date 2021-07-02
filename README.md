@@ -13,8 +13,8 @@ You should do the following tasks:
 - [X] Paste your implementation of the ast in `uc/uc_ast.py`
 - [X] Paste your implementation of the semantic analysis in `uc/uc_sema.py`
 - [X] Paste your implementation of the type system in `uc/uc_type.py`
-- [ ] Paste your implementation of the code generation in `uc/uc_code.py`
-- [ ] Paste your implementation of basic blocks in `uc/uc_block.py`
+- [X] Paste your implementation of the code generation in `uc/uc_code.py`
+- [X] Paste your implementation of basic blocks in `uc/uc_block.py`
 - [ ] Paste your implementation of the dataflow analysis in `uc/uc_analysis.py`
 - [ ] Complete the implementation of the llvm ir code generation in `uc/uc_llvm.py`
 
