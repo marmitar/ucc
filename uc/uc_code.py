@@ -147,6 +147,8 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
 
     def visit_GlobalDecl(self, node: GlobalDecl) -> None:
         for decl in node.decls:
+            if isinstance(decl.type.uc_type, FunctionType):
+                continue
             varname = self._varname(decl.name)
             if decl.init is not None:
                 value = self._extract_value(decl.init)
@@ -305,7 +307,7 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
     def visit_Assignment(self, node: Assignment) -> Variable:
         value = self.visit(node.right)
         target = self.visit(node.left, ref=True)
-        self.current.append_instr(StoreInstr(node.uc_type, value, target))
+        self.current.append_instr(StoreInstr(node.left.uc_type, value, target))
         return value
 
     # instructions for basic operations

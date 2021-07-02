@@ -6,7 +6,9 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, unique
+from itertools import chain
 from typing import (
+    Any,
     Callable,
     Dict,
     Iterable,
@@ -39,18 +41,21 @@ from uc.uc_ir import (
     BinaryOpInstruction,
     CallInstr,
     CBranchInstr,
+    DataVariable,
     DefineInstr,
     DivInstr,
     ElemInstr,
     ExitInstr,
     GetInstr,
     GlobalInstr,
+    GlobalVariable,
     Instruction,
     JumpInstr,
     LabelInstr,
     LabelName,
     LiteralInstr,
     LoadInstr,
+    LocalVariable,
     NotInstr,
     ParamInstr,
     PrintInstr,
@@ -690,6 +695,7 @@ class ConstantAnalysis(Optimization):
     def __init__(self, rdefs: ReachingDefinitions) -> None:
         super().__init__(rdefs.function)
         self.rdefs = rdefs
+        self.globals = {instr.target for instr in rdefs.function.program.text}
         self.default: Constants = {var: NAC for var in rdefs.variables()}
         self.values: dict[FlowBlock, dict[Instruction, Constants]] = {}
         self.temps: defaultdict[Value, TempVariable] = defaultdict(
@@ -794,12 +800,14 @@ class ConstantAnalysis(Optimization):
             return {}
 
     def _gen_global(self, instr: GlobalInstr, _: InOut, _b: GlobalBlock) -> Constants:
-        if isinstance(instr.target, TextVariable) and instr.value is not None:
+        if instr.target in self.globals:
+            if instr.value is None:
+                return {instr.target: Undef}
             if isinstance(instr.type, ArrayType):
                 data = list(flatten(instr.value))
                 return {instr.target: ConstValue(data)}
             else:
-                return {instr.target: ConstValue(instr.value)}
+                return {instr.target: ConstValue((instr.value,))}
         else:
             return {instr.target: NAC}
 
@@ -1354,6 +1362,236 @@ class RenumberTemps(Optimization):
             raise ValueError(instr)
 
 
+# # # # # # # # # # # # # # #
+# Global Constant Analysis  #
+
+
+@unique
+class GlobalConst(str, Enum):
+    ReadOnly = "read-only"
+    NotAConst = "not-a-constant"
+
+    def __or__(self, other: GlobalConst) -> GlobalConst:
+        if self is ReadOnly:
+            return other
+        else:
+            return self
+
+    def __str__(self) -> str:
+        return self.name
+
+
+ReadOnly = GlobalConst.ReadOnly
+NotAConst = GlobalConst.NotAConst
+
+
+class GlobalConstantAnalysis:
+    def __init__(self, program: GlobalBlock) -> None:
+        self.program = program
+
+        self.labels = {fn.label: fn for fn in program.functions}
+        self.variables = {instr.target for instr in chain(program.text, program.data)}
+
+        self.used: set[GlobalVariable] = set()
+        self.visit_functions()
+
+    def visit_functions(self) -> None:
+        self.dependency: dict[FunctionBlock, list[GlobalVariable]] = {}
+        self.alias: dict[FunctionBlock, dict[LocalVariable, GlobalVariable]] = {}
+
+        if self.program.start is not None:
+            self.constant = {var: ReadOnly for var in self.variables}
+            self.const(self.program.start.main)
+        else:
+            self.constant = {var: NAC for var in self.variables}
+            for func in self.program.functions:
+                self.const(func.label)
+
+        for func, deps in self.dependency.items():
+            for var in deps:
+                self.constant[func.label] |= self.constant[var]
+
+    def const(self, var: DataVariable) -> GlobalConst:
+        cte = self.constant.get(var, None)
+        if cte is None:
+            self.used.add(var)
+            self.constant[var] = ReadOnly
+
+            cte = self.visit(self.labels[var])
+            self.constant[var] = cte
+
+        return cte
+
+    def visit(self, function: FunctionBlock) -> GlobalConst:
+        self.dependency[function] = []
+        calls: list[DataVariable] = []
+        self.alias[function] = {}
+
+        const = ReadOnly
+        for block in function.all_blocks():
+            for instr in block.instructions():
+                if isinstance(instr, CallInstr):
+                    calls.append(instr.source)
+                else:
+                    const |= self.visit_instr(function, instr)
+        self.constant[function.label] = const
+
+        for label in calls:
+            self.dependency[function].append(label)
+            const |= self.const(label)
+        if const is NotAConst:
+            del self.dependency[function]
+        return const
+
+    def visit_instr(self, fn: FunctionBlock, instr: Instruction) -> GlobalConst:
+        visitor = self._visitor.get(instr.opname, None)
+        if visitor is not None:
+            return visitor(self, fn, instr)
+        else:
+            return ReadOnly
+
+    def _get_alias(self, fn: FunctionBlock, var: Any) -> Optional[GlobalVariable]:
+        if isinstance(var, GlobalVariable):
+            return var
+        elif isinstance(var, LocalVariable):
+            return self.alias[fn].get(var, None)
+        else:
+            return None
+
+    def _set_alias(self, fn: FunctionBlock, var: LocalVariable, source: Any) -> None:
+        if isinstance(var, GlobalVariable):
+            self.alias[fn][var] = source
+        elif isinstance(var, LocalVariable) and source in self.alias[fn]:
+            self.alias[fn][var] = self.alias[fn][source]
+
+    def read(self, fn: FunctionBlock, value: Any) -> GlobalConst:
+        if (var := self._get_alias(fn, value)) is not None:
+            self.used.add(var)
+            if self.constant[var] is NotAConst:
+                return NotAConst
+            else:
+                self.dependency[fn].append(var)
+        return ReadOnly
+
+    def write(self, fn: FunctionBlock, value: Any) -> GlobalConst:
+        if (var := self._get_alias(fn, value)) is not None:
+            self.used.add(var)
+            self.constant[var] = NotAConst
+            self.dependency[fn] = []
+            return NotAConst
+        else:
+            return ReadOnly
+
+    def visit_read(self, fn: FunctionBlock, instr: ReadInstr) -> GlobalConst:
+        self.write(fn, instr.source)
+        return NotAConst
+
+    def visit_print(self, fn: FunctionBlock, instr: PrintInstr) -> GlobalConst:
+        self.read(fn, instr.source)
+        return NotAConst
+
+    def visit_param(self, fn: FunctionBlock, instr: ParamInstr) -> GlobalConst:
+        if isinstance(instr.type, (ArrayType, PointerType)):
+            return self.write(fn, instr.source)
+        else:
+            return self.read(fn, instr.source)
+
+    def visit_return(self, fn: FunctionBlock, instr: ReturnInstr) -> GlobalConst:
+        if isinstance(instr.type, (ArrayType, PointerType)):
+            return self.write(fn, instr.target)
+        else:
+            return self.read(fn, instr.target)
+
+    def visit_elem(self, fn: FunctionBlock, instr: ElemInstr) -> GlobalConst:
+        self._set_alias(fn, instr.target, instr.source)
+        return self.read(fn, instr.source)
+
+    def visit_store(self, fn: FunctionBlock, instr: StoreInstr) -> GlobalConst:
+        source = self.read(fn, instr.source)
+        target = self.write(fn, instr.target)
+        return source | target
+
+    def visit_load(self, fn: FunctionBlock, instr: LoadInstr) -> GlobalConst:
+        return self.read(fn, instr.varname)
+
+    def visit_literal(self, fn: FunctionBlock, instr: LiteralInstr) -> GlobalConst:
+        self._set_alias(fn, instr.target, instr.value)
+        return self.read(fn, instr.value)
+
+    def visit_get(self, fn: FunctionBlock, instr: GetInstr) -> GlobalConst:
+        self._set_alias(fn, instr.target, instr.source)
+        return self.read(fn, instr.source)
+
+    def visit_binary_op(self, fn: FunctionBlock, instr: BinaryOpInstruction) -> GlobalConst:
+        self._set_alias(fn, instr.target, instr.left)
+        self._set_alias(fn, instr.target, instr.right)
+        return self.read(fn, instr.target)
+
+    def visit_unary_op(self, fn: FunctionBlock, instr: UnaryOpInstruction) -> GlobalConst:
+        self._set_alias(fn, instr.target, instr.expr)
+        return self.read(fn, instr.target)
+
+    def visit_cbranch(self, fn: FunctionBlock, instr: CBranchInstr) -> GlobalConst:
+        return self.read(fn, instr.expr_test)
+
+    _visitor: dict[str, Callable[..., GlobalConst]] = {
+        "read": visit_read,
+        "print": visit_print,
+        "param": visit_param,
+        "return": visit_return,
+        "elem": visit_elem,
+        "store": visit_store,
+        "load": visit_load,
+        "get": visit_get,
+        "literal": visit_literal,
+        "cbranch": visit_cbranch,
+        "add": visit_binary_op,
+        "sub": visit_binary_op,
+        "mul": visit_binary_op,
+        "div": visit_binary_op,
+        "mod": visit_binary_op,
+        "not": visit_unary_op,
+        "le": visit_binary_op,
+        "lt": visit_binary_op,
+        "gt": visit_binary_op,
+        "ge": visit_binary_op,
+        "eq": visit_binary_op,
+        "ne": visit_binary_op,
+        "and": visit_binary_op,
+        "or": visit_binary_op,
+    }
+
+
+class GlobalConstantOptimization:
+    def __init__(self, gca: GlobalConstantAnalysis) -> None:
+        self.gca = gca
+        self.unused = self.unused_functions()
+
+    def unused_functions(self) -> set[DataVariable]:
+        return {
+            func.label for func in self.gca.program.functions if func.label not in self.gca.used
+        }
+
+    def split_text_data(self) -> tuple[list[GlobalInstr], list[GlobalBlock]]:
+        text: list[GlobalInstr] = []
+        data: list[GlobalInstr] = []
+
+        for instr in self.gca.program.instructions():
+            if instr.target not in self.gca.used:
+                continue
+            if self.gca.constant[instr.target] is ReadOnly:
+                text.append(instr)
+            else:
+                data.append(instr)
+        return text, data
+
+    def rebuild(self) -> GlobalBlock:
+        block = self.gca.program
+        block.text, block.data = self.split_text_data()
+        block.functions = [fn for fn in block.functions if fn.label in self.gca.used]
+        return block
+
+
 # # # # # # # # # # # # # #
 # Data Flow Optimizations #
 
@@ -1376,14 +1614,22 @@ class DataFlow(NodeVisitor[None]):
             self._code = bb.visit(self.glob)
         return self._code
 
+    def global_constants(self, node: Program) -> GlobalBlock:
+        gca = GlobalConstantAnalysis(node.cfg)
+        gco = GlobalConstantOptimization(gca)
+        self.unused = gco.unused
+        node.cfg = gco.rebuild()
+        return node.cfg
+
     def visit_Program(self, node: Program) -> None:
         # First, save the global instructions on code member
-        self.glob = node.cfg
+        self.glob = self.global_constants(node)
 
         # then rebuild functions
         self.glob.functions = []
         for decl in node.gdecls:
             self.visit(decl)
+        self.glob = self.global_constants(node)
 
         if self.viewcfg:
             dot = CFG()
@@ -1405,10 +1651,11 @@ class DataFlow(NodeVisitor[None]):
         return renum.rebuild()
 
     def visit_FuncDef(self, node: FuncDef) -> None:
-        node.cfg = self.constant_propagation(node.cfg)
-        node.cfg = self.dead_code_elimination(node.cfg)
-        node.cfg = self.renumber_temps(node.cfg)
-        self.glob.functions.append(node.cfg)
+        if node.cfg.label not in self.unused:
+            node.cfg = self.constant_propagation(node.cfg)
+            node.cfg = self.dead_code_elimination(node.cfg)
+            node.cfg = self.renumber_temps(node.cfg)
+            self.glob.functions.append(node.cfg)
 
 
 if __name__ == "__main__":
