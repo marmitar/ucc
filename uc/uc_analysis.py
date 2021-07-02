@@ -768,7 +768,7 @@ class ConstantAnalysis(Optimization):
         return temp
 
     def visit_block(self, block: FlowBlock) -> None:
-        """Analyse constants for a block"""
+        """Analyze constants for a block"""
         if block in self.values:
             return
         self.values[block] = {}
@@ -776,7 +776,7 @@ class ConstantAnalysis(Optimization):
             self.visit(block, instr)
 
     def visit(self, block: FlowBlock, instr: Instruction) -> Constants:
-        """Analyse constants for an instruction"""
+        """Analyze constants for an instruction"""
         if block not in self.values:
             self.visit_block(block)
         if instr not in self.values[block]:
@@ -832,7 +832,11 @@ class ConstantAnalysis(Optimization):
             data = value.value[0]
             if not isinstance(data, Const):
                 data = ConstValue(data)
-            return {instr.target: data, instr.varname: value}
+            if data is NAC:
+                alias = ConstVariable(instr.target)
+                return {instr.target: NAC, instr.varname: ConstValue((alias,))}
+            else:
+                return {instr.target: data, instr.varname: value}
 
     def _gen_store(self, instr: StoreInstr, defs: InOut, block: CodeBlock) -> Constants:
         value = self.get_const(defs, instr.source, instr)
