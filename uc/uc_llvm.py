@@ -3,7 +3,7 @@ import argparse
 import sys
 from ctypes import CFUNCTYPE, c_int
 from pathlib import Path
-from typing import Literal, TextIO
+from typing import Literal, Optional, TextIO
 from graphviz import Source
 from llvmlite import binding, ir
 from llvmlite.binding import ExecutionEngine, ModuleRef
@@ -14,6 +14,7 @@ from uc.uc_block import (
     BasicBlock,
     Block,
     BlockVisitor,
+    BranchBlock,
     EntryBlock,
     FunctionBlock,
     GlobalBlock,
@@ -95,91 +96,84 @@ class LLVMFunctionVisitor(BlockVisitor[Function]):
     def __init__(self, module: Module) -> None:
         super().__init__(self.build_function)
         self.module = module
-        self.loc = {}
 
     def build_function(self, block: Block) -> Function:
         assert isinstance(block, FunctionBlock)
         return Function(self.module, block.fntype.as_llvm(), block.name)
 
-    def _get_loc(self, target):
-        try:
-            if target[0] == "%":
-                return self.loc[target]
-            elif target[0] == "@":
-                return self.module.get_global(target[1:])
-        except KeyError:
-            return None
+    # def _get_loc(self, target):
+    #     try:
+    #         if target[0] == "%":
+    #             return self.loc[target]
+    #         elif target[0] == "@":
+    #             return self.module.get_global(target[1:])
+    #     except KeyError:
+    #         return None
 
-    def _global_constant(
-        self, builder_or_module, name: str, value: Constant, linkage: str = "internal"
-    ) -> ir.GlobalVariable:
-        # Get or create a (LLVM module-)global constant with *name* or *value*.
-        if isinstance(builder_or_module, Module):
-            mod = builder_or_module
-        else:
-            mod = builder_or_module.module
-        data = ir.GlobalVariable(mod, value.type, name=name)
-        data.linkage = linkage
-        data.global_constant = True
-        data.initializer = value
-        data.align = 1
-        return data
+    # def _global_constant(
+    #     self, builder_or_module, name: str, value: Constant, linkage: str = "internal"
+    # ) -> ir.GlobalVariable:
+    #     # Get or create a (LLVM module-)global constant with *name* or *value*.
+    #     if isinstance(builder_or_module, Module):
+    #         mod = builder_or_module
+    #     else:
+    #         mod = builder_or_module.module
+    #     data = ir.GlobalVariable(mod, value.type, name=name)
+    #     data.linkage = linkage
+    #     data.global_constant = True
+    #     data.initializer = value
+    #     data.align = 1
+    #     return data
 
-    def _cio(self, fname: str, format: str, *target):
-        # Make global constant for string format
-        mod = self.builder.module
-        fmt_bytes = make_bytearray(format)
-        global_fmt = self._global_constant(mod, mod.get_unique_name(".fmt"), fmt_bytes)
-        fn = mod.get_global(fname)
-        ptr_fmt = self.builder.bitcast(global_fmt, ir.IntType(8).as_pointer())
-        return self.builder.call(fn, [ptr_fmt] + list(target))
+    # def _cio(self, fname: str, format: str, *target):
+    #     # Make global constant for string format
+    #     mod = self.builder.module
+    #     fmt_bytes = make_bytearray(format)
+    #     global_fmt = self._global_constant(mod, mod.get_unique_name(".fmt"), fmt_bytes)
+    #     fn = mod.get_global(fname)
+    #     ptr_fmt = self.builder.bitcast(global_fmt, ir.IntType(8).as_pointer())
+    #     return self.builder.call(fn, [ptr_fmt] + list(target))
 
-    def _build_print(self, val_type, target):
-        if target:
-            # get the object assigned to target
-            value = self._get_loc(target)
-            if val_type == "int":
-                self._cio("printf", "%d", value)
-            elif val_type == "float":
-                self._cio("printf", "%.2f", value)
-            elif val_type == "char":
-                self._cio("printf", "%c", value)
-            elif val_type == "string":
-                self._cio("printf", "%s", value)
-        else:
-            self._cio("printf", "\n")
+    # def _build_print(self, val_type, target):
+    #     if target:
+    #         # get the object assigned to target
+    #         value = self._get_loc(target)
+    #         if val_type == "int":
+    #             self._cio("printf", "%d", value)
+    #         elif val_type == "float":
+    #             self._cio("printf", "%.2f", value)
+    #         elif val_type == "char":
+    #             self._cio("printf", "%c", value)
+    #         elif val_type == "string":
+    #             self._cio("printf", "%s", value)
+    #     else:
+    #         self._cio("printf", "\n")
 
-    def build(self, inst: Instruction) -> None:
-        opcode, ctype, modifier = self._extract_operation(inst[0])
-        if hasattr(self, "_build_" + opcode):
-            args = inst[1:] if len(inst) > 1 else (None,)
-            if not modifier:
-                getattr(self, "_build_" + opcode)(ctype, *args)
-            else:
-                getattr(self, "_build_" + opcode + "_")(ctype, *inst[1:], **modifier)
-        else:
-            print("Warning: No _build_" + opcode + "() method", flush=True)
+    # def build(self, inst: Instruction) -> None:
+    #     opcode, ctype, modifier = self._extract_operation(inst[0])
+    #     if hasattr(self, "_build_" + opcode):
+    #         args = inst[1:] if len(inst) > 1 else (None,)
+    #         if not modifier:
+    #             getattr(self, "_build_" + opcode)(ctype, *args)
+    #         else:
+    #             getattr(self, "_build_" + opcode + "_")(ctype, *inst[1:], **modifier)
+    #     else:
+    #         print("Warning: No _build_" + opcode + "() method", flush=True)
 
-    def visit_FunctionBlock(self, block: FunctionBlock, function: Function) -> None:
-        self.visit(block.entry, function)
+    def visit_FunctionBlock(self, block: FunctionBlock, func: Function) -> None:
+        self.visit(block.entry, func)
 
-    def visit_EntryBlock(self, block: EntryBlock, function: Function) -> None:
-        builder = ir.IRBuilder(function.append_basic_block(block.name))
+    def visit_EntryBlock(self, block: EntryBlock, func: Function) -> None:
+        builder = ir.IRBuilder(func.append_basic_block(block.name))
         builder.ret_void()
 
     def visit_BasicBlock(self, block: BasicBlock, func: Function) -> None:
-        # TODO: Complete
-        # Create the LLVM function when visiting its first block
-        # First visit of the block should create its LLVM equivalent
-        # Second visit should create the LLVM instructions within the block
-        pass
+        builder = ir.IRBuilder(func.append_basic_block(block.name))
+        raise NotImplementedError
 
-    def visit_ConditionBlock(self, block):
-        # TODO: Complete
-        # Create the LLVM function when visiting its first block
-        # First visit of the block should create its LLVM equivalent
-        # Second visit should create the LLVM instructions within the block
-        pass
+    def visit_BranchBlock(self, block: BranchBlock, func: Function) -> None:
+        builder = ir.IRBuilder(func.append_basic_block(block.name))
+        raise NotImplementedError
 
 
 class LLVMCodeGenerator(NodeVisitor[None]):
@@ -221,7 +215,33 @@ class LLVMCodeGenerator(NodeVisitor[None]):
             gv: Source = binding.view_dot_graph(dot, f"{node.funcname}.ll.gv", False)
             gv.view(quiet=True, quiet_view=True)
 
-    def compile_ir(self) -> ModuleRef:
+    def optimize_ir(self, mod: ModuleRef, opt: Literal["ctm", "dce", "cfg", "all"]) -> None:
+        # apply some optimization passes on module
+        pmb = binding.create_pass_manager_builder()
+        pm = binding.create_module_pass_manager()
+
+        pmb.opt_level = 3
+        pmb.size_level = 2
+        pmb.loop_vectorize = True
+        pmb.slp_vectorize = True
+        if opt == "ctm" or opt == "all":
+            # Sparse conditional constant propagation and merging
+            pm.add_sccp_pass()
+            # Merges duplicate global constants together
+            pm.add_constant_merge_pass()
+            # Combine inst to form fewer, simple inst
+            # This pass also does algebraic simplification
+            pm.add_instruction_combining_pass()
+        if opt == "dce" or opt == "all":
+            pm.add_dead_code_elimination_pass()
+        if opt == "cfg" or opt == "all":
+            # Performs dead code elimination and basic block merging
+            pm.add_cfg_simplification_pass()
+
+        pmb.populate(pm)
+        pm.run(mod)
+
+    def compile_ir(self, opt: Literal["ctm", "dce", "cfg", "all", None] = None) -> ModuleRef:
         """
         Compile the LLVM IR string with the given engine.
         The compiled module object is returned.
@@ -234,36 +254,19 @@ class LLVMCodeGenerator(NodeVisitor[None]):
         self.engine.add_module(mod)
         self.engine.finalize_object()
         self.engine.run_static_constructors()
+
+        if opt:
+            self.optimize_ir(mod, opt)
         return mod
 
     def save_ir(self, output_file: TextIO) -> None:
         output_file.write(str(self.module))
 
-    def execute_ir(self, opt: Literal["ctm", "dce", "cfg", "all", None], opt_file: TextIO) -> int:
-        mod = self.compile_ir()
-
-        if opt:
-            # apply some optimization passes on module
-            pmb = binding.create_pass_manager_builder()
-            pm = binding.create_module_pass_manager()
-
-            pmb.opt_level = 0
-            if opt == "ctm" or opt == "all":
-                # Sparse conditional constant propagation and merging
-                pm.add_sccp_pass()
-                # Merges duplicate global constants together
-                pm.add_constant_merge_pass()
-                # Combine inst to form fewer, simple inst
-                # This pass also does algebraic simplification
-                pm.add_instruction_combining_pass()
-            if opt == "dce" or opt == "all":
-                pm.add_dead_code_elimination_pass()
-            if opt == "cfg" or opt == "all":
-                # Performs dead code elimination and basic block merging
-                pm.add_cfg_simplification_pass()
-
-            pmb.populate(pm)
-            pm.run(mod)
+    def execute_ir(
+        self, opt: Literal["ctm", "dce", "cfg", "all", None], opt_file: Optional[TextIO] = None
+    ) -> int:
+        mod = self.compile_ir(opt)
+        if opt_file is not None:
             opt_file.write(str(mod))
 
         # Obtain a pointer to the compiled 'main' - it's the address of its JITed code in memory.
