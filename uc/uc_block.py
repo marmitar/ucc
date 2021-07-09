@@ -96,7 +96,7 @@ class GlobalBlock(CountedBlock):
 
     def __init__(self, program: Program):
         super().__init__()
-        self.name = program.name or "program"
+        self.name = program.name or "<program>"
         program.cfg = self
 
         self.data: list[GlobalInstr] = []
