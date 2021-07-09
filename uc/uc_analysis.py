@@ -390,12 +390,9 @@ class LocalDataFlowAnalysis(DataFlowAnalysis):
         super().__init__(data)
 
     def variables(self) -> Iterator[Variable]:
-        for var in self.cdata:
-            yield var
-        for var in self.globals:
-            yield var
-        for var in self.locals:
-            yield var
+        yield from self.cdata
+        yield from self.globals
+        yield from self.locals
 
     def block_transfer(self, block: CodeBlock) -> BlockData:
         """Generate transfer functions and CFG connections"""
@@ -622,7 +619,7 @@ Undef = ConstSpecial.Undef
 
 
 Constants = Dict[Variable, Const]
-Value = Union[int, float, str, bool]
+Value = Union[int, float, str, bool, bytes]
 
 
 @dataclass(frozen=True)
@@ -680,12 +677,10 @@ def uctype(value: Value) -> PrimaryType:
 
 def flatten(value: Value | list[Value]) -> Iterator[Value]:
     if isinstance(value, str):
-        for ch in value:
-            yield ch
-    elif isinstance(value, (list, tuple)):
-        for sublist in value:
-            for subval in flatten(sublist):
-                yield subval
+        yield from value
+    elif isinstance(value, (bytes, list, tuple)):
+        for item in value:
+            yield from flatten(item)
     else:
         yield value
 

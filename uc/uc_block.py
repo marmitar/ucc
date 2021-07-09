@@ -137,8 +137,7 @@ class GlobalBlock(CountedBlock):
         return chain(self.cdata, self.data)
 
     def subblocks(self) -> Iterator[Block]:
-        for function in self.functions:
-            yield function
+        yield from self.functions
 
 
 # # # # # # # # # #
@@ -297,8 +296,7 @@ class CodeBlock(Block):
 
     def instructions(self) -> Iterator[Instruction]:
         yield self.label_instr
-        for instr in self.instr:
-            yield instr
+        yield from self.instr
 
     def insert(self, block: C) -> C:
         # insert new block in the linked list
@@ -331,10 +329,8 @@ class BasicBlock(CodeBlock):
         self.jump_instr = []
 
     def instructions(self) -> Iterator[Instruction]:
-        for instr in super().instructions():
-            yield instr
-        for jump in self.jump_instr:
-            yield jump
+        yield from super().instructions()
+        yield from self.jump_instr
 
 
 class BranchBlock(CodeBlock):
@@ -345,8 +341,7 @@ class BranchBlock(CodeBlock):
         self.cbranch = CBranchInstr(condition, true.label, false.label)
 
     def instructions(self) -> Iterator[Instruction]:
-        for instr in super().instructions():
-            yield instr
+        yield from super().instructions()
         yield self.cbranch
 
 
@@ -404,12 +399,9 @@ class CodeList(List[Instruction]):
         self.program = program
 
     def with_start(self) -> Iterator[Instruction]:
-        for instr in self:
-            yield instr
-        if self.program.start is None:
-            return
-        for instr in self.program.start.instructions():
-            yield instr
+        yield from self
+        if self.program.start is not None:
+            yield from self.program.start.instructions()
 
 
 class EmitBlocks(BlockVisitor[CodeList]):
