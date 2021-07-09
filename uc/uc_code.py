@@ -85,7 +85,7 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
     with Basic Blocks & Control Flow Graph.
     """
 
-    def __init__(self, viewcfg: bool):
+    def __init__(self, viewcfg: bool = False):
         self.viewcfg = viewcfg
 
         self.glob: GlobalBlock = None
@@ -283,7 +283,7 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
         condition = self.visit(node.param)
         assert_test.branch(condition, next_block, assert_fail)
         # else, show fail message
-        msg = "assertion_fail on "
+        msg = "assertion_fail on \0".encode("utf8")
         msg_type = StringType(len(msg))
         message = self.glob.new_text(msg_type, msg)
         assert_fail.append_instr(PrintInstr(msg_type, message))
@@ -418,7 +418,7 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
     visit_BoolConstant = visit_Constant
 
     def visit_StringConstant(self, node: StringConstant) -> TextVariable:
-        return self.glob.new_text(node.uc_type, node.value)
+        return self.glob.new_text(node.uc_type, node.value.encode("utf8") + b"\0")
 
     def _varname(self, ident: ID) -> MemoryVariable:
         """Get variable name for identifier"""

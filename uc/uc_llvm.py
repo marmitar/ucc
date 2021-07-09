@@ -8,6 +8,7 @@ from graphviz import Source
 from llvmlite import binding, ir
 from llvmlite.binding import ExecutionEngine, ModuleRef
 from llvmlite.ir import Constant, Function, Module
+from uc.uc_analysis import DataFlow
 from uc.uc_ast import FuncDef, Program
 from uc.uc_block import (
     BasicBlock,
@@ -24,11 +25,10 @@ from uc.uc_sema import NodeVisitor, Visitor
 from uc.uc_type import BoolType, CharType, FloatType, IntType, StringType
 
 
-def make_bytearray(buf: str, encoding: Literal["ascii", "utf8"] = "utf8") -> Constant:
+def make_bytearray(buf: bytes) -> Constant:
     # Make a byte array constant from *buf*.
-    data = bytearray(buf + "\0", encoding=encoding)
-    lltype = ir.ArrayType(ir.IntType(8), len(data))
-    return Constant(lltype, data)
+    lltype = ir.ArrayType(ir.IntType(8), len(buf))
+    return Constant(lltype, bytearray(buf))
 
 
 def make_constant(value: int | bool | str | float | list[int | bool | str | float]) -> ir.Constant:
@@ -188,7 +188,6 @@ class LLVMCodeGenerator(NodeVisitor[None]):
         binding.initialize()
         binding.initialize_native_target()
         binding.initialize_native_asmprinter()
-
         self.engine = self.create_execution_engine()
 
     def create_execution_engine(self) -> ExecutionEngine:
@@ -203,7 +202,26 @@ class LLVMCodeGenerator(NodeVisitor[None]):
         backing_mod = binding.parse_assembly("")
         return binding.create_mcjit_compiler(backing_mod, target_machine)
 
-    def _compile_ir(self) -> ModuleRef:
+    def visit_Program(self, node: Program) -> None:
+        bb = LLVMModuleVisitor()
+        self.module = bb.visit(node.cfg)
+        # Visit all the function definitions and emit the llvm code from the
+        # uCIR code stored inside basic blocks.
+        for decl in node.gdecls:
+            self.visit(decl)
+
+    def visit_FuncDef(self, node: FuncDef) -> None:
+        # decl.cfg contains the Control Flow Graph for the function
+        bb = LLVMFunctionVisitor(self.module)
+        # Visit the CFG to define the Function and Create the Basic Blocks
+        function = bb.visit(node.cfg)
+
+        if self.viewcfg:
+            dot = binding.get_function_cfg(function)
+            gv: Source = binding.view_dot_graph(dot, f"{node.funcname}.ll.gv", False)
+            gv.view(quiet=True, quiet_view=True)
+
+    def compile_ir(self) -> ModuleRef:
         """
         Compile the LLVM IR string with the given engine.
         The compiled module object is returned.
@@ -222,7 +240,7 @@ class LLVMCodeGenerator(NodeVisitor[None]):
         output_file.write(str(self.module))
 
     def execute_ir(self, opt: Literal["ctm", "dce", "cfg", "all", None], opt_file: TextIO) -> int:
-        mod = self._compile_ir()
+        mod = self.compile_ir()
 
         if opt:
             # apply some optimization passes on module
@@ -255,25 +273,6 @@ class LLVMCodeGenerator(NodeVisitor[None]):
         main_function = CFUNCTYPE(c_int)(main_ptr)
         # Now 'main_function' is an actual callable we can invoke
         return main_function()
-
-    def visit_Program(self, node: Program) -> None:
-        bb = LLVMModuleVisitor()
-        self.module = bb.visit(node.cfg)
-        # Visit all the function definitions and emit the llvm code from the
-        # uCIR code stored inside basic blocks.
-        for decl in node.gdecls:
-            self.visit(decl)
-
-    def visit_FuncDef(self, node: FuncDef) -> None:
-        # decl.cfg contains the Control Flow Graph for the function
-        bb = LLVMFunctionVisitor(self.module)
-        # Visit the CFG to define the Function and Create the Basic Blocks
-        function = bb.visit(node.cfg)
-
-        if self.viewcfg:
-            dot = binding.get_function_cfg(function)
-            gv: Source = binding.view_dot_graph(dot, f"{node.funcname}.ll.gv", False)
-            gv.view(quiet=True, quiet_view=True)
 
 
 if __name__ == "__main__":
@@ -319,8 +318,11 @@ if __name__ == "__main__":
     sema = Visitor()
     sema.visit(ast)
 
-    gen = CodeGenerator(False)
+    gen = CodeGenerator()
     gen.visit(ast)
+
+    opt = DataFlow()
+    opt.visit(ast)
 
     llvm = LLVMCodeGenerator(create_cfg)
     llvm.visit(ast)

@@ -1479,9 +1479,9 @@ class GlobalConstantAnalysis:
             return None
 
     def _set_alias(self, fn: FunctionBlock, var: LocalVariable, source: Any) -> None:
-        if isinstance(var, GlobalVariable):
+        if isinstance(source, GlobalVariable):
             self.alias[fn][var] = source
-        elif isinstance(var, LocalVariable) and source in self.alias[fn]:
+        elif isinstance(source, LocalVariable) and source in self.alias[fn]:
             self.alias[fn][var] = self.alias[fn][source]
 
     def read(self, fn: FunctionBlock, value: Any) -> GlobalConst:
@@ -1617,7 +1617,7 @@ class GlobalConstantOptimization:
 
 
 class DataFlow(NodeVisitor[None]):
-    def __init__(self, viewcfg: bool):
+    def __init__(self, viewcfg: bool = False):
         self.viewcfg = viewcfg
 
     def show(self, buf: TextIO = sys.stdout) -> None:

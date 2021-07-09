@@ -222,7 +222,7 @@ class StringType(ArrayType):
     "Type for string literals"
 
     def __init__(self, size: int):
-        super().__init__(CharType, size + 1)
+        super().__init__(CharType, size)
 
     def typename(self) -> str:
         return "string_literal"

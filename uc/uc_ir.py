@@ -125,7 +125,7 @@ MemoryVariable = Union[NamedVariable, GlobalVariable]
 # INSTRUCTION TYPES #
 
 
-Value = Union[int, float, str, MemoryVariable]
+Value = Union[int, float, str, bytes, MemoryVariable]
 
 
 class Instruction:
