@@ -321,6 +321,5 @@ class FunctionType(uCType):
         return PointerType.__ucsize__()
 
     def as_llvm(self) -> types.FunctionType:
-        assert self.inner is not _UndefinedType
         params = (ty.as_llvm() for ty in self.param_types)
         return types.FunctionType(self.rettype.as_llvm(), params)
