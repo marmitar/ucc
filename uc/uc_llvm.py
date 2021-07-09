@@ -2,25 +2,19 @@ from __future__ import annotations
 import argparse
 import sys
 from ctypes import CFUNCTYPE, c_int
+from functools import lru_cache
 from pathlib import Path
-from typing import Literal, Optional, TextIO
+from typing import Callable, Literal, Optional, TextIO
 from graphviz import Source
 from llvmlite import binding, ir
 from llvmlite.binding import ExecutionEngine, ModuleRef
 from llvmlite.ir import Constant, Function, Module
+from llvmlite.ir.builder import IRBuilder
 from uc.uc_analysis import DataFlow
 from uc.uc_ast import FuncDef, Program
-from uc.uc_block import (
-    BasicBlock,
-    Block,
-    BlockVisitor,
-    BranchBlock,
-    EntryBlock,
-    FunctionBlock,
-    GlobalBlock,
-)
+from uc.uc_block import Block, BlockVisitor, CodeBlock, FunctionBlock, GlobalBlock
 from uc.uc_code import CodeGenerator
-from uc.uc_ir import GlobalInstr, Instruction, Variable
+from uc.uc_ir import AllocInstr, GlobalInstr, Instruction, LabelInstr, Variable
 from uc.uc_parser import UCParser
 from uc.uc_sema import NodeVisitor, Visitor
 from uc.uc_type import BoolType, CharType, FloatType, IntType, StringType
@@ -90,6 +84,27 @@ class LLVMModuleVisitor(BlockVisitor[Module]):
             self.declare_global(module, instr, constant=True)
         for instr in program.data:
             self.declare_global(module, instr)
+
+
+class LLVMInstructionBuilder:
+    def __init__(self, block: ir.Block) -> None:
+        self.builder_for = lru_cache(maxsize=None)(self.builder_for)
+
+        self.builder = IRBuilder(block)
+        self.params: list[str] = []
+
+    def builder_for(self, opname: str) -> Callable[[Instruction], None]:
+        return getattr(self, f"build_{opname}", self.no_builder_found)
+
+    def no_builder_found(self, instr: Instruction) -> None:
+        raise NotImplementedError(f"no builder for: {instr}")
+
+    def build(self, instr: Instruction) -> None:
+        if not isinstance(instr, LabelInstr):
+            self.builder_for(instr.opname)(instr)
+
+    def build_alloc(self, instr: AllocInstr) -> None:
+        self.builder.alloca(instr.type.as_llvm(), name=instr.target.format())
 
 
 class LLVMFunctionVisitor(BlockVisitor[Function]):
@@ -163,17 +178,19 @@ class LLVMFunctionVisitor(BlockVisitor[Function]):
     def visit_FunctionBlock(self, block: FunctionBlock, func: Function) -> None:
         self.visit(block.entry, func)
 
-    def visit_EntryBlock(self, block: EntryBlock, func: Function) -> None:
-        builder = ir.IRBuilder(func.append_basic_block(block.name))
-        builder.ret_void()
+    def visit_CodeBlock(self, block: CodeBlock, func: Function) -> None:
+        llvmblock = func.append_basic_block(block.name)
+        builder = LLVMInstructionBuilder(llvmblock)
 
-    def visit_BasicBlock(self, block: BasicBlock, func: Function) -> None:
-        builder = ir.IRBuilder(func.append_basic_block(block.name))
-        raise NotImplementedError
+        for instr in block.instructions():
+            builder.build(instr)
 
-    def visit_BranchBlock(self, block: BranchBlock, func: Function) -> None:
-        builder = ir.IRBuilder(func.append_basic_block(block.name))
-        raise NotImplementedError
+        if block.next is not None:
+            self.visit(block.next)
+
+    visit_EntryBlock = visit_CodeBlock
+    visit_BasicBlock = visit_CodeBlock
+    visit_BranchBlock = visit_CodeBlock
 
 
 class LLVMCodeGenerator(NodeVisitor[None]):
@@ -330,5 +347,5 @@ if __name__ == "__main__":
     llvm = LLVMCodeGenerator(create_cfg)
     llvm.visit(ast)
     # llvm.execute_ir(llvm_opt, None)
-    with open("test.ir", "w") as irfile:
+    with open("test.ll", "w") as irfile:
         llvm.save_ir(irfile)
