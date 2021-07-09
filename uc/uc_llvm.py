@@ -26,18 +26,26 @@ from uc.uc_code import CodeGenerator
 from uc.uc_ir import (
     AddInstr,
     AllocInstr,
+    AndInstr,
     CallInstr,
+    CBranchInstr,
+    DivInstr,
     ElemInstr,
+    ExitInstr,
     GetInstr,
     GlobalInstr,
     GlobalVariable,
     Instruction,
     JumpInstr,
-    LabelInstr,
     LabelName,
     LiteralInstr,
     LoadInstr,
     LocalVariable,
+    LogicalInstruction,
+    ModInstr,
+    MulInstr,
+    NotInstr,
+    OrInstr,
     ParamInstr,
     ReturnInstr,
     StoreInstr,
@@ -187,14 +195,85 @@ class LLVMInstructionBuilder:
 
     def build_add(self, instr: AddInstr) -> None:
         left, right = self.vars[instr.left], self.vars[instr.right]
-        # TODO: float
-        target = self.builder.add(left, right, name=instr.target.format())
+        if instr.type is FloatType:
+            target = self.builder.fadd(left, right, name=instr.target.format())
+        else:
+            target = self.builder.add(left, right, name=instr.target.format())
         self.vars[instr.target] = target
 
     def build_sub(self, instr: SubInstr) -> None:
         left, right = self.vars[instr.left], self.vars[instr.right]
-        # TODO: float
-        target = self.builder.sub(left, right, name=instr.target.format())
+        if instr.type is FloatType:
+            target = self.builder.fsub(left, right, name=instr.target.format())
+        else:
+            target = self.builder.sub(left, right, name=instr.target.format())
+        self.vars[instr.target] = target
+
+    def build_mul(self, instr: MulInstr) -> None:
+        left, right = self.vars[instr.left], self.vars[instr.right]
+        if instr.type is FloatType:
+            target = self.builder.fmul(left, right, name=instr.target.format())
+        else:
+            target = self.builder.mul(left, right, name=instr.target.format())
+        self.vars[instr.target] = target
+
+    def build_div(self, instr: DivInstr) -> None:
+        left, right = self.vars[instr.left], self.vars[instr.right]
+        if instr.type is FloatType:
+            target = self.builder.fdiv(left, right, name=instr.target.format())
+        else:
+            target = self.builder.sdiv(left, right, name=instr.target.format())
+        self.vars[instr.target] = target
+
+    def build_mod(self, instr: ModInstr) -> None:
+        left, right = self.vars[instr.left], self.vars[instr.right]
+        target = self.builder.srem(left, right, name=instr.target.format())
+        self.vars[instr.target] = target
+
+    # # # # # # # # # # #
+    # Unary Operations  #
+
+    def build_not(self, instr: NotInstr) -> None:
+        expr = self.vars[instr.expr]
+        target = self.builder.not_(expr, name=instr.target.format())
+        self.vars[instr.target] = target
+
+    # # # # # # # # # # # # # # # #
+    # Relational/Equality/Logical #
+
+    logical_cmp_op = {
+        "lt": "<",
+        "le": "<=",
+        "eq": "==",
+        "gt": ">",
+        "ge": ">=",
+        "ne": "!=",
+    }
+
+    def build_logical_cmp(self, instr: LogicalInstruction) -> None:
+        op = self.logical_cmp_op[instr.opname]
+        left, right = self.vars[instr.left], self.vars[instr.right]
+        if instr.type is FloatType:
+            target = self.builder.fcmp_ordered(op, left, right, name=instr.target.format())
+        else:
+            target = self.builder.icmp_signed(op, left, right, name=instr.target.format())
+        self.vars[instr.target] = target
+
+    build_lt = build_logical_cmp
+    build_le = build_logical_cmp
+    build_gt = build_logical_cmp
+    build_ge = build_logical_cmp
+    build_eq = build_logical_cmp
+    build_ne = build_logical_cmp
+
+    def build_and(self, instr: AndInstr) -> None:
+        left, right = self.vars[instr.left], self.vars[instr.right]
+        target = self.builder.and_(left, right, name=instr.target.format())
+        self.vars[instr.target] = target
+
+    def build_or(self, instr: OrInstr) -> None:
+        left, right = self.vars[instr.left], self.vars[instr.right]
+        target = self.builder.or_(left, right, name=instr.target.format())
         self.vars[instr.target] = target
 
     # # # # # # # # # # #
@@ -202,6 +281,11 @@ class LLVMInstructionBuilder:
 
     def build_jump(self, instr: JumpInstr) -> None:
         self.builder.branch(self.vars[instr.target])
+
+    def build_cbranch(self, instr: CBranchInstr) -> None:
+        condition = self.vars[instr.expr_test]
+        true, false = self.vars[instr.true_target], self.vars[instr.false_target]
+        self.builder.cbranch(condition, true, false)
 
     # # # # # # # # # # # # #
     # Functions & Builtins  #
@@ -236,6 +320,7 @@ class LLVMFunctionVisitor(BlockVisitor[Function]):
 
         self.vars = FunctionVariables(self.module)
         for (_, _, temp), arg in zip(block.params, function.args):
+            arg.name = temp.format()
             self.vars[temp] = arg
         return function
 
