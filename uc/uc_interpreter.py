@@ -58,7 +58,7 @@ from uc.uc_ir import (
     UnaryOpInstruction,
     Variable,
 )
-from uc.uc_type import ArrayType, CharType, FloatType, IntType, uCType
+from uc.uc_type import ArrayType, CharType, FloatType, IntType, StringType, uCType
 
 
 def printerr(*args) -> None:
@@ -409,7 +409,7 @@ class Interpreter:
             if isinstance(value, str):
                 for ch in value:
                     yield ch
-            elif isinstance(value, (list, tuple)):
+            elif isinstance(value, (bytes, list, tuple)):
                 for subitem in value:
                     for val in flatten(subitem):
                         yield val
@@ -554,10 +554,11 @@ class Interpreter:
     def run_print(self, op: PrintInstr) -> None:
         if op.source is None:
             print(flush=True)
-        elif isinstance(op.type, ArrayType):
+        elif isinstance(op.type, StringType):
             address = self._get_value(op.source)
             data = self._load_multiple(address, op.type)
-            print(*data, sep="", end="", flush=True)
+            text = str(bytes(data), "utf8")
+            print(text, sep="", end="", flush=True)
         else:
             data = self._get_value(op.source)
             print(data, end="", flush=True)

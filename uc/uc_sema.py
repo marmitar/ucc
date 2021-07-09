@@ -1050,7 +1050,7 @@ class SemanticVisitor(NodeVisitor[uCType]):
             return uctype
 
     def visit_StringConstant(self, node: StringConstant) -> StringType:
-        return StringType(len(node.value))
+        return StringType(len(node.value.encode("utf8")) + 1)
 
     def visit_IntConstant(self, _: IntConstant) -> Literal[IntType]:
         return IntType
