@@ -46,6 +46,8 @@ from uc.uc_ir import (
     NotInstr,
     OrInstr,
     ParamInstr,
+    PrintInstr,
+    ReadInstr,
     ReturnInstr,
     StoreInstr,
     SubInstr,
@@ -53,7 +55,15 @@ from uc.uc_ir import (
 )
 from uc.uc_parser import UCParser
 from uc.uc_sema import NodeVisitor, Visitor
-from uc.uc_type import BoolType, CharType, FloatType, IntType, StringType
+from uc.uc_type import (
+    BoolType,
+    CharType,
+    FloatType,
+    FunctionType,
+    IntType,
+    StringType,
+    VoidType,
+)
 
 
 def make_bytearray(buf: bytes) -> Constant:
@@ -77,8 +87,9 @@ def make_constant(value: int | bool | str | float | list[int | bool | str | floa
 
 
 class LLVMModuleVisitor(BlockVisitor[Module]):
-    def __init__(self):
+    def __init__(self, whole_program: bool = False):
         super().__init__(self.build_module)
+        self.whole_program = whole_program
 
     def build_module(self, program: Block) -> Module:
         assert isinstance(program, GlobalBlock)
@@ -102,9 +113,7 @@ class LLVMModuleVisitor(BlockVisitor[Module]):
         exit_decl.attributes.add("noreturn")
         return exit_decl
 
-    def declare_global(
-        self, mod: Module, instr: GlobalInstr, *, constant: bool = False
-    ) -> ir.GlobalVariable:
+    def declare_global(self, mod: Module, instr: GlobalInstr, *, constant: bool = False) -> None:
         var = ir.GlobalVariable(mod, instr.type.as_llvm(), instr.varname.format())
         var.global_constant = constant
         if instr.value is None:
@@ -115,13 +124,31 @@ class LLVMModuleVisitor(BlockVisitor[Module]):
             var.initializer = make_bytearray(instr.value)
         else:
             var.initializer = make_constant(instr.value)
-        return var
+        if self.whole_program:
+            var.unnamed_addr = True
+            var.linkage = "internal"
+
+    def declare_internal_string(self, mod: Module, name: str, value: str) -> None:
+        data = make_bytearray(value.encode("utf8") + b"\0")
+        data.type = ir.IntType(8)
+        var = ir.GlobalVariable(mod, data.type, name)
+        var.global_constant = True
+        var.unnamed_addr = True
+        var.initializer = data
+        var.linkage = "internal"
 
     def visit_GlobalBlock(self, program: GlobalBlock, module: Module) -> None:
         # declare external functions
         self.declare_printf(module)
         self.declare_scanf(module)
         self.declare_exit(module)
+        # declare format strings
+        self.declare_internal_string(module, "_fmt_int", "%d")
+        self.declare_internal_string(module, "_fmt_float", "%lf")
+        self.declare_internal_string(module, "_fmt_char", "%c")
+        self.declare_internal_string(module, "_fmt_bool", "%hhu")
+        self.declare_internal_string(module, "_fmt_string", "%s")
+        self.declare_internal_string(module, "_fmt_newline", r"\n")
         # and global variables
         for instr in program.cdata:
             self.declare_global(module, instr, constant=True)
@@ -135,8 +162,10 @@ class FunctionVariables(Dict[LocalVariable, ir.NamedValue]):
         self.module = module
         self.blocks: dict[LabelName, ir.Block] = {}
 
-    def get_global(self, var: GlobalVariable) -> ir.NamedValue:
-        return self.module.get_global(var.format())
+    def get_global(self, var: Union[GlobalVariable, str]) -> ir.NamedValue:
+        if isinstance(var, GlobalVariable):
+            var = var.format()
+        return self.module.get_global(var)
 
     def get_local(self, var: LocalVariable) -> ir.NamedValue:
         return super().__getitem__(var)
@@ -144,13 +173,13 @@ class FunctionVariables(Dict[LocalVariable, ir.NamedValue]):
     def get_block(self, label: LabelName) -> ir.Block:
         return self.blocks[label]
 
-    def __getitem__(self, var: Union[Variable, LabelName]) -> ir.NamedValue:
-        if isinstance(var, GlobalVariable):
-            return self.get_global(var)
+    def __getitem__(self, var: Union[Variable, LabelName, str]) -> ir.NamedValue:
+        if isinstance(var, LocalVariable):
+            return self.get_local(var)
         elif isinstance(var, LabelName):
             return self.get_block(var)
         else:
-            return self.get_local(var)
+            return self.get_global(var)
 
 
 class LLVMInstructionBuilder:
@@ -314,6 +343,35 @@ class LLVMInstructionBuilder:
     def build_param(self, instr: ParamInstr) -> None:
         self.params.append(self.vars[instr.source])
 
+    fmt_spec = {
+        IntType: "int",
+        FloatType: "float",
+        CharType: "char",
+        BoolType: "bool",
+    }
+
+    def build_read(self, instr: ReadInstr) -> None:
+        spec = self.fmt_spec.get(instr.type, "string")
+        fmt = self.vars[f"_fmt_{spec}"]
+
+        source = self.vars[instr.source]
+        self.builder.call(self.vars["scanf"], [fmt, source])
+
+    def build_print(self, instr: PrintInstr) -> None:
+        if instr.source is None:
+            args = [self.vars["_fmt_newline"]]
+        else:
+            spec = self.fmt_spec.get(instr.type, "string")
+            fmt = self.vars[f"_fmt_{spec}"]
+            args = [fmt, self.vars[instr.source]]
+
+        self.builder.call(self.vars["printf"], args)
+
+    def build_exit(self, instr: ExitInstr) -> None:
+        source = self.vars[instr.source]
+        self.builder.call(self.vars["exit"], source)
+        self.builder.unreachable()
+
 
 class LLVMFunctionVisitor(BlockVisitor[Function]):
     def __init__(self, module: Module, function: FunctionBlock) -> None:
@@ -382,7 +440,8 @@ class LLVMCodeGenerator(NodeVisitor[Optional[Iterator]]):
         return binding.create_mcjit_compiler(backing_mod, target_machine)
 
     def visit_Program(self, node: Program) -> None:
-        bb = LLVMModuleVisitor()
+        self.main = node.uc_type
+        bb = LLVMModuleVisitor(node.uc_type is not VoidType)
         self.module = bb.visit(node.cfg)
         # declare functions
         visitors: list[Iterator] = []
@@ -398,10 +457,15 @@ class LLVMCodeGenerator(NodeVisitor[Optional[Iterator]]):
 
     def visit_FuncDef(self, node: FuncDef) -> Iterator:
         # declare visitor, but don't visit yet
-        bb = LLVMFunctionVisitor(self.module, node.cfg)
+        bb = LLVMFunctionVisitor(
+            self.module,
+            node.cfg,
+        )
         yield
         # Visit the CFG to define the Function and Create the Basic Blocks
         function = bb.visit(node.cfg)
+        if isinstance(self.main, FunctionType) and self.main.funcname != node.cfg.name:
+            function.linkage = "private"
 
         if self.viewcfg:
             dot = binding.get_function_cfg(function)
