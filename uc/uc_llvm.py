@@ -2,12 +2,13 @@ import argparse
 import sys
 from ctypes import CFUNCTYPE, c_int
 from pathlib import Path
-from typing import Literal, Optional, TextIO
+from typing import Literal, TextIO
+from graphviz import Source
 from llvmlite import binding, ir
 from llvmlite.binding import ExecutionEngine, ModuleRef
 from llvmlite.ir import Constant, Function, Module
 from uc.uc_ast import FuncDef, Program
-from uc.uc_block import BasicBlock, Block, BlockVisitor, FunctionBlock
+from uc.uc_block import BasicBlock, Block, BlockVisitor, FunctionBlock, GlobalBlock
 from uc.uc_code import CodeGenerator
 from uc.uc_ir import Instruction
 from uc.uc_parser import UCParser
@@ -86,7 +87,7 @@ class LLVMFunctionVisitor(BlockVisitor[Function]):
         else:
             print("Warning: No _build_" + opcode + "() method", flush=True)
 
-    def visit_FunctionBlock(self, block: FunctionBlock, _: Function) -> Function:
+    def visit_FunctionBlock(self, block: FunctionBlock, _: None) -> Function:
         return Function(self.module, block.fntype.as_llvm(), block.name)
 
     def visit_BasicBlock(self, block: BasicBlock, func: Function) -> None:
@@ -104,6 +105,34 @@ class LLVMFunctionVisitor(BlockVisitor[Function]):
         pass
 
 
+class LLVMModuleVisitor(BlockVisitor[Module]):
+    def __init__(self):
+        super().__init__(self.build_module)
+
+    def build_module(self, program: Block) -> Module:
+        assert program is GlobalBlock
+        module = ir.Module(program.name)
+        module.triple = binding.get_default_triple()
+        return module
+
+    def declare_printf(self, mod: Module) -> ir.types.Function:
+        voidptr_ty = ir.IntType(8).as_pointer()
+        printf_ty = ir.FunctionType(ir.IntType(32), [voidptr_ty], var_arg=True)
+        return ir.Function(mod, printf_ty, name="printf")
+
+    def declare_scanf(self, mod: Module) -> ir.types.Function:
+        voidptr_ty = ir.IntType(8).as_pointer()
+        scanf_ty = ir.FunctionType(ir.IntType(32), [voidptr_ty], var_arg=True)
+        return ir.Function(mod, scanf_ty, name="scanf")
+
+    def visit_GlobalBlock(self, program: GlobalBlock, module: Module) -> None:
+        # declare external functions
+        self.declare_printf(module)
+        self.declare_scanf(module)
+        # and global variables
+        ...
+
+
 class LLVMCodeGenerator(NodeVisitor[None]):
     def __init__(self, viewcfg: bool) -> None:
         self.viewcfg = viewcfg
@@ -111,18 +140,7 @@ class LLVMCodeGenerator(NodeVisitor[None]):
         binding.initialize_native_target()
         binding.initialize_native_asmprinter()
 
-    def _build_module(self, name: Optional[str] = None) -> Module:
-        if name is not None:
-            self.module = ir.Module(name=name)
-        else:
-            self.module = ir.Module()
-        self.module.triple = binding.get_default_triple()
-
         self.engine = self._create_execution_engine()
-
-        # declare external functions
-        self._declare_printf_function()
-        self._declare_scanf_function()
 
     def _create_execution_engine(self) -> ExecutionEngine:
         """
@@ -135,16 +153,6 @@ class LLVMCodeGenerator(NodeVisitor[None]):
         # And an execution engine with an empty backing module
         backing_mod = binding.parse_assembly("")
         return binding.create_mcjit_compiler(backing_mod, target_machine)
-
-    def _declare_printf_function(self) -> None:
-        voidptr_ty = ir.IntType(8).as_pointer()
-        printf_ty = ir.FunctionType(ir.IntType(32), [voidptr_ty], var_arg=True)
-        self.printf = ir.Function(self.module, printf_ty, name="printf")
-
-    def _declare_scanf_function(self) -> None:
-        voidptr_ty = ir.IntType(8).as_pointer()
-        scanf_ty = ir.FunctionType(ir.IntType(32), [voidptr_ty], var_arg=True)
-        self.scanf = ir.Function(self.module, scanf_ty, name="scanf")
 
     def _compile_ir(self) -> ModuleRef:
         """
@@ -200,9 +208,8 @@ class LLVMCodeGenerator(NodeVisitor[None]):
         return main_function()
 
     def visit_Program(self, node: Program) -> None:
-        self._build_module(node.name)
-        # node.text contains the global instructions into the Program node
-        self._generate_global_instructions(node.cfg)  # TODO
+        bb = LLVMModuleVisitor()
+        self.module = bb.visit(node.cfg)
         # Visit all the function definitions and emit the llvm code from the
         # uCIR code stored inside basic blocks.
         for decl in node.gdecls:
@@ -214,13 +221,12 @@ class LLVMCodeGenerator(NodeVisitor[None]):
         # Visit the CFG to define the Function and Create the Basic Blocks
         bb.visit(node.cfg)
         # Visit CFG again to create the instructions inside Basic Blocks
-        bb.visit(node.cfg)
+        function = bb.visit(node.cfg)
 
         if self.viewcfg:
-            dot = binding.get_function_cfg(bb.func)
-            gname = node.declaration.name.name + ".ll.gv"
-            gv = binding.view_dot_graph(dot, gname, False)
-            gv.view()
+            dot = binding.get_function_cfg(function)
+            gv: Source = binding.view_dot_graph(dot, f"{node.funcname}.ll.gv", False)
+            gv.view(quiet=True, quiet_view=True)
 
 
 if __name__ == "__main__":

@@ -282,6 +282,10 @@ class FuncDef(Node):
     def func_type(self) -> FunctionType:
         return self.declaration.type.uc_type
 
+    @property
+    def funcname(self) -> str:
+        return self.func_type.funcname
+
 
 class ParamList(Node):
     __slots__ = ("params",)
