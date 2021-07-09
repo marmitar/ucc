@@ -4,7 +4,7 @@ import sys
 from ctypes import CFUNCTYPE, c_int
 from functools import lru_cache
 from pathlib import Path
-from typing import Callable, Literal, Optional, TextIO
+from typing import Any, Callable, Dict, Literal, Mapping, Optional, TextIO, Union
 from graphviz import Source
 from llvmlite import binding, ir
 from llvmlite.binding import ExecutionEngine, ModuleRef
@@ -12,9 +12,38 @@ from llvmlite.ir import Constant, Function, Module
 from llvmlite.ir.builder import IRBuilder
 from uc.uc_analysis import DataFlow
 from uc.uc_ast import FuncDef, Program
-from uc.uc_block import Block, BlockVisitor, CodeBlock, FunctionBlock, GlobalBlock
+from uc.uc_block import (
+    BasicBlock,
+    Block,
+    BlockVisitor,
+    BranchBlock,
+    CodeBlock,
+    EntryBlock,
+    FunctionBlock,
+    GlobalBlock,
+)
 from uc.uc_code import CodeGenerator
-from uc.uc_ir import AllocInstr, GlobalInstr, Instruction, LabelInstr, Variable
+from uc.uc_ir import (
+    AddInstr,
+    AllocInstr,
+    CallInstr,
+    ElemInstr,
+    GetInstr,
+    GlobalInstr,
+    GlobalVariable,
+    Instruction,
+    JumpInstr,
+    LabelInstr,
+    LabelName,
+    LiteralInstr,
+    LoadInstr,
+    LocalVariable,
+    ParamInstr,
+    ReturnInstr,
+    StoreInstr,
+    SubInstr,
+    Variable,
+)
 from uc.uc_parser import UCParser
 from uc.uc_sema import NodeVisitor, Visitor
 from uc.uc_type import BoolType, CharType, FloatType, IntType, StringType
@@ -86,25 +115,114 @@ class LLVMModuleVisitor(BlockVisitor[Module]):
             self.declare_global(module, instr)
 
 
-class LLVMInstructionBuilder:
-    def __init__(self, block: ir.Block) -> None:
-        self.builder_for = lru_cache(maxsize=None)(self.builder_for)
+class FunctionVariables(Dict[LocalVariable, ir.NamedValue]):
+    def __init__(self, module: Module) -> None:
+        super().__init__()
+        self.module = module
+        self.blocks: dict[LabelName, ir.Block] = {}
 
+    def get_global(self, var: GlobalVariable) -> ir.NamedValue:
+        return self.module.get_global(var.format())
+
+    def get_local(self, var: LocalVariable) -> ir.NamedValue:
+        return super().__getitem__(var)
+
+    def get_block(self, label: LabelName) -> ir.Block:
+        return self.blocks[label]
+
+    def __getitem__(self, var: Union[Variable, LabelName]) -> ir.NamedValue:
+        if isinstance(var, GlobalVariable):
+            return self.get_global(var)
+        elif isinstance(var, LabelName):
+            return self.get_block(var)
+        else:
+            return self.get_local(var)
+
+
+class LLVMInstructionBuilder:
+    def __init__(self, block: ir.Block, vars: FunctionVariables) -> None:
+        self.vars = vars
         self.builder = IRBuilder(block)
-        self.params: list[str] = []
+        self.params: list[ir.NamedValue] = []
 
     def builder_for(self, opname: str) -> Callable[[Instruction], None]:
         return getattr(self, f"build_{opname}", self.no_builder_found)
 
     def no_builder_found(self, instr: Instruction) -> None:
-        raise NotImplementedError(f"no builder for: {instr}")
+        # raise NotImplementedError(f"no builder for: {instr}")
+        return None
 
     def build(self, instr: Instruction) -> None:
-        if not isinstance(instr, LabelInstr):
-            self.builder_for(instr.opname)(instr)
+        self.builder_for(instr.opname)(instr)
+
+    # # # # # # # # # # # #
+    # Variables & Values  #
 
     def build_alloc(self, instr: AllocInstr) -> None:
-        self.builder.alloca(instr.type.as_llvm(), name=instr.target.format())
+        var = self.builder.alloca(instr.type.as_llvm(), name=instr.target.format())
+        self.vars[instr.target] = var
+
+    def build_load(self, instr: LoadInstr) -> None:
+        source = self.vars[instr.varname]
+        target = self.builder.load(source, name=instr.target.format())
+        self.vars[instr.target] = target
+
+    def build_store(self, instr: StoreInstr) -> None:
+        source, target = self.vars[instr.source], self.vars[instr.target]
+        self.builder.store(source, target)
+
+    def build_literal(self, instr: LiteralInstr) -> None:
+        self.vars[instr.target] = make_constant(instr.value)
+
+    def build_elem(self, instr: ElemInstr) -> None:
+        source, index = self.vars[instr.source], self.vars[instr.index]
+        target = self.builder.gep(source, [index], name=instr.target.format())
+        self.vars[instr.target] = target
+
+    def build_get(self, instr: GetInstr) -> None:
+        self.vars[instr.target] = self.vars[instr.source]
+
+    # # # # # # # # # # #
+    # Binary Operations #
+
+    def build_add(self, instr: AddInstr) -> None:
+        left, right = self.vars[instr.left], self.vars[instr.right]
+        # TODO: float
+        target = self.builder.add(left, right, name=instr.target.format())
+        self.vars[instr.target] = target
+
+    def build_sub(self, instr: SubInstr) -> None:
+        left, right = self.vars[instr.left], self.vars[instr.right]
+        # TODO: float
+        target = self.builder.sub(left, right, name=instr.target.format())
+        self.vars[instr.target] = target
+
+    # # # # # # # # # # #
+    # Labels & Branches #
+
+    def build_jump(self, instr: JumpInstr) -> None:
+        self.builder.branch(self.vars[instr.target])
+
+    # # # # # # # # # # # # #
+    # Functions & Builtins  #
+
+    def build_call(self, instr: CallInstr) -> None:
+        fn = self.vars[instr.source]
+        if instr.target is not None:
+            result = self.builder.call(fn, self.params, name=instr.target.format())
+            self.vars[instr.target] = result
+        else:
+            self.builder.call(fn, self.params)
+        self.params.clear()
+
+    def build_return(self, instr: ReturnInstr) -> None:
+        if instr.target is not None:
+            self.builder.ret(self.vars[instr.target])
+        else:
+            self.builder.ret_void()
+
+    def build_param(self, instr: ParamInstr) -> None:
+        self.params.append(self.vars[instr.source])
 
 
 class LLVMFunctionVisitor(BlockVisitor[Function]):
@@ -114,83 +232,39 @@ class LLVMFunctionVisitor(BlockVisitor[Function]):
 
     def build_function(self, block: Block) -> Function:
         assert isinstance(block, FunctionBlock)
-        return Function(self.module, block.fntype.as_llvm(), block.name)
+        function = Function(self.module, block.fntype.as_llvm(), block.name)
 
-    # def _get_loc(self, target):
-    #     try:
-    #         if target[0] == "%":
-    #             return self.loc[target]
-    #         elif target[0] == "@":
-    #             return self.module.get_global(target[1:])
-    #     except KeyError:
-    #         return None
-
-    # def _global_constant(
-    #     self, builder_or_module, name: str, value: Constant, linkage: str = "internal"
-    # ) -> ir.GlobalVariable:
-    #     # Get or create a (LLVM module-)global constant with *name* or *value*.
-    #     if isinstance(builder_or_module, Module):
-    #         mod = builder_or_module
-    #     else:
-    #         mod = builder_or_module.module
-    #     data = ir.GlobalVariable(mod, value.type, name=name)
-    #     data.linkage = linkage
-    #     data.global_constant = True
-    #     data.initializer = value
-    #     data.align = 1
-    #     return data
-
-    # def _cio(self, fname: str, format: str, *target):
-    #     # Make global constant for string format
-    #     mod = self.builder.module
-    #     fmt_bytes = make_bytearray(format)
-    #     global_fmt = self._global_constant(mod, mod.get_unique_name(".fmt"), fmt_bytes)
-    #     fn = mod.get_global(fname)
-    #     ptr_fmt = self.builder.bitcast(global_fmt, ir.IntType(8).as_pointer())
-    #     return self.builder.call(fn, [ptr_fmt] + list(target))
-
-    # def _build_print(self, val_type, target):
-    #     if target:
-    #         # get the object assigned to target
-    #         value = self._get_loc(target)
-    #         if val_type == "int":
-    #             self._cio("printf", "%d", value)
-    #         elif val_type == "float":
-    #             self._cio("printf", "%.2f", value)
-    #         elif val_type == "char":
-    #             self._cio("printf", "%c", value)
-    #         elif val_type == "string":
-    #             self._cio("printf", "%s", value)
-    #     else:
-    #         self._cio("printf", "\n")
-
-    # def build(self, inst: Instruction) -> None:
-    #     opcode, ctype, modifier = self._extract_operation(inst[0])
-    #     if hasattr(self, "_build_" + opcode):
-    #         args = inst[1:] if len(inst) > 1 else (None,)
-    #         if not modifier:
-    #             getattr(self, "_build_" + opcode)(ctype, *args)
-    #         else:
-    #             getattr(self, "_build_" + opcode + "_")(ctype, *inst[1:], **modifier)
-    #     else:
-    #         print("Warning: No _build_" + opcode + "() method", flush=True)
+        self.vars = FunctionVariables(self.module)
+        for (_, _, temp), arg in zip(block.params, function.args):
+            self.vars[temp] = arg
+        return function
 
     def visit_FunctionBlock(self, block: FunctionBlock, func: Function) -> None:
         self.visit(block.entry, func)
 
-    def visit_CodeBlock(self, block: CodeBlock, func: Function) -> None:
+    def visit_CodeBlock(self, block: CodeBlock, func: Function) -> LLVMInstructionBuilder:
         llvmblock = func.append_basic_block(block.name)
-        builder = LLVMInstructionBuilder(llvmblock)
+        builder = LLVMInstructionBuilder(llvmblock, self.vars)
+        self.vars.blocks[block.label] = llvmblock
 
-        for instr in block.instructions():
+        for instr in block.instr:
             builder.build(instr)
 
         if block.next is not None:
-            self.visit(block.next)
+            self.visit(block.next, func)
+        return builder
 
-    visit_EntryBlock = visit_CodeBlock
-    visit_BasicBlock = visit_CodeBlock
-    visit_BranchBlock = visit_CodeBlock
+    def visit_EntryBlock(self, block: EntryBlock, func: Function) -> None:
+        self.visit_CodeBlock(block, func)
+
+    def visit_BasicBlock(self, block: BasicBlock, func: Function) -> None:
+        builder = self.visit_CodeBlock(block, func)
+        for jump in block.jump_instr:
+            builder.build(jump)
+
+    def visit_BranchBlock(self, block: BranchBlock, func: Function) -> None:
+        builder = self.visit_CodeBlock(block, func)
+        builder.build(block.cbranch)
 
 
 class LLVMCodeGenerator(NodeVisitor[None]):
