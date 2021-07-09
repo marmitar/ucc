@@ -1,6 +1,7 @@
 from __future__ import annotations
 from enum import Enum, unique
 from typing import NamedTuple, Optional, Sequence, Union
+from llvmlite.ir import types
 
 
 class uCType:
@@ -53,6 +54,9 @@ class uCType:
     def __hash__(self) -> int:
         return hash(self.typename())
 
+    def as_llvm(self) -> types.Type:
+        raise NotImplementedError()
+
 
 # # # # # # # # #
 # Primary Types #
@@ -74,6 +78,19 @@ class PrimaryType(uCType, Enum):
 
     def __ucsize__(self) -> Int:
         return 0 if self == VoidType else 1
+
+    def as_llvm(self) -> types.Type:
+        if self is IntType:
+            return types.IntType(32)
+        elif self is CharType:
+            return types.IntType(8)
+        elif self is BoolType:
+            return types.IntType(1)
+        elif self is FloatType:
+            return types.DoubleType()
+        else:
+            assert self is VoidType
+            return types.VoidType()
 
     int = (
         {"-", "+", "&"},
@@ -165,6 +182,13 @@ class ArrayType(uCType):
         else:
             return self.size * self.elem_type.__ucsize__()
 
+    def as_llvm(self) -> Union[types.ArrayType, types.PointerType]:
+        if self.size is None:
+            return self.as_pointer().as_llvm()
+        else:
+            assert self.elem_type is not _UndefinedType
+            return types.ArrayType(self.elem_type.as_llvm(), self.size)
+
     @staticmethod
     def empty_list() -> ArrayType:
         """Special type for empty initialization lists: '{}'."""
@@ -236,6 +260,10 @@ class PointerType(uCType):
         # pointer is same as an integer
         return IntType.__ucsize__()
 
+    def as_llvm(self) -> types.PointerType:
+        assert self.inner is not _UndefinedType
+        return types.PointerType(self.inner.as_llvm())
+
 
 # # # # # # # # #
 # Function Type #
@@ -291,3 +319,8 @@ class FunctionType(uCType):
     def __ucsize__(self) -> int:
         # same as pointer
         return PointerType.__ucsize__()
+
+    def as_llvm(self) -> types.FunctionType:
+        assert self.inner is not _UndefinedType
+        params = (ty.as_llvm() for ty in self.param_types)
+        return types.FunctionType(self.rettype.as_llvm(), params)

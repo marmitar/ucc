@@ -2,12 +2,12 @@ import argparse
 import sys
 from ctypes import CFUNCTYPE, c_int
 from pathlib import Path
-from typing import Literal, TextIO
+from typing import Literal, Optional, TextIO
 from llvmlite import binding, ir
 from llvmlite.binding import ExecutionEngine, ModuleRef
 from llvmlite.ir import Constant, Function, Module
 from uc.uc_ast import FuncDef, Program
-from uc.uc_block import BasicBlock, BlockVisitor
+from uc.uc_block import BasicBlock, Block, BlockVisitor, FunctionBlock
 from uc.uc_code import CodeGenerator
 from uc.uc_ir import Instruction
 from uc.uc_parser import UCParser
@@ -23,9 +23,8 @@ def make_bytearray(buf: str, encoding: Literal["ascii", "utf8"] = "uft8") -> Con
 
 class LLVMFunctionVisitor(BlockVisitor[Function]):
     def __init__(self, module: Module) -> None:
-        super().__init__()  # TODO
+        super().__init__(lambda _: None)
         self.module = module
-        self.builder = None
         self.loc = {}
 
     def _get_loc(self, target):
@@ -87,6 +86,9 @@ class LLVMFunctionVisitor(BlockVisitor[Function]):
         else:
             print("Warning: No _build_" + opcode + "() method", flush=True)
 
+    def visit_FunctionBlock(self, block: FunctionBlock, _: Function) -> Function:
+        return Function(self.module, block.fntype.as_llvm(), block.name)
+
     def visit_BasicBlock(self, block: BasicBlock, func: Function) -> None:
         # TODO: Complete
         # Create the LLVM function when visiting its first block
@@ -109,7 +111,11 @@ class LLVMCodeGenerator(NodeVisitor[None]):
         binding.initialize_native_target()
         binding.initialize_native_asmprinter()
 
-        self.module = ir.Module(name=__file__)
+    def _build_module(self, name: Optional[str] = None) -> Module:
+        if name is not None:
+            self.module = ir.Module(name=name)
+        else:
+            self.module = ir.Module()
         self.module.triple = binding.get_default_triple()
 
         self.engine = self._create_execution_engine()
@@ -194,25 +200,15 @@ class LLVMCodeGenerator(NodeVisitor[None]):
         return main_function()
 
     def visit_Program(self, node: Program) -> None:
+        self._build_module(node.name)
         # node.text contains the global instructions into the Program node
-        self._generate_global_instructions(node.text)
+        self._generate_global_instructions(node.cfg)  # TODO
         # Visit all the function definitions and emit the llvm code from the
         # uCIR code stored inside basic blocks.
         for decl in node.gdecls:
-            if isinstance(decl, FuncDef):
-                # _decl.cfg contains the Control Flow Graph for the function
-                bb = LLVMFunctionVisitor(self.module)
-                # Visit the CFG to define the Function and Create the Basic Blocks
-                bb.visit(decl.cfg)
-                # Visit CFG again to create the instructions inside Basic Blocks
-                bb.visit(decl.cfg)
-                if self.viewcfg:
-                    dot = binding.get_function_cfg(bb.func)
-                    gv = binding.view_dot_graph(dot, decl.decl.name.name, False)
-                    gv.filename = decl.decl.name.name + ".ll.gv"
-                    gv.view()
+            self.visit(decl)
 
-    def visit_FunDef(self, node: FuncDef) -> None:
+    def visit_FuncDef(self, node: FuncDef) -> None:
         # _decl.cfg contains the Control Flow Graph for the function
         bb = LLVMFunctionVisitor(self.module)
         # Visit the CFG to define the Function and Create the Basic Blocks
