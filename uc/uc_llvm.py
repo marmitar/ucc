@@ -2,9 +2,8 @@ from __future__ import annotations
 import argparse
 import sys
 from ctypes import CFUNCTYPE, c_int
-from functools import lru_cache
 from pathlib import Path
-from typing import Any, Callable, Dict, Literal, Mapping, Optional, TextIO, Union
+from typing import Callable, Dict, Generator, Literal, Optional, TextIO, Union
 from graphviz import Source
 from llvmlite import binding, ir
 from llvmlite.binding import ExecutionEngine, ModuleRef
@@ -87,15 +86,21 @@ class LLVMModuleVisitor(BlockVisitor[Module]):
         module.triple = binding.get_default_triple()
         return module
 
-    def declare_printf(self, mod: Module) -> ir.types.Function:
+    def declare_printf(self, mod: Module) -> ir.Function:
         voidptr_ty = ir.IntType(8).as_pointer()
         printf_ty = ir.FunctionType(ir.IntType(32), [voidptr_ty], var_arg=True)
         return ir.Function(mod, printf_ty, name="printf")
 
-    def declare_scanf(self, mod: Module) -> ir.types.Function:
+    def declare_scanf(self, mod: Module) -> ir.Function:
         voidptr_ty = ir.IntType(8).as_pointer()
         scanf_ty = ir.FunctionType(ir.IntType(32), [voidptr_ty], var_arg=True)
         return ir.Function(mod, scanf_ty, name="scanf")
+
+    def declare_exit(self, mod: Module) -> ir.Function:
+        exit_ty = ir.FunctionType(ir.VoidType(), [ir.IntType(32)])
+        exit_decl = ir.Function(mod, exit_ty, name="exit")
+        exit_decl.attributes.add("noreturn")
+        return exit_decl
 
     def declare_global(
         self, mod: Module, instr: GlobalInstr, *, constant: bool = False
@@ -116,6 +121,7 @@ class LLVMModuleVisitor(BlockVisitor[Module]):
         # declare external functions
         self.declare_printf(module)
         self.declare_scanf(module)
+        self.declare_exit(module)
         # and global variables
         for instr in program.cdata:
             self.declare_global(module, instr, constant=True)
@@ -310,12 +316,12 @@ class LLVMInstructionBuilder:
 
 
 class LLVMFunctionVisitor(BlockVisitor[Function]):
-    def __init__(self, module: Module) -> None:
-        super().__init__(self.build_function)
+    def __init__(self, module: Module, function: FunctionBlock) -> None:
+        super().__init__(lambda _: self.function)
         self.module = module
+        self.function = self.build_function(function)
 
-    def build_function(self, block: Block) -> Function:
-        assert isinstance(block, FunctionBlock)
+    def build_function(self, block: FunctionBlock) -> Function:
         function = Function(self.module, block.fntype.as_llvm(), block.name)
 
         self.vars = FunctionVariables(self.module)
@@ -352,7 +358,10 @@ class LLVMFunctionVisitor(BlockVisitor[Function]):
         builder.build(block.cbranch)
 
 
-class LLVMCodeGenerator(NodeVisitor[None]):
+Iterator = Generator[None, None, None]
+
+
+class LLVMCodeGenerator(NodeVisitor[Optional[Iterator]]):
     def __init__(self, viewcfg: bool = False) -> None:
         self.viewcfg = viewcfg
         binding.initialize()
@@ -375,14 +384,22 @@ class LLVMCodeGenerator(NodeVisitor[None]):
     def visit_Program(self, node: Program) -> None:
         bb = LLVMModuleVisitor()
         self.module = bb.visit(node.cfg)
-        # Visit all the function definitions and emit the llvm code from the
-        # uCIR code stored inside basic blocks.
+        # declare functions
+        visitors: list[Iterator] = []
         for decl in node.gdecls:
-            self.visit(decl)
+            visitor = self.visit(decl)
+            if visitor is not None:
+                next(visitor)
+                visitors.append(visitor)
+        # finish definition
+        for visitor in visitors:
+            for _ in visitor:
+                ...
 
-    def visit_FuncDef(self, node: FuncDef) -> None:
-        # decl.cfg contains the Control Flow Graph for the function
-        bb = LLVMFunctionVisitor(self.module)
+    def visit_FuncDef(self, node: FuncDef) -> Iterator:
+        # declare visitor, but don't visit yet
+        bb = LLVMFunctionVisitor(self.module, node.cfg)
+        yield
         # Visit the CFG to define the Function and Create the Basic Blocks
         function = bb.visit(node.cfg)
 

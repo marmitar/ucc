@@ -407,12 +407,10 @@ class Interpreter:
     def _split_data(self, literal: Union[Any, list[Any]]) -> list[Union[Value, Variable]]:
         def flatten(value: Union[Any, list[Any], None]) -> Iterator[Union[Value, Variable]]:
             if isinstance(value, str):
-                for ch in value:
-                    yield ch
+                yield from value
             elif isinstance(value, (bytes, list, tuple)):
-                for subitem in value:
-                    for val in flatten(subitem):
-                        yield val
+                for item in value:
+                    yield from flatten(item)
             elif value is not None:
                 yield value
 
