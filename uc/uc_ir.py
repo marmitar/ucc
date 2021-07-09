@@ -100,7 +100,7 @@ class DataVariable(GlobalVariable):
 
 
 class TextVariable(GlobalVariable):
-    """Global variable that lives on the 'text' section."""
+    """Constant variable that lives on the 'data' section."""
 
     __slots__ = ()
 

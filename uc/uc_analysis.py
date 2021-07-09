@@ -6,7 +6,6 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, unique
-from itertools import chain
 from typing import (
     Any,
     Callable,
@@ -391,7 +390,7 @@ class LocalDataFlowAnalysis(DataFlowAnalysis):
         super().__init__(data)
 
     def variables(self) -> Iterator[Variable]:
-        for var in self.text:
+        for var in self.cdata:
             yield var
         for var in self.globals:
             yield var
@@ -425,10 +424,10 @@ class LocalDataFlowAnalysis(DataFlowAnalysis):
         return data
 
     def global_transfer(self, block: GlobalBlock) -> BlockData:
-        """Generate transfer functions for .text and .data sections"""
+        """Generate transfer functions for .cdata and .data sections"""
         data = BlockData(block)
         # global variables for this funciton
-        self.text = tuple(instr.target for instr in block.text)
+        self.cdata = tuple(instr.target for instr in block.cdata)
         self.globals = tuple(instr.target for instr in block.data)
 
         for instr in self.iter_instr(block):
@@ -695,7 +694,7 @@ class ConstantAnalysis(Optimization):
     def __init__(self, rdefs: ReachingDefinitions) -> None:
         super().__init__(rdefs.function)
         self.rdefs = rdefs
-        self.globals = {instr.target for instr in rdefs.function.program.text}
+        self.globals = {instr.target for instr in rdefs.function.program.cdata}
         self.default: Constants = {var: NAC for var in rdefs.variables()}
         self.values: dict[FlowBlock, dict[Instruction, Constants]] = {}
         self.temps: defaultdict[Value, TempVariable] = defaultdict(
@@ -1411,7 +1410,7 @@ class GlobalConstantAnalysis:
         self.program = program
 
         self.labels = {fn.label: fn for fn in program.functions}
-        self.variables = {instr.target for instr in chain(program.text, program.data)}
+        self.variables = {instr.target for instr in program.instructions()}
 
         self.used: set[GlobalVariable] = set()
         self.visit_functions()
@@ -1593,7 +1592,7 @@ class GlobalConstantOptimization:
             func.label for func in self.gca.program.functions if func.label not in self.gca.used
         }
 
-    def split_text_data(self) -> tuple[list[GlobalInstr], list[GlobalBlock]]:
+    def split_constant_data(self) -> tuple[list[GlobalInstr], list[GlobalBlock]]:
         text: list[GlobalInstr] = []
         data: list[GlobalInstr] = []
 
@@ -1608,7 +1607,7 @@ class GlobalConstantOptimization:
 
     def rebuild(self) -> GlobalBlock:
         block = self.gca.program
-        block.text, block.data = self.split_text_data()
+        block.cdata, block.data = self.split_constant_data()
         block.functions = [fn for fn in block.functions if fn.label in self.gca.used]
         return block
 
