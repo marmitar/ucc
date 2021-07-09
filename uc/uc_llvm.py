@@ -1,3 +1,4 @@
+from __future__ import annotations
 import argparse
 import sys
 from ctypes import CFUNCTYPE, c_int
@@ -5,14 +6,15 @@ from pathlib import Path
 from typing import Literal, TextIO
 from graphviz import Source
 from llvmlite import binding, ir
-from llvmlite.binding import ExecutionEngine, ModuleRef
+from llvmlite.binding import ExecutionEngine, ModuleRef, value
 from llvmlite.ir import Constant, Function, Module
 from uc.uc_ast import FuncDef, Program
 from uc.uc_block import BasicBlock, Block, BlockVisitor, FunctionBlock, GlobalBlock
 from uc.uc_code import CodeGenerator
-from uc.uc_ir import Instruction
+from uc.uc_ir import GlobalInstr, Instruction, Variable
 from uc.uc_parser import UCParser
 from uc.uc_sema import NodeVisitor, Visitor
+from uc.uc_type import BoolType, CharType, FloatType, IntType, StringType
 
 
 def make_bytearray(buf: str, encoding: Literal["ascii", "utf8"] = "uft8") -> Constant:
@@ -20,6 +22,20 @@ def make_bytearray(buf: str, encoding: Literal["ascii", "utf8"] = "uft8") -> Con
     data = bytearray(buf + "\0", encoding=encoding)
     lltype = ir.ArrayType(ir.IntType(8), len(data))
     return Constant(lltype, data)
+
+
+def make_constant(value: int | bool | str | float | list[int | bool | str | float]) -> ir.Constant:
+    if isinstance(value, bool):
+        return ir.Constant(BoolType.as_llvm(), value)
+    elif isinstance(value, int):
+        return ir.Constant(IntType.as_llvm(), value)
+    elif isinstance(value, float):
+        return ir.Constant(FloatType.as_llvm(), value)
+    elif isinstance(value, str):
+        return ir.Constant(CharType.as_llvm(), ord(value))
+    else:
+        elements = [make_constant(item) for item in value]
+        return ir.Constant.literal_array(elements)
 
 
 class LLVMFunctionVisitor(BlockVisitor[Function]):
@@ -110,7 +126,7 @@ class LLVMModuleVisitor(BlockVisitor[Module]):
         super().__init__(self.build_module)
 
     def build_module(self, program: Block) -> Module:
-        assert program is GlobalBlock
+        assert isinstance(program, GlobalBlock)
         module = ir.Module(program.name)
         module.triple = binding.get_default_triple()
         return module
@@ -125,12 +141,30 @@ class LLVMModuleVisitor(BlockVisitor[Module]):
         scanf_ty = ir.FunctionType(ir.IntType(32), [voidptr_ty], var_arg=True)
         return ir.Function(mod, scanf_ty, name="scanf")
 
+    def declare_global(
+        self, mod: Module, instr: GlobalInstr, *, constant: bool = False
+    ) -> ir.GlobalVariable:
+        var = ir.GlobalVariable(mod, instr.type.as_llvm(), instr.varname.format())
+        var.global_constant = constant
+        if instr.value is None:
+            pass
+        elif isinstance(instr.value, Variable):
+            var.initializer = mod.get_global(instr.value.format())
+        elif isinstance(instr.type, StringType):
+            var.initializer = make_bytearray(instr.value)
+        else:
+            var.initializer = make_constant(instr.value)
+        return var
+
     def visit_GlobalBlock(self, program: GlobalBlock, module: Module) -> None:
         # declare external functions
         self.declare_printf(module)
         self.declare_scanf(module)
         # and global variables
-        ...
+        for instr in program.cdata:
+            self.declare_global(module, instr, constant=True)
+        for instr in program.data:
+            self.declare_global(module, instr)
 
 
 class LLVMCodeGenerator(NodeVisitor[None]):
@@ -210,10 +244,10 @@ class LLVMCodeGenerator(NodeVisitor[None]):
     def visit_Program(self, node: Program) -> None:
         bb = LLVMModuleVisitor()
         self.module = bb.visit(node.cfg)
-        # Visit all the function definitions and emit the llvm code from the
-        # uCIR code stored inside basic blocks.
-        for decl in node.gdecls:
-            self.visit(decl)
+        # # Visit all the function definitions and emit the llvm code from the
+        # # uCIR code stored inside basic blocks.
+        # for decl in node.gdecls:
+        #     self.visit(decl)
 
     def visit_FuncDef(self, node: FuncDef) -> None:
         # _decl.cfg contains the Control Flow Graph for the function
@@ -277,4 +311,6 @@ if __name__ == "__main__":
 
     llvm = LLVMCodeGenerator(create_cfg)
     llvm.visit(ast)
-    llvm.execute_ir(llvm_opt, None)
+    # llvm.execute_ir(llvm_opt, None)
+    with open("test.ir", "w") as irfile:
+        llvm.save_ir(irfile)

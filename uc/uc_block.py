@@ -100,7 +100,7 @@ class GlobalBlock(CountedBlock):
         program.cfg = self
 
         self.data: list[GlobalInstr] = []
-        self.text: list[GlobalInstr] = []
+        self.cdata: list[GlobalInstr] = []
         # cache of defined constants, to avoid repeated values
         self.consts: dict[tuple[str, str], TextVariable] = {}
         # all functions in the program
@@ -116,7 +116,7 @@ class GlobalBlock(CountedBlock):
 
         varname = TextVariable(ty.ir(), self._new_version(ty.ir()))
         # and insert into the text section
-        self.text.append(GlobalInstr(ty, varname, value))
+        self.cdata.append(GlobalInstr(ty, varname, value))
         self.consts[ty, str(value)] = varname
         return varname
 
@@ -134,7 +134,7 @@ class GlobalBlock(CountedBlock):
 
     def instructions(self) -> Iterator[GlobalInstr]:
         # show text variables, then data
-        return chain(self.text, self.data)
+        return chain(self.cdata, self.data)
 
     def subblocks(self) -> Iterator[Block]:
         for function in self.functions:
@@ -513,7 +513,7 @@ class CFG(BlockVisitor[GraphData]):
 
     def visit_GlobalBlock(self, block: GlobalBlock, g: GraphData) -> None:
         # special node for data and text sections
-        g.add_node(None, ".text", block.text)
+        g.add_node(None, ".cdata", block.cdata)
         g.add_node(block, ".data", block.data)
         # and all functions as well
         for func in block.subblocks():
