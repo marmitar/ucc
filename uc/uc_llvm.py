@@ -1,12 +1,11 @@
 from __future__ import annotations
 import argparse
 import sys
-from ctypes import CFUNCTYPE, c_int
 from pathlib import Path
 from typing import Callable, Dict, Generator, Literal, Optional, TextIO, Union
 from graphviz import Source
 from llvmlite import binding, ir
-from llvmlite.binding import ExecutionEngine, ModuleRef
+from llvmlite.binding import ExecutionEngine, ModulePassManager, ModuleRef
 from llvmlite.ir import Constant, Function, Module
 from llvmlite.ir.builder import IRBuilder
 from uc.uc_analysis import DataFlow
@@ -130,7 +129,6 @@ class LLVMModuleVisitor(BlockVisitor[Module]):
 
     def declare_internal_string(self, mod: Module, name: str, value: str) -> None:
         data = make_bytearray(value.encode("utf8") + b"\0")
-        data.type = ir.IntType(8)
         var = ir.GlobalVariable(mod, data.type, name)
         var.global_constant = True
         var.unnamed_addr = True
@@ -138,17 +136,17 @@ class LLVMModuleVisitor(BlockVisitor[Module]):
         var.linkage = "internal"
 
     def visit_GlobalBlock(self, program: GlobalBlock, module: Module) -> None:
+        # declare format strings
+        self.declare_internal_string(module, ".fmt.int", "%d")
+        self.declare_internal_string(module, ".fmt.float", "%lf")
+        self.declare_internal_string(module, ".fmt.char", "%c")
+        self.declare_internal_string(module, ".fmt.bool", "%hhu")
+        self.declare_internal_string(module, ".fmt.string", "%s")
+        self.declare_internal_string(module, ".fmt.newline", "\n")
         # declare external functions
         self.declare_printf(module)
         self.declare_scanf(module)
         self.declare_exit(module)
-        # declare format strings
-        self.declare_internal_string(module, "_fmt_int", "%d")
-        self.declare_internal_string(module, "_fmt_float", "%lf")
-        self.declare_internal_string(module, "_fmt_char", "%c")
-        self.declare_internal_string(module, "_fmt_bool", "%hhu")
-        self.declare_internal_string(module, "_fmt_string", "%s")
-        self.declare_internal_string(module, "_fmt_newline", r"\n")
         # and global variables
         for instr in program.cdata:
             self.declare_global(module, instr, constant=True)
@@ -162,7 +160,7 @@ class FunctionVariables(Dict[LocalVariable, ir.NamedValue]):
         self.module = module
         self.blocks: dict[LabelName, ir.Block] = {}
 
-    def get_global(self, var: Union[GlobalVariable, str]) -> ir.NamedValue:
+    def get_global(self, var: Union[GlobalVariable, str]) -> ir.GlobalVariable | ir.Function:
         if isinstance(var, GlobalVariable):
             var = var.format()
         return self.module.get_global(var)
@@ -192,8 +190,7 @@ class LLVMInstructionBuilder:
         return getattr(self, f"build_{opname}", self.no_builder_found)
 
     def no_builder_found(self, instr: Instruction) -> None:
-        # raise NotImplementedError(f"no builder for: {instr}")
-        return None
+        raise NotImplementedError(f"no builder for: {instr}")
 
     def build(self, instr: Instruction) -> None:
         self.builder_for(instr.opname)(instr)
@@ -219,7 +216,8 @@ class LLVMInstructionBuilder:
 
     def build_elem(self, instr: ElemInstr) -> None:
         source, index = self.vars[instr.source], self.vars[instr.index]
-        target = self.builder.gep(source, [index], name=instr.target.format())
+        ptr = self.builder.bitcast(source, instr.type.as_llvm().as_pointer())
+        target = self.builder.gep(ptr, [index], name=instr.target.format())
         self.vars[instr.target] = target
 
     def build_get(self, instr: GetInstr) -> None:
@@ -314,8 +312,10 @@ class LLVMInstructionBuilder:
     # # # # # # # # # # #
     # Labels & Branches #
 
-    def build_jump(self, instr: JumpInstr) -> None:
-        self.builder.branch(self.vars[instr.target])
+    def build_jump(self, target: JumpInstr | LabelName) -> None:
+        if isinstance(target, JumpInstr):
+            target = target.target
+        self.builder.branch(self.vars[target])
 
     def build_cbranch(self, instr: CBranchInstr) -> None:
         condition = self.vars[instr.expr_test]
@@ -350,26 +350,33 @@ class LLVMInstructionBuilder:
         BoolType: "bool",
     }
 
+    def get_format(self, spec: str) -> ir.CastInstr:
+        fmt = self.vars[f".fmt.{spec}"]
+        ptr_ty = ir.IntType(8).as_pointer()
+        return self.builder.bitcast(fmt, ptr_ty)
+
     def build_read(self, instr: ReadInstr) -> None:
         spec = self.fmt_spec.get(instr.type, "string")
-        fmt = self.vars[f"_fmt_{spec}"]
+        fmt = self.get_format(spec)
 
         source = self.vars[instr.source]
         self.builder.call(self.vars["scanf"], [fmt, source])
 
     def build_print(self, instr: PrintInstr) -> None:
         if instr.source is None:
-            args = [self.vars["_fmt_newline"]]
+            args = [self.get_format("newline")]
+        elif (spec := self.fmt_spec.get(instr.type, None)) :
+            args = [self.get_format(spec), self.vars[instr.source]]
         else:
-            spec = self.fmt_spec.get(instr.type, "string")
-            fmt = self.vars[f"_fmt_{spec}"]
-            args = [fmt, self.vars[instr.source]]
+            ptr_ty = ir.IntType(8).as_pointer()
+            ptr = self.builder.bitcast(self.vars[instr.source], ptr_ty)
+            args = [ptr]
 
         self.builder.call(self.vars["printf"], args)
 
     def build_exit(self, instr: ExitInstr) -> None:
         source = self.vars[instr.source]
-        self.builder.call(self.vars["exit"], source)
+        self.builder.call(self.vars["exit"], [source])
         self.builder.unreachable()
 
 
@@ -391,7 +398,9 @@ class LLVMFunctionVisitor(BlockVisitor[Function]):
     def visit_FunctionBlock(self, block: FunctionBlock, func: Function) -> None:
         self.visit(block.entry, func)
 
-    def visit_CodeBlock(self, block: CodeBlock, func: Function) -> LLVMInstructionBuilder:
+    def visit_CodeBlock(
+        self, block: CodeBlock, func: Function, jump: Optional[CodeBlock]
+    ) -> LLVMInstructionBuilder:
         llvmblock = func.append_basic_block(block.name)
         builder = LLVMInstructionBuilder(llvmblock, self.vars)
         self.vars.blocks[block.label] = llvmblock
@@ -401,18 +410,21 @@ class LLVMFunctionVisitor(BlockVisitor[Function]):
 
         if block.next is not None:
             self.visit(block.next, func)
+
+        if jump and not llvmblock.is_terminated:
+            builder.build_jump(jump.label)
+
         return builder
 
     def visit_EntryBlock(self, block: EntryBlock, func: Function) -> None:
-        self.visit_CodeBlock(block, func)
+        self.visit_CodeBlock(block, func, block.next)
 
     def visit_BasicBlock(self, block: BasicBlock, func: Function) -> None:
-        builder = self.visit_CodeBlock(block, func)
-        for jump in block.jump_instr:
-            builder.build(jump)
+        jump = block.jumps[0] if block.jumps else block.next or block
+        self.visit_CodeBlock(block, func, jump)
 
     def visit_BranchBlock(self, block: BranchBlock, func: Function) -> None:
-        builder = self.visit_CodeBlock(block, func)
+        builder = self.visit_CodeBlock(block, func, None)
         builder.build(block.cbranch)
 
 
@@ -472,6 +484,35 @@ class LLVMCodeGenerator(NodeVisitor[Optional[Iterator]]):
             gv: Source = binding.view_dot_graph(dot, f"{node.funcname}.ll.gv", False)
             gv.view(quiet=True, quiet_view=True)
 
+    def add_pm_passes(
+        self, pm: ModulePassManager, opt: Literal["ctm", "dce", "cfg", "all"]
+    ) -> None:
+        pm.add_type_based_alias_analysis_pass()
+        pm.add_basic_alias_analysis_pass()
+        if opt == "ctm" or opt == "all":
+            # Sparse conditional constant propagation and merging
+            pm.add_sccp_pass()
+            # Merges duplicate global constants together
+            pm.add_constant_merge_pass()
+            # Combine inst to form fewer, simple inst
+            # This pass also does algebraic simplification
+            pm.add_instruction_combining_pass()
+            pm.add_sroa_pass()
+            pm.add_ipsccp_pass()
+        if opt == "dce" or opt == "all":
+            pm.add_dead_code_elimination_pass()
+            pm.add_dead_arg_elimination_pass()
+        if opt == "cfg" or opt == "all":
+            pm.add_licm_pass()
+            # Performs dead code elimination and basic block merging
+            pm.add_cfg_simplification_pass()
+        if opt == "all":
+            pm.add_gvn_pass()
+            pm.add_global_dce_pass()
+            pm.add_global_optimizer_pass()
+            pm.add_function_inlining_pass(10)
+            pm.add_dead_code_elimination_pass()
+
     def optimize_ir(self, mod: ModuleRef, opt: Literal["ctm", "dce", "cfg", "all"]) -> None:
         # apply some optimization passes on module
         pmb = binding.create_pass_manager_builder()
@@ -481,58 +522,55 @@ class LLVMCodeGenerator(NodeVisitor[Optional[Iterator]]):
         pmb.size_level = 2
         pmb.loop_vectorize = True
         pmb.slp_vectorize = True
-        if opt == "ctm" or opt == "all":
-            # Sparse conditional constant propagation and merging
-            pm.add_sccp_pass()
-            # Merges duplicate global constants together
-            pm.add_constant_merge_pass()
-            # Combine inst to form fewer, simple inst
-            # This pass also does algebraic simplification
-            pm.add_instruction_combining_pass()
-        if opt == "dce" or opt == "all":
-            pm.add_dead_code_elimination_pass()
-        if opt == "cfg" or opt == "all":
-            # Performs dead code elimination and basic block merging
-            pm.add_cfg_simplification_pass()
+
+        self.add_pm_passes(pm, opt)
+        if opt == "all":
+            self.add_pm_passes(pm, "all")
 
         pmb.populate(pm)
         pm.run(mod)
 
-    def compile_ir(self, opt: Literal["ctm", "dce", "cfg", "all", None] = None) -> ModuleRef:
+    def compile_ir(self) -> ModuleRef:
         """
         Compile the LLVM IR string with the given engine.
         The compiled module object is returned.
         """
-        # Create a LLVM module object from the IR
         llvm_ir = str(self.module)
         mod = binding.parse_assembly(llvm_ir)
+        mod.name = self.module.name
         mod.verify()
+        return mod
+
+    def save_ir(self, output_file: TextIO) -> None:
+        contents = str(self.compile_ir())
+        output_file.write(contents)
+
+    def get_function(self, function: FunctionType) -> Callable:
+        # Obtain a pointer to the compiled function - it's the address of its JITed code in memory.
+        func_ptr = self.engine.get_function_address(function.funcname)
+        # To convert an address to an actual callable thing we have to use
+        # CFUNCTYPE, and specify the arguments & return type.
+        func_ty = function.as_ctype()
+        # Now 'function' is an actual callable we can invoke
+        return func_ty(func_ptr)
+
+    def execute_ir(
+        self, opt: Literal["ctm", "dce", "cfg", "all", None], opt_file: Optional[TextIO] = None
+    ) -> Optional[int]:
+        mod = self.compile_ir()
         # Now add the module and make sure it is ready for execution
         self.engine.add_module(mod)
         self.engine.finalize_object()
         self.engine.run_static_constructors()
 
-        if opt:
+        if opt is not None:
             self.optimize_ir(mod, opt)
-        return mod
-
-    def save_ir(self, output_file: TextIO) -> None:
-        output_file.write(str(self.module))
-
-    def execute_ir(
-        self, opt: Literal["ctm", "dce", "cfg", "all", None], opt_file: Optional[TextIO] = None
-    ) -> int:
-        mod = self.compile_ir(opt)
         if opt_file is not None:
             opt_file.write(str(mod))
 
-        # Obtain a pointer to the compiled 'main' - it's the address of its JITed code in memory.
-        main_ptr = self.engine.get_function_address("main")
-        # To convert an address to an actual callable thing we have to use
-        # CFUNCTYPE, and specify the arguments & return type.
-        main_function = CFUNCTYPE(c_int)(main_ptr)
-        # Now 'main_function' is an actual callable we can invoke
-        return main_function()
+        if isinstance(self.main, FunctionType):
+            main = self.get_function(self.main)
+            return main()
 
 
 if __name__ == "__main__":
@@ -541,8 +579,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "input_file",
-        help="Path to file to be used to generate LLVM IR. By default, this script runs the LLVM IR without any optimizations.",
         type=Path,
+        help="Path to file to be used to generate LLVM IR. By default, this script runs the LLVM IR without any optimizations.",
     )
     parser.add_argument(
         "-c",
@@ -556,13 +594,15 @@ if __name__ == "__main__":
         choices=["ctm", "dce", "cfg", "all"],
         help="specify which llvm pass optimizations should be enabled",
     )
-    args = parser.parse_args()
+    parser.add_argument("-s", "--save-ir", type=Path, help="Path to save generated LLVM IR")
+    args = parser.parse_intermixed_args()
 
     create_cfg = args.cfg
     llvm_opt = args.llvm_opt
 
     # get input path
     input_file: Path = args.input_file
+    save_path: Optional[Path] = args.save_ir
 
     # check if file exists
     if not input_file.exists():
@@ -586,6 +626,11 @@ if __name__ == "__main__":
 
     llvm = LLVMCodeGenerator(create_cfg)
     llvm.visit(ast)
-    # llvm.execute_ir(llvm_opt, None)
-    with open("test.ll", "w") as irfile:
-        llvm.save_ir(irfile)
+
+    if save_path:
+        with open(f"{save_path}.ll", "w") as irfile:
+            llvm.save_ir(irfile)
+        with open(f"{save_path}.opt.ll", "w") as irfile:
+            llvm.execute_ir(llvm_opt, irfile)
+    else:
+        llvm.execute_ir(llvm_opt, None)
