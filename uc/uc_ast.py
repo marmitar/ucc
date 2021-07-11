@@ -23,6 +23,7 @@ from uc.uc_type import (
     PointerType,
     PrimaryType,
     StringType,
+    VoidType,
     uCType,
 )
 
@@ -205,6 +206,7 @@ class Program(Node):
     special_attr = ("name", "cfg")
 
     cfg: GlobalBlock
+    uc_type: Union[FunctionType, Literal[VoidType]]
 
     def __init__(self, gdecls: list[Union[GlobalDecl, FuncDef]]):
         super().__init__()

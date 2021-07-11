@@ -661,6 +661,9 @@ class SemanticVisitor(NodeVisitor[uCType]):
             if main.type.rettype != VoidType and main.type.rettype != IntType:
                 msg = "'main' must return nothing or an integer"
                 raise SemanticError(msg, main.coord)
+            if main.type.params != ():
+                msg = "'main' cannot have arguments"
+                raise SemanticError(msg, main.coord)
             return main.type
 
     def visit_Decl(self, node: Decl) -> None:
