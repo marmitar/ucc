@@ -16,7 +16,7 @@ You should do the following tasks:
 - [X] Paste your implementation of the code generation in `uc/uc_code.py`
 - [X] Paste your implementation of basic blocks in `uc/uc_block.py`
 - [X] Paste your implementation of the dataflow analysis in `uc/uc_analysis.py`
-- [ ] Complete the implementation of the llvm ir code generation in `uc/uc_llvm.py`
+- [X] Complete the implementation of the llvm ir code generation in `uc/uc_llvm.py`
 
 ## Requirements
 
