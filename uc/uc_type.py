@@ -1,4 +1,14 @@
 from __future__ import annotations
+from ctypes import (
+    CFUNCTYPE,
+    c_bool,
+    c_char,
+    c_char_p,
+    c_double,
+    c_int32,
+    c_void_p,
+    pointer,
+)
 from enum import Enum, unique
 from typing import NamedTuple, Optional, Sequence, Union
 from llvmlite.ir import types
@@ -57,6 +67,9 @@ class uCType:
     def as_llvm(self) -> types.Type:
         raise NotImplementedError()
 
+    def as_ctype(self) -> Optional[type]:
+        raise NotImplementedError()
+
 
 # # # # # # # # #
 # Primary Types #
@@ -91,6 +104,19 @@ class PrimaryType(uCType, Enum):
         else:
             assert self is VoidType
             return types.VoidType()
+
+    def as_ctype(self) -> Optional[type]:
+        if self is IntType:
+            return c_int32
+        elif self is CharType:
+            return c_char
+        elif self is BoolType:
+            return c_bool
+        elif self is FloatType:
+            return c_double
+        else:
+            assert self is VoidType
+            return None
 
     int = (
         {"-", "+", "&"},
@@ -186,8 +212,13 @@ class ArrayType(uCType):
         if self.size is None:
             return self.as_pointer().as_llvm()
         else:
-            assert self.elem_type is not _UndefinedType
             return types.ArrayType(self.elem_type.as_llvm(), self.size)
+
+    def as_ctype(self) -> type:
+        if self.size is None:
+            return self.as_pointer().as_ctype()
+        else:
+            return self.elem_type.as_ctype() * self.size
 
     @staticmethod
     def empty_list() -> ArrayType:
@@ -261,8 +292,15 @@ class PointerType(uCType):
         return IntType.__ucsize__()
 
     def as_llvm(self) -> types.PointerType:
-        assert self.inner is not _UndefinedType
         return types.PointerType(self.inner.as_llvm())
+
+    def as_ctype(self) -> type:
+        if self.inner is CharType:
+            return c_char_p
+        if (inner := self.inner.as_ctype()) is not None:
+            return pointer(inner)
+        else:
+            return c_void_p
 
 
 # # # # # # # # #
@@ -323,3 +361,7 @@ class FunctionType(uCType):
     def as_llvm(self) -> types.FunctionType:
         params = (ty.as_llvm() for ty in self.param_types)
         return types.FunctionType(self.rettype.as_llvm(), params)
+
+    def as_ctype(self) -> type:
+        params = (ty.as_ctype() for ty in self.param_types)
+        return CFUNCTYPE(self.rettype.as_ctype(), *params)

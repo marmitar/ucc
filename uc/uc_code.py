@@ -45,7 +45,6 @@ from uc.uc_ir import (
     ExitInstr,
     GeInstr,
     GtInstr,
-    Instruction,
     LeInstr,
     LoadInstr,
     LtInstr,
