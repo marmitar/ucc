@@ -559,6 +559,8 @@ class Interpreter:
             print(text, sep="", end="", flush=True)
         else:
             data = self._get_value(op.source)
+            if op.type is CharType:
+                data = chr(data)
             print(data, end="", flush=True)
 
     def run_read(self, read: ReadInstr) -> None:

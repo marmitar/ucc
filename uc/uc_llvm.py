@@ -55,6 +55,7 @@ from uc.uc_ir import (
 from uc.uc_parser import UCParser
 from uc.uc_sema import NodeVisitor, Visitor
 from uc.uc_type import (
+    ArrayType,
     BoolType,
     CharType,
     FloatType,
@@ -209,6 +210,8 @@ class LLVMInstructionBuilder:
 
     def build_store(self, instr: StoreInstr) -> None:
         source, target = self.vars[instr.source], self.vars[instr.target]
+        if isinstance(instr.type, ArrayType):
+            source = self.builder.load(source)
         self.builder.store(source, target)
 
     def build_literal(self, instr: LiteralInstr) -> None:
