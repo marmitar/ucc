@@ -9,15 +9,24 @@ readme = "README.md"
 authors = [{name = "Tiago de Paula Alves"}]
 requires-python = ">= 3.5"
 dependencies = [
-    "graphviz",
-    "llvmlite",
-    "ply",
-    "pytest",
+    "graphviz ~= 0.20",
+    "llvmlite ~= 0.40",
+    "ply ~= 3.11",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest ~= 7.4",
+    "pytest-timeout ~= 2.1",
+    "timeout_decorator ~= 0.5",
 ]
 
 [tool.hatch.version]
 path = "uc/__init__.py"
 pattern = "__version__: Final = '(?P<version>[^']+)'"
+
+[tool.hatch.envs.test]
+features = ["test"]
 
 [tool.hatch.build.targets.sdist]
 include = ["uc/"]
