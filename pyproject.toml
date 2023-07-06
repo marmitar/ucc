@@ -20,6 +20,12 @@ test = [
     "pytest-timeout ~= 2.1",
     "timeout_decorator ~= 0.5",
 ]
+dev = [
+    "black ~= 23.3",
+    "isort ~= 5.12",
+    "pre-commit ~= 3.3",
+]
+all = ["uc[test,dev]"]
 
 [tool.hatch.version]
 path = "uc/__init__.py"
