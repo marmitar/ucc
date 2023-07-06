@@ -23,6 +23,7 @@ test = [
 dev = [
     "black ~= 23.3",
     "isort ~= 5.12",
+    "gitlint ~= 0.19",
     "pre-commit ~= 3.3",
 ]
 all = ["uc[test,dev]"]
