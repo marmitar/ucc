@@ -35,6 +35,9 @@ pattern = "__version__: Final = '(?P<version>[^']+)'"
 [tool.hatch.envs.test]
 features = ["test"]
 
+[tool.hatch.envs.dev]
+features = ["dev"]
+
 [tool.hatch.build.targets.sdist]
 include = ["uc/"]
 
