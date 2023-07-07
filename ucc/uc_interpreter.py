@@ -15,9 +15,9 @@ import re
 import sys
 from enum import Enum, unique
 from typing import Any, Callable, Dict, Iterator, Literal, Optional, Union
-from uc.uc_ast import sizeof
-from uc.uc_block import CodeList
-from uc.uc_ir import (
+from .uc_ast import sizeof
+from .uc_block import CodeList
+from .uc_ir import (
     AddInstr,
     AllocInstr,
     AndInstr,
@@ -58,7 +58,7 @@ from uc.uc_ir import (
     UnaryOpInstruction,
     Variable,
 )
-from uc.uc_type import ArrayType, CharType, FloatType, IntType, StringType, uCType
+from .uc_type import ArrayType, CharType, FloatType, IntType, StringType, uCType
 
 
 def printerr(*args) -> None:

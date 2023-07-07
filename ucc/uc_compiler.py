@@ -22,12 +22,12 @@ from typing import (
     TextIO,
     Union,
 )
-from uc.uc_analysis import DataFlow
-from uc.uc_code import CodeGenerator
-from uc.uc_interpreter import Interpreter
-from uc.uc_llvm import LLVMCodeGenerator
-from uc.uc_parser import UCParser
-from uc.uc_sema import Visitor
+from .uc_analysis import DataFlow
+from .uc_code import CodeGenerator
+from .uc_interpreter import Interpreter
+from .uc_llvm import LLVMCodeGenerator
+from .uc_parser import UCParser
+from .uc_sema import Visitor
 
 """
 One of the most important (and difficult) parts of writing a compiler

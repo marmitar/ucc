@@ -3,7 +3,7 @@ requires = ["hatchling >= 1.18"]
 build-backend = "hatchling.build"
 
 [project]
-name = "uc"
+name = "ucc"
 dynamic = ["version"]
 readme = "README.md"
 authors = [{name = "Tiago de Paula Alves"}]
@@ -26,10 +26,10 @@ dev = [
     "gitlint ~= 0.19",
     "pre-commit ~= 3.3",
 ]
-all = ["uc[test,dev]"]
+all = ["ucc[test,dev]"]
 
 [tool.hatch.version]
-path = "uc/__init__.py"
+path = "ucc/__init__.py"
 pattern = "__version__: Final = '(?P<version>[^']+)'"
 
 [tool.hatch.envs.test]
@@ -39,7 +39,7 @@ features = ["test"]
 features = ["dev"]
 
 [tool.hatch.build.targets.sdist]
-include = ["uc/"]
+include = ["ucc/"]
 
 [tool.black]
 line-length = 99

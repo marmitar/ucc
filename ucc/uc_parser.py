@@ -13,7 +13,7 @@ from typing import (
     overload,
 )
 from ply.yacc import yacc
-from uc.uc_ast import (
+from .uc_ast import (
     ID,
     AddressOp,
     ArrayDecl,
@@ -53,7 +53,7 @@ from uc.uc_ast import (
     VarDecl,
     While,
 )
-from uc.uc_lexer import UCLexer
+from .uc_lexer import UCLexer
 
 
 class Coord:
