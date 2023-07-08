@@ -11,7 +11,7 @@ from ctypes import (
     pointer,
 )
 from enum import Enum, unique
-from typing import NamedTuple, Optional, Sequence, Union
+from typing import Final, NamedTuple, Optional, Sequence, Union
 
 from llvmlite.ir import types
 
@@ -81,8 +81,10 @@ Int = int
 
 @unique
 class PrimaryType(uCType, Enum):
-    def __init__(self, *op_sets: set[str]):
-        super().__init__(*op_sets)
+    def __new__(cls, *op_sets: set[str]) -> PrimaryType:
+        uc_type = uCType.__new__(cls)
+        uc_type._value_ = uc_type
+        return uc_type
 
     @classmethod
     def get(cls, typename: str) -> Optional[PrimaryType]:
@@ -147,11 +149,11 @@ class PrimaryType(uCType, Enum):
     void = ()  # no valid operation
 
 
-IntType = PrimaryType.int
-CharType = PrimaryType.char
-BoolType = PrimaryType.bool
-VoidType = PrimaryType.void
-FloatType = PrimaryType.float
+IntType: Final = PrimaryType.int
+CharType: Final = PrimaryType.char
+BoolType: Final = PrimaryType.bool
+VoidType: Final = PrimaryType.void
+FloatType: Final = PrimaryType.float
 
 
 # # # # # # # #
