@@ -15,7 +15,7 @@ from typing import (
     TypeVar,
     Union,
 )
-from .uc_ast import (
+from .ast import (
     ID,
     AddressOp,
     ArrayDecl,
@@ -50,8 +50,8 @@ from .uc_ast import (
     UnaryOp,
     VarDecl,
 )
-from .uc_parser import Coord, UCParser
-from .uc_type import (
+from .parser import Coord, UCParser
+from .type import (
     ArrayType,
     BoolType,
     CharType,

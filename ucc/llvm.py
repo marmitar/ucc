@@ -8,9 +8,9 @@ from llvmlite import binding, ir
 from llvmlite.binding import ExecutionEngine, ModulePassManager, ModuleRef
 from llvmlite.ir import Constant, Function, Module
 from llvmlite.ir.builder import IRBuilder
-from .uc_analysis import DataFlow
-from .uc_ast import FuncDef, Program
-from .uc_block import (
+from .analysis import DataFlow
+from .ast import FuncDef, Program
+from .block import (
     BasicBlock,
     Block,
     BlockVisitor,
@@ -20,8 +20,8 @@ from .uc_block import (
     FunctionBlock,
     GlobalBlock,
 )
-from .uc_code import CodeGenerator
-from .uc_ir import (
+from .code import CodeGenerator
+from .ir import (
     AddInstr,
     AllocInstr,
     AndInstr,
@@ -52,9 +52,9 @@ from .uc_ir import (
     SubInstr,
     Variable,
 )
-from .uc_parser import UCParser
-from .uc_sema import NodeVisitor, Visitor
-from .uc_type import (
+from .parser import UCParser
+from .sema import NodeVisitor, Visitor
+from .type import (
     ArrayType,
     BoolType,
     CharType,

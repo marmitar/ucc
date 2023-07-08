@@ -11,7 +11,7 @@ from typing import (
     TypeVar,
     Union,
 )
-from .uc_type import VoidType, uCType
+from .type import VoidType, uCType
 
 # # # # # # # # # #
 # Variable Types  #

@@ -15,8 +15,8 @@ from typing import (
     Union,
 )
 from graphviz import Digraph
-from .uc_ast import ID, FuncDef, Program
-from .uc_ir import (
+from .ast import ID, FuncDef, Program
+from .ir import (
     AllocInstr,
     CallInstr,
     CBranchInstr,
@@ -38,7 +38,7 @@ from .uc_ir import (
     Value,
     Variable,
 )
-from .uc_type import FunctionType, IntType, VoidType, uCType
+from .type import FunctionType, IntType, VoidType, uCType
 
 # # # # # #
 # BLOCKS  #

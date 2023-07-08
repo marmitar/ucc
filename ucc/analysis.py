@@ -21,8 +21,8 @@ from typing import (
     Union,
     overload,
 )
-from .uc_ast import FuncDef, Program, sizeof
-from .uc_block import (
+from .ast import FuncDef, Program, sizeof
+from .block import (
     CFG,
     BasicBlock,
     BranchBlock,
@@ -33,9 +33,9 @@ from .uc_block import (
     FunctionBlock,
     GlobalBlock,
 )
-from .uc_code import CodeGenerator
-from .uc_interpreter import Interpreter
-from .uc_ir import (
+from .code import CodeGenerator
+from .interpreter import Interpreter
+from .ir import (
     AllocInstr,
     BinaryOpInstruction,
     CallInstr,
@@ -67,9 +67,9 @@ from .uc_ir import (
     UnaryOpInstruction,
     Variable,
 )
-from .uc_parser import UCParser
-from .uc_sema import NodeVisitor, Visitor
-from .uc_type import (
+from .parser import UCParser
+from .sema import NodeVisitor, Visitor
+from .type import (
     ArrayType,
     BoolType,
     CharType,

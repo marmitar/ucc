@@ -13,7 +13,7 @@ from typing import (
     Tuple,
     Union,
 )
-from .uc_type import (
+from .type import (
     ArrayType,
     BoolType,
     CharType,
@@ -28,7 +28,7 @@ from .uc_type import (
 )
 
 if TYPE_CHECKING:
-    from .uc_block import BasicBlock, FunctionBlock, GlobalBlock
+    from .block import BasicBlock, FunctionBlock, GlobalBlock
 
 
 class Coord(Protocol):

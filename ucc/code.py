@@ -3,7 +3,7 @@ import argparse
 import pathlib
 import sys
 from typing import Any, Callable, Optional, TextIO, Union
-from .uc_ast import (
+from .ast import (
     ID,
     AddressOp,
     ArrayDecl,
@@ -31,9 +31,9 @@ from .uc_ast import (
     UnaryOp,
     VarDecl,
 )
-from .uc_block import CFG, BasicBlock, BranchBlock, CodeList, EmitBlocks, GlobalBlock
-from .uc_interpreter import Interpreter
-from .uc_ir import (
+from .block import CFG, BasicBlock, BranchBlock, CodeList, EmitBlocks, GlobalBlock
+from .interpreter import Interpreter
+from .ir import (
     AddInstr,
     AndInstr,
     BinaryOpInstruction,
@@ -64,9 +64,9 @@ from .uc_ir import (
     TextVariable,
     Variable,
 )
-from .uc_parser import UCParser
-from .uc_sema import NodeVisitor, Visitor
-from .uc_type import (
+from .parser import UCParser
+from .sema import NodeVisitor, Visitor
+from .type import (
     ArrayType,
     BoolType,
     CharType,
