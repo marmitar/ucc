@@ -148,7 +148,8 @@ class Node:
         offset:
             Initial offset (amount of leading spaces)
         attrnames:
-            True if you want to see the attribute names in name=value pairs. False to only see the values.
+            True if you want to see the attribute names in name=value pairs. False to only see the
+            values.
         nodenames:
             True if you want to see the actual node names within their parents.
         showcoord:

@@ -607,7 +607,9 @@ class NodeVisitor(Generic[R]):
 
         # when no default is given, do nothing
         else:
-            as_visitor = lambda x: x
+
+            def as_visitor(visitor: Visitor) -> Visitor:
+                return visitor
 
         # apply wrappers and build visitor cache
         cache: dict[str, Visitor] = {}

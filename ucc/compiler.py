@@ -144,8 +144,8 @@ class Args(Protocol):
     llvm_opt: Literal["ctm", "dce", "cfg", "all"]
 
 
-def printerr(*args: Any) -> None:
-    print(*args, file=sys.stderr)
+def printerr(*args: Any, sep: str = "") -> None:
+    print(*args, file=sys.stderr, sep=sep)
 
 
 class Compiler:
@@ -272,7 +272,10 @@ class Compiler:
                 if self.args.opt:
                     speedup = len(self.gencode) / len(self.optcode)
                     printerr(
-                        f"default = {len(self.gencode)}, optimized = {len(self.optcode)}, speedup = {speedup:.2f}"
+                        f"default = {len(self.gencode)}",
+                        f"optimized = {len(self.optcode)}",
+                        f"speedup = {speedup:.2f}",
+                        sep=", ",
                     )
                 if self.run and not self.args.cfg:
                     vm = Interpreter(self.args.idb)

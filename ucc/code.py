@@ -442,8 +442,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "input_file",
-        help="Path to file to be used to generate uCIR. By default, this script only runs the interpreter on the uCIR. \
-              Use the other options for printing the uCIR, generating the CFG or for the debug mode.",
+        help="""Path to file to be used to generate uCIR. By default, this script only runs the
+            interpreter on the uCIR. Use the other options for printing the uCIR, generating the
+            CFG or for the debug mode.""",
         type=str,
     )
     parser.add_argument(

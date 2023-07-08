@@ -28,7 +28,6 @@ from .ast import (
     Break,
     CharConstant,
     Compound,
-    Constant,
     Decl,
     DeclList,
     ExprList,

@@ -19,7 +19,7 @@ class _version_info:
 
     @staticmethod
     def parse(version_string: str) -> _version_info:
-        match = re.fullmatch("(?P<major>\d+).(?P<minor>\d+).(?P<patch>dev|\d+)", version_string)
+        match = re.fullmatch(r"(?P<major>\d+).(?P<minor>\d+).(?P<patch>dev|\d+)", version_string)
         assert match is not None
 
         major = int(match.group("major"))

@@ -585,7 +585,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "input_file",
         type=Path,
-        help="Path to file to be used to generate LLVM IR. By default, this script runs the LLVM IR without any optimizations.",
+        help="""Path to file to be used to generate LLVM IR. By default, this script runs the
+            LLVM IR without any optimizations.""",
     )
     parser.add_argument(
         "-c",

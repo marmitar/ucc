@@ -65,7 +65,6 @@ from .ir import (
     StoreInstr,
     TempTargetInstruction,
     TempVariable,
-    TextVariable,
     UnaryOpInstruction,
     Variable,
 )
@@ -1674,8 +1673,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "input_file",
-        help="Path to file to be used to generate uCIR. By default, this script runs the interpreter on the optimized uCIR \
-              and shows the speedup obtained from comparing original uCIR with its optimized version.",
+        help="""Path to file to be used to generate uCIR. By default, this script runs the
+            interpreter on the optimized uCIR and shows the speedup obtained from comparing
+            original uCIR with its optimized version.""",
         type=str,
     )
     parser.add_argument(

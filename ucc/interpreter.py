@@ -36,7 +36,6 @@ from .ir import (
     GlobalInstr,
     GlobalVariable,
     GtInstr,
-    Instruction,
     JumpInstr,
     LabelInstr,
     LabelName,
@@ -427,7 +426,7 @@ class Interpreter:
             # allocate global variables
             if isinstance(instr, GlobalInstr):
                 self.globals[instr.varname] = self.offset
-                if instr.value != None:
+                if instr.value is not None:
                     value = self._split_data(instr.value)
                     self._store_multiple(self.offset, value)
                 self.offset += sizeof(instr.type)
