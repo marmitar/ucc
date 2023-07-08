@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import itertools
 import pathlib
 import sys
@@ -15,6 +16,7 @@ from typing import (
     TypeVar,
     Union,
 )
+
 from .ast import (
     ID,
     AddressOp,
@@ -66,6 +68,7 @@ from .type import (
 )
 
 T, U = TypeVar("T"), TypeVar("U")
+
 
 # type hint for 'zip_longest' in this file
 def zip_longest(i0: Iterable[T], i1: Iterable[U]) -> Iterator[tuple[Optional[T], Optional[U]]]:
@@ -1094,7 +1097,6 @@ class Visitor:
 
 
 if __name__ == "__main__":
-
     # create argument parser
     parser = ArgumentParser()
     parser.add_argument("input_file", help="Path to file to be semantically checked", type=str)

@@ -1,9 +1,11 @@
 from __future__ import annotations
+
 import argparse
 import pathlib
 import re
 import sys
 from typing import Callable
+
 import ply.lex as lex
 
 
@@ -180,7 +182,7 @@ class UCLexer:
     """
 
     def t_STRING_LITERAL(self, t):
-        r"\"(\\.|.|\n)*?\""
+        r"[\"](\\.|.|\n)*?[\"]"
         t.value = t.value[1:-1]
         return t
 
@@ -227,7 +229,6 @@ class UCLexer:
 
 
 if __name__ == "__main__":
-
     # create argument parser
     parser = argparse.ArgumentParser()
     parser.add_argument("input_file", help="Path to file to be scanned", type=str)

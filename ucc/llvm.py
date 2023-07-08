@@ -1,13 +1,16 @@
 from __future__ import annotations
+
 import argparse
 import sys
 from pathlib import Path
 from typing import Callable, Dict, Generator, Literal, Optional, TextIO, Union
+
 from graphviz import Source
 from llvmlite import binding, ir
 from llvmlite.binding import ExecutionEngine, ModulePassManager, ModuleRef
 from llvmlite.ir import Constant, Function, Module
 from llvmlite.ir.builder import IRBuilder
+
 from .analysis import DataFlow
 from .ast import FuncDef, Program
 from .block import (
@@ -368,7 +371,7 @@ class LLVMInstructionBuilder:
     def build_print(self, instr: PrintInstr) -> None:
         if instr.source is None:
             args = [self.get_format("newline")]
-        elif (spec := self.fmt_spec.get(instr.type, None)) :
+        elif spec := self.fmt_spec.get(instr.type, None):
             args = [self.get_format(spec), self.vars[instr.source]]
         else:
             ptr_ty = ir.IntType(8).as_pointer()
@@ -577,7 +580,6 @@ class LLVMCodeGenerator(NodeVisitor[Optional[Iterator]]):
 
 
 if __name__ == "__main__":
-
     # create argument parser
     parser = argparse.ArgumentParser()
     parser.add_argument(

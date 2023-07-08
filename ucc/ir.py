@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import (
     Generic,
@@ -11,6 +12,7 @@ from typing import (
     TypeVar,
     Union,
 )
+
 from .type import VoidType, uCType
 
 # # # # # # # # # #
@@ -420,7 +422,6 @@ class ModInstr(BinaryOpInstruction):
 
 
 class UnaryOpInstruction(TempTargetInstruction):
-
     __slots__ = ("expr",)
 
     arguments = "expr", "target"

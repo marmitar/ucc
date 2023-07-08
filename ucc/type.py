@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from ctypes import (
     CFUNCTYPE,
     c_bool,
@@ -11,6 +12,7 @@ from ctypes import (
 )
 from enum import Enum, unique
 from typing import NamedTuple, Optional, Sequence, Union
+
 from llvmlite.ir import types
 
 

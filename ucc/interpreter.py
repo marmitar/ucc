@@ -11,10 +11,12 @@
 # permitted, but the source code must retain the above copyright notice.
 # ---------------------------------------------------------------------------------
 from __future__ import annotations
+
 import re
 import sys
 from enum import Enum, unique
 from typing import Any, Callable, Dict, Iterator, Literal, Optional, Union
+
 from .ast import sizeof
 from .block import CodeList
 from .ir import (

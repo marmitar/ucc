@@ -30,7 +30,7 @@ all = ["ucc[test,dev]"]
 
 [tool.hatch.version]
 path = "ucc/__init__.py"
-pattern = "__version__: Final = '(?P<version>[^']+)'"
+pattern = "__version__: Final = \"(?P<version>[^\"]+)\""
 
 [tool.hatch.envs.test]
 features = ["test"]
@@ -43,3 +43,6 @@ include = ["ucc/"]
 
 [tool.black]
 line-length = 99
+
+[tool.isort]
+profile = "black"

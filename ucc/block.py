@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 from functools import lru_cache
 from itertools import chain
@@ -14,7 +15,9 @@ from typing import (
     TypeVar,
     Union,
 )
+
 from graphviz import Digraph
+
 from .ast import ID, FuncDef, Program
 from .ir import (
     AllocInstr,

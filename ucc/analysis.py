@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import argparse
 import pathlib
 import sys
@@ -21,6 +22,7 @@ from typing import (
     Union,
     overload,
 )
+
 from .ast import FuncDef, Program, sizeof
 from .block import (
     CFG,
@@ -275,11 +277,9 @@ class DataFlowAnalysis:
 
     # fmt: off
     @overload
-    def in_set(self, block: Position, var: None = None) -> InOut:
-        ...
+    def in_set(self, block: Position, var: None = None) -> InOut: ...
     @overload
-    def in_set(self, block: Position, var: Variable) -> Locations:
-        ...
+    def in_set(self, block: Position, var: Variable) -> Locations: ...
     # fmt: on
     def in_set(self, block: Position, var: Optional[Variable] = None) -> Union[InOut, Locations]:
         """IN set for a block or instruction"""
@@ -296,11 +296,9 @@ class DataFlowAnalysis:
 
     # fmt: off
     @overload
-    def out_set(self, block: Position, var: None = None) -> InOut:
-        ...
+    def out_set(self, block: Position, var: None = None) -> InOut: ...
     @overload
-    def out_set(self, block: Position, var: Variable) -> Locations:
-        ...
+    def out_set(self, block: Position, var: Variable) -> Locations: ...
     # fmt: on
     def out_set(self, block: Position, var: Optional[Variable] = None) -> Union[InOut, Locations]:
         """OUT set for a block or instruction"""
@@ -624,7 +622,6 @@ Value = Union[int, float, str, bool, bytes]
 
 @dataclass(frozen=True)
 class ConstValue(Const):
-
     value: Union[Value, list[Value], tuple[Const]]
 
     def __xor__(self, other: Const) -> Const:
@@ -648,7 +645,6 @@ class ConstValue(Const):
 
 @dataclass(frozen=True)
 class ConstVariable(Const):
-
     value: Variable
 
     def __xor__(self, other: Const) -> Const:
@@ -1674,7 +1670,6 @@ class DataFlow(NodeVisitor[None]):
 
 
 if __name__ == "__main__":
-
     # create argument parser
     parser = argparse.ArgumentParser()
     parser.add_argument(

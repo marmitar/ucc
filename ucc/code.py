@@ -1,8 +1,10 @@
 from __future__ import annotations
+
 import argparse
 import pathlib
 import sys
 from typing import Any, Callable, Optional, TextIO, Union
+
 from .ast import (
     ID,
     AddressOp,
@@ -436,7 +438,6 @@ class CodeGenerator(NodeVisitor[Optional[Variable]]):
 
 
 if __name__ == "__main__":
-
     # create argument parser
     parser = argparse.ArgumentParser()
     parser.add_argument(

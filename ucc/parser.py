@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import argparse
 import pathlib
 import sys
@@ -12,7 +13,9 @@ from typing import (
     Union,
     overload,
 )
+
 from ply.yacc import yacc
+
 from .ast import (
     ID,
     AddressOp,
@@ -79,6 +82,7 @@ class Coord:
 
 T = TypeVar("T")
 U = TypeVar("U")
+
 
 # fmt: off
 @overload
@@ -589,7 +593,6 @@ class UCParser:
 
 
 if __name__ == "__main__":
-
     # create argument parser
     parser = argparse.ArgumentParser()
     parser.add_argument("input_file", help="Path to file to be parsed", type=str)

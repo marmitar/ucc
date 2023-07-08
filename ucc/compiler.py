@@ -22,6 +22,7 @@ from typing import (
     TextIO,
     Union,
 )
+
 from .analysis import DataFlow
 from .code import CodeGenerator
 from .interpreter import Interpreter
@@ -287,7 +288,6 @@ class Compiler:
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser()
     parser.add_argument("filename", type=Path)
     parser.add_argument(
