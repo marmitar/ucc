@@ -148,3 +148,10 @@ cython_debug/
 *.gv
 *.gv.pdf
 *.ll
+
+# Compiler intermiate files
+*.ast
+*.ir
+*.ll
+*.opt
+*.sem

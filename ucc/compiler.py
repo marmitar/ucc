@@ -141,7 +141,7 @@ class Args(Protocol):
     opt: bool
     verbose: bool
     llvm: bool
-    llvm_opt: Literal["ctm", "dce", "cfg", "all"]
+    llvm_opt: Literal["ctm", "dce", "cfg", "all", None]
 
 
 def printerr(*args: Any, sep: str = "") -> None:
@@ -207,7 +207,7 @@ class Compiler:
             if self.args.llvm_opt:
                 self.llvm.execute_ir(self.args.llvm_opt, self.file.get("llvm-opt"))
             else:
-                self.llvm.execute_ir(self.args.llvm_opt, self.file.get("llvm"))
+                self.llvm.execute_ir(self.args.llvm_opt)
 
     def _do_compile(self) -> None:
         """Compiles the code to the given source file."""
