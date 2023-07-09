@@ -14,7 +14,7 @@ from typing import (
     overload,
 )
 
-from ply.yacc import yacc
+from ply.yacc import LRParser, yacc
 
 from .ast import (
     ID,
@@ -108,18 +108,16 @@ class DeclSpec(TypedDict):
 class UCParser:
     def __init__(self, debug: bool = True):
         """Create a new uCParser."""
-        self.uclex = UCLexer(self._lexer_error)
-        self.uclex.build()
+        self.uclex = UCLexer(on_error=UCLexer.ABORT)
         self.tokens = self.uclex.tokens
 
-        self.ucparser = yacc(module=self, start="program", debug=debug)
+        self.ucparser: LRParser = yacc(module=self, start="program", debug=debug)
         # Keeps track of the last token given to yacc (the lookahead token)
         self._last_yielded_token = None
 
     def _parse(self, text: str, debuglevel: int = 0) -> Program:
-        self.uclex.reset_lineno()
         self._last_yielded_token = None
-        return self.ucparser.parse(input=text, lexer=self.uclex, debug=debuglevel)
+        return self.ucparser.parse(lexer=self.uclex.tokenize(text), debug=debuglevel)
 
     def parse(self, text: Union[str, TextIO], debuglevel: int = 0) -> Program:
         # program can be unamed
@@ -130,11 +128,6 @@ class UCParser:
             ast = self._parse(text.read(), debuglevel)
             ast.name = text.name
             return ast
-
-    def _lexer_error(self, msg: str, line: int, column: int) -> NoReturn:
-        # use stdout to match with the output in the .out test files
-        print("LexerError: %s at %d:%d" % (msg, line, column), file=sys.stdout)
-        sys.exit(1)
 
     def _parser_error(self, msg: str, coord: Optional[Coord] = None) -> NoReturn:
         # use stdout to match with the output in the .out test files
@@ -584,11 +577,11 @@ class UCParser:
 
     def p_error(self, p) -> NoReturn:
         if p:
-            self._parser_error(
-                "Before %s" % p.value, Coord(p.lineno, self.uclex.find_tok_column(p))
-            )
+            col = -1  # self.uclex.find_tok_column(p)
+            self._parser_error(f"Before {p.value}", Coord(p.lineno, col))
         else:
-            self._parser_error("At the end of input (%s)" % self.uclex.filename)
+            file = None  # self.uclex.filename
+            self._parser_error(f"At the end of input ({file})")
 
 
 if __name__ == "__main__":
