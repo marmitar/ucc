@@ -178,6 +178,8 @@ def t_comment(tok: Token) -> None:
 
 # errors
 def _error(message: str, tok: Token) -> NoReturn:
+    tok.lexer.skip(1)
+
     line = tok.lineno
     line_start = str(tok.lexer.lexdata).rfind("\n", 0, tok.lexpos)
     column = tok.lexpos - line_start
@@ -197,7 +199,7 @@ def t_unterminated_comment(tok: Token) -> NoReturn:
 
 
 def t_error(tok: Token) -> NoReturn:
-    _error(f"Illegal character {tok.value!r}", tok)
+    _error(f"Illegal character {tok.value[0]!r}", tok)
 
 
 def __dir__() -> Iterator[LiteralString]:
