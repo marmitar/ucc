@@ -1,22 +1,26 @@
 from __future__ import annotations
 
-from dataclasses import KW_ONLY, dataclass
 from typing import Iterable, Iterator, Self, TypeVar, final
 
 from result import Err, Ok, Result
+
+from .immutable import immutable
 
 T = TypeVar("T")
 E = TypeVar("E", bound=BaseException)
 
 
 @final
-@dataclass(frozen=True, slots=True)
+@immutable()
 class ResultIterator(Iterator[Result[T, E]]):
     """Adapts an iterator to catch errors of type E while iterating."""
 
     items: Iterator[T]
-    _: KW_ONLY
-    ErrorType: type[E] = BaseException
+    ErrorType: type[E]
+
+    def __init__(self, items: Iterable[T], /, *, ErrorType: type[E] = BaseException) -> None:
+        self.items = iter(items)
+        self.ErrorType = ErrorType
 
     def __next__(self) -> Result[T, E]:
         try:
@@ -33,4 +37,4 @@ class ResultIterator(Iterator[Result[T, E]]):
 
 def results(it: Iterable[T], /, *, ErrorType: type[E] = BaseException) -> ResultIterator[T, E]:
     """Catches errors of type E while iterating."""
-    return ResultIterator(iter(it), ErrorType=ErrorType)
+    return ResultIterator(it, ErrorType=ErrorType)

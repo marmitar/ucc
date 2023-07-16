@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
 from typing import ClassVar, Iterator, Self, final
 
 from ply.lex import Lexer, LexError, LexToken, lex
 
+from ..common import immutable
 from . import tokens
 
 
 @final
-@dataclass(frozen=True, slots=True)
+@immutable()
 class TokenStream(Iterator[LexToken]):
     lexer: Lexer
 
@@ -32,7 +32,7 @@ class TokenStream(Iterator[LexToken]):
 
 
 @final
-@dataclass(frozen=True, slots=True)
+@immutable()
 class UCLexer:
     Error: ClassVar = LexError
 
