@@ -108,7 +108,7 @@ class DeclSpec(TypedDict):
 class UCParser:
     def __init__(self, debug: bool = True):
         """Create a new uCParser."""
-        self.uclex = UCLexer(on_error=UCLexer.ABORT)
+        self.uclex = UCLexer()
         self.tokens = self.uclex.tokens
 
         self.ucparser: LRParser = yacc(module=self, start="program", debug=debug)
