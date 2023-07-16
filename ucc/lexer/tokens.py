@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Final, Iterator, LiteralString, NoReturn, Protocol, TypeVar
+from types import UnionType
+from typing import Callable, Final, Iterator, LiteralString, NoReturn, Protocol, TypeVar
 
 from ply.lex import Lexer, LexError
 
@@ -33,7 +34,7 @@ K = TypeVar("K", bound=LiteralString)
 
 
 def frozen(*elements: K) -> frozenset[K]:
-    """variadic constructor for a frozenset."""
+    """Variadic constructor for a frozenset."""
     return frozenset(elements)
 
 
@@ -151,13 +152,13 @@ t_FLOAT_CONST = r"""
 """
 
 
-def t_STRING_LITERAL(tok: Token) -> Token:
+def t_STRING_LITERAL(tok: Token, /) -> Token:
     r"[\"](\\.|.|\n)*?[\"]"
     tok.value = tok.value[1:-1]
     return tok
 
 
-def t_ID(tok: Token) -> Token:
+def t_ID(tok: Token, /) -> Token:
     r"[^\d\W]\w*"
     kind = tok.value.upper()
     if kind in keywords:
@@ -166,19 +167,19 @@ def t_ID(tok: Token) -> Token:
 
 
 # newlines
-def t_NEWLINE(tok: Token) -> None:
+def t_NEWLINE(tok: Token, /) -> None:
     r"\n+"
     tok.lexer.lineno += tok.value.count("\n")
 
 
-def t_comment(tok: Token) -> None:
+def t_comment(tok: Token, /) -> None:
     r"(/\*(.|\n)*?\*/)|(//.*)"
     tok.lexer.lineno += tok.value.count("\n")
 
 
 # errors
-def _error(message: str, tok: Token) -> NoReturn:
-    tok.lexer.skip(1)
+def _error(message: str, tok: Token, /, *, skip: int) -> NoReturn:
+    tok.lexer.skip(skip)
 
     line = tok.lineno
     line_start = str(tok.lexer.lexdata).rfind("\n", 0, tok.lexpos)
@@ -186,37 +187,52 @@ def _error(message: str, tok: Token) -> NoReturn:
     raise LexError(f"{message} at {line}:{column}", tok.value)
 
 
-def t_unterminated_string(tok: Token) -> NoReturn:
+def t_unterminated_string(tok: Token, /) -> NoReturn:
     r"\"(\\.|.|\n)*"
     # must come after 't_STRING_LITERAL'
-    _error("Unterminated string", tok)
+    _error("Unterminated string", tok, skip=len('"'))
 
 
-def t_unterminated_comment(tok: Token) -> NoReturn:
+def t_unterminated_comment(tok: Token, /) -> NoReturn:
     r"/\*(.|\n)*"
     # must come after 't_comment'
-    _error("Unterminated comment", tok)
+    _error("Unterminated comment", tok, skip=len("\\*"))
 
 
-def t_error(tok: Token) -> NoReturn:
-    _error(f"Illegal character {tok.value[0]!r}", tok)
+def t_error(tok: Token, /) -> NoReturn:
+    char = tok.value[0]
+    _error(f"Illegal character {char!r}", tok, skip=len(char))
+
+
+def _global(name: K, /, *, kind: type | UnionType = object) -> K:
+    """Verifies that variable 'name' is in the global scope and has type 'kind'."""
+    try:
+        item = globals()[name]
+    except KeyError:
+        raise KeyError(f"global variable {name!r} not found")
+
+    if not isinstance(item, kind):
+        raise TypeError(f"variable {name!r} is not of type {kind!r}")
+
+    return name
 
 
 def __dir__() -> Iterator[LiteralString]:
     """ply.lex use 'dir' to resolve items in a module"""
 
-    yield "__file__"
-    yield "__package__"
+    yield _global("__file__", kind=str)
+    yield _global("__package__", kind=str)
     # token types
-    yield "keywords"
-    yield "tokens"
+    yield _global("keywords", kind=frozenset)
+    yield _global("tokens", kind=tuple)
     # token regexes
-    yield "t_ignore"
-    yield "t_NEWLINE"
-    yield "t_comment"
-    yield "t_unterminated_string"
-    yield "t_unterminated_comment"
-    yield "t_error"
+    TokenMatcher = str | Callable
+    yield _global("t_ignore", kind=TokenMatcher)
+    yield _global("t_NEWLINE", kind=TokenMatcher)
+    yield _global("t_comment", kind=TokenMatcher)
+    yield _global("t_unterminated_string", kind=TokenMatcher)
+    yield _global("t_unterminated_comment", kind=TokenMatcher)
+    yield _global("t_error", kind=TokenMatcher)
     for kind in tokens:
         if kind not in keywords:
-            yield f"t_{kind}"
+            yield _global(f"t_{kind}", kind=TokenMatcher)
