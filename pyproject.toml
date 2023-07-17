@@ -12,23 +12,28 @@ dependencies = [
     "graphviz ~= 0.20",
     "llvmlite ~= 0.40",
     "ply ~= 3.11",
-    "result ~= 0.12",
+    "result ~= 0.13",
 ]
 
 [project.optional-dependencies]
 test = [
     "pytest ~= 7.4",
     "pytest-timeout ~= 2.1",
-    "timeout_decorator ~= 0.5",
+    "timeout-decorator ~= 0.5",
 ]
 dev = [
     "black ~= 23.7",
     "flake8 ~= 6.0",
-    "gitlint ~= 0.19",
+    "gitlint-core ~= 0.20.0.dev44",
     "isort ~= 5.12",
     "pre-commit ~= 3.3",
 ]
-all = ["ucc[test,dev]"]
+dev-extras = [
+    "bpython ~= 0.24",
+    "pipdeptree ~= 2.10",
+    "pyright ~= 1.1",
+]
+all = ["ucc[test,dev,dev-extras]"]
 
 [tool.hatch.version]
 path = "ucc/__init__.py"
