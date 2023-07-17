@@ -53,6 +53,9 @@ profile = "black"
 
 [tool.pyright]
 include = ["ucc/"]
+strict = [
+    "ucc/common",
+]
 
 [tool.hatch.build.targets.sdist]
 include = ["ucc/"]

@@ -10,7 +10,7 @@ from . import tokens
 
 
 @final
-@immutable()
+@immutable
 class TokenStream(Iterator[LexToken]):
     lexer: Lexer
 
@@ -32,7 +32,7 @@ class TokenStream(Iterator[LexToken]):
 
 
 @final
-@immutable()
+@immutable
 class UCLexer:
     Error: ClassVar = LexError
 

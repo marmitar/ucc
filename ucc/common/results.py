@@ -11,7 +11,7 @@ E = TypeVar("E", bound=BaseException)
 
 
 @final
-@immutable()
+@immutable
 class ResultIterator(Iterator[Result[T, E]]):
     """Adapts an iterator to catch errors of type E while iterating."""
 
