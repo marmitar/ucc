@@ -55,6 +55,7 @@ profile = "black"
 include = ["ucc/"]
 strict = [
     "ucc/common",
+    "ucc/lexer",
 ]
 
 [tool.hatch.build.targets.sdist]

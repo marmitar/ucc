@@ -1,45 +1,40 @@
 from __future__ import annotations
 
 from types import UnionType
-from typing import Callable, Final, Iterator, LiteralString, NoReturn, Protocol, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Final,
+    Iterator,
+    LiteralString,
+    NoReturn,
+    Protocol,
+    TypeVar,
+)
 
-from ply.lex import Lexer, LexError
+from ply.lex import Lexer, LexError  # type: ignore
 
 
 class Token(Protocol):
     """Strongly typed version of ply.lex.LexToken"""
 
-    @property
-    def value(self) -> str:
-        ...
-
-    @property
-    def type(self) -> str:
-        ...
-
-    @property
-    def lineno(self) -> int:
-        ...
-
-    @property
-    def lexpos(self) -> int:
-        ...
-
-    @property
-    def lexer(self) -> Lexer:
-        ...
+    value: str
+    type: str
+    lineno: int
+    lexpos: int
+    lexer: Lexer
 
 
-K = TypeVar("K", bound=LiteralString)
+_K = TypeVar("_K", bound=LiteralString)
 
 
-def frozen(*elements: K) -> frozenset[K]:
+def _frozen(*elements: _K) -> frozenset[_K]:
     """Variadic constructor for a frozenset."""
     return frozenset(elements)
 
 
 # Reserved keywords
-keywords: Final = frozen(
+keywords: Final = _frozen(
     "ASSERT",
     "BOOL",
     "BREAK",
@@ -179,10 +174,10 @@ def t_comment(tok: Token, /) -> None:
 
 # errors
 def _error(message: str, tok: Token, /, *, skip: int) -> NoReturn:
-    tok.lexer.skip(skip)
+    tok.lexer.skip(skip)  # type: ignore
 
     line = tok.lineno
-    line_start = str(tok.lexer.lexdata).rfind("\n", 0, tok.lexpos)
+    line_start = str(tok.lexer.lexdata).rfind("\n", 0, tok.lexpos)  # type: ignore
     column = tok.lexpos - line_start
     raise LexError(f"{message} at {line}:{column}", tok.value)
 
@@ -204,7 +199,7 @@ def t_error(tok: Token, /) -> NoReturn:
     _error(f"Illegal character {char!r}", tok, skip=len(char))
 
 
-def _global(name: K, /, *, kind: type | UnionType = object) -> K:
+def _global(name: _K, /, *, kind: type | UnionType = object) -> _K:
     """Verifies that variable 'name' is in the global scope and has type 'kind'."""
     try:
         item = globals()[name]
@@ -226,7 +221,7 @@ def __dir__() -> Iterator[LiteralString]:
     yield _global("keywords", kind=frozenset)
     yield _global("tokens", kind=tuple)
     # token regexes
-    TokenMatcher = str | Callable
+    TokenMatcher = str | Callable[..., Any]
     yield _global("t_ignore", kind=TokenMatcher)
     yield _global("t_NEWLINE", kind=TokenMatcher)
     yield _global("t_comment", kind=TokenMatcher)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import ClassVar, Iterator, Self, final
 
-from ply.lex import Lexer, LexError, LexToken, lex
+from ply.lex import Lexer, LexError, LexToken, lex  # type: ignore
 
 from ..common import immutable
 from . import tokens
@@ -15,7 +15,7 @@ class TokenStream(Iterator[LexToken]):
     lexer: Lexer
 
     def next_token(self) -> LexToken | None:
-        tok = self.lexer.token()
+        tok = self.lexer.token()  # type: ignore
         if isinstance(tok, LexToken):
             return tok
         else:
@@ -41,9 +41,9 @@ class UCLexer:
         return tokens.tokens
 
     def lexer(self) -> Lexer:
-        return lex(module=tokens, optimize=False, reflags=re.VERBOSE)
+        return lex(module=tokens, optimize=False, reflags=re.VERBOSE)  # type: ignore
 
     def tokenize(self, text: str) -> TokenStream:
         lexer = self.lexer()
-        lexer.input(text)
+        lexer.input(text)  # type: ignore
         return TokenStream(lexer)
