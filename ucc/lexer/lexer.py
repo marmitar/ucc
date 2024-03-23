@@ -8,6 +8,22 @@ from ply.lex import Lexer, LexError, LexToken, lex  # type: ignore
 from ..common import immutable
 from . import tokens
 
+# @final
+# @dataclass
+# class UCToken:
+#     value: str
+#     type: str
+#     lexpos: int
+#     coord: ...
+
+#     @staticmethod
+#     def of(tok: tokens.Token) -> UCToken:
+#         line = tok.lineno
+#         line_start = str(tok.lexer.lexdata).rfind("\n", 0, tok.lexpos)
+#         column = tok.lexpos - line_start
+
+#         UCToken(str(tok.value), str(tok.type), int(tok.lexpos), ...)
+
 
 @final
 @immutable
